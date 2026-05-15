@@ -4,6 +4,7 @@ const TRANSCRIBE_SAMPLE_RATE = 16000;
 const CHUNKED_TRANSCRIPTION_THRESHOLD_SECONDS = 8;
 const CHUNK_LENGTH_SECONDS = 15;
 const STRIDE_LENGTH_SECONDS = 3;
+export const PRONUNCIATION_PASS_SCORE = 60;
 
 let localTranscriberPromise = null;
 
@@ -50,7 +51,7 @@ export function judgeTranscript({ targetPhrase, romanization, phoneticSpelling =
   const romanizationScore = similarityScore(romanization, transcript);
   const phoneticScore = similarityScore(phoneticSpelling, transcript);
   const score = Math.max(thaiScore, romanizationScore, phoneticScore);
-  const pass = score >= 70;
+  const pass = score >= PRONUNCIATION_PASS_SCORE;
 
   return {
     score,

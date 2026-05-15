@@ -8,6 +8,7 @@ const port = Number(process.env.REALTIME_SESSION_PORT || process.env.REALTIME_TO
 const model = process.env.OPENAI_REALTIME_MODEL ?? DEFAULT_REALTIME_MODEL;
 const allowedOrigin = process.env.REALTIME_ALLOWED_ORIGIN ?? '*';
 const corsHeaders = createCorsHeaders(allowedOrigin);
+const pronunciationPassScore = 60;
 
 function extractOpenAIError(status, rawText) {
   try {
@@ -46,19 +47,20 @@ function healthPayload(req) {
 
 function pronunciationInstructions(targetPhrase, romanization, phoneticSpelling, translation) {
   return [
-    'You are a strict but encouraging Thai pronunciation judge inside an RPG language-learning game.',
+    'You are a patient Thai pronunciation judge inside an RPG language-learning game for beginner learners.',
     'The coach character is Su.',
     'Listen to the user audio and judge whether they said the target Thai phrase.',
     `Target phrase: ${targetPhrase}`,
     `Romanization hint: ${romanization}`,
     `Phonetic spelling for learner: ${phoneticSpelling}`,
     `Meaning: ${translation}`,
-    'Prioritize pronunciation, tones, rhythm, and whether the words match the target.',
-    'feedback must explain exactly what sounded wrong, or what was correct if the learner passed.',
+    'Prioritize whether the words are recognizable. Be slightly forgiving about accent, tone, and rhythm.',
+    'Mark pass true when the learner is understandable enough for a beginner, even if pronunciation is not perfect.',
+    'feedback must explain what was understandable if the learner passed, or the one main issue if they failed.',
     'tip must include the correct pronunciation and a slow syllable-by-syllable repeat.',
     'Return only compact JSON with this exact shape:',
     '{"score":0,"pass":false,"heard":"","feedback":"","tip":""}',
-    'score is 0-100. pass is true only when score is 70 or higher. feedback and tip must be one short sentence each.',
+    `score is 0-100. pass is true when score is ${pronunciationPassScore} or higher. feedback and tip must be one short sentence each.`,
   ].join('\n');
 }
 
@@ -177,7 +179,7 @@ function judgeWhisperTranscript({ targetPhrase, romanization, phoneticSpelling, 
   const romanizationScore = similarityScore(romanization, transcript);
   const phoneticScore = similarityScore(phoneticSpelling, transcript);
   const score = Math.max(thaiScore, romanizationScore, phoneticScore);
-  const pass = score >= 70;
+  const pass = score >= pronunciationPassScore;
 
   return {
     score,
