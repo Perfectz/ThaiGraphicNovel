@@ -1,4 +1,5 @@
 import { type PronunciationPrompt, type PronunciationSession, type PronunciationVerdict } from './realtimePronunciation';
+import { getTutoringLevel } from './openAiSettings';
 
 type SessionOptions = {
   prompt: PronunciationPrompt;
@@ -78,6 +79,7 @@ async function judgeWithWhisperService(audioBlob: Blob, prompt: PronunciationPro
   formData.set('sampleRate', '16000');
   formData.set('targetPhrase', prompt.targetPhrase);
   formData.set('romanization', prompt.romanization);
+  formData.set('tutoringLevel', getTutoringLevel());
   if (prompt.phoneticSpelling) {
     formData.set('phoneticSpelling', prompt.phoneticSpelling);
   }

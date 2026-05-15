@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import {
   clearOpenAiApiKey,
   getStoredOpenAiApiKey,
+  getTutoringLevel,
   getVoiceJudgeMode,
   hasStoredOpenAiApiKey,
   saveOpenAiApiKey,
+  saveTutoringLevel,
   saveVoiceJudgeMode,
+  type TutoringLevel,
   type VoiceJudgeMode,
 } from '../services/openAiSettings';
 import { getSoundSettings, saveSoundSettings, type SoundSettings } from '../services/soundSettings';
@@ -26,6 +29,7 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
   const [apiKey, setApiKey] = useState('');
   const [hasSavedKey, setHasSavedKey] = useState(false);
   const [voiceJudgeMode, setVoiceJudgeMode] = useState<VoiceJudgeMode>('whisper');
+  const [tutoringLevel, setTutoringLevel] = useState<TutoringLevel>('medium');
   const [soundSettings, setSoundSettings] = useState<SoundSettings>(() => getSoundSettings());
   const voiceServiceCheckId = useRef(0);
   const [voiceServiceStatus, setVoiceServiceStatus] = useState<VoiceServiceStatus>({
@@ -39,6 +43,7 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
     setApiKey(getStoredOpenAiApiKey());
     setHasSavedKey(hasStoredOpenAiApiKey());
     setVoiceJudgeMode(getVoiceJudgeMode());
+    setTutoringLevel(getTutoringLevel());
     setSoundSettings(getSoundSettings());
     void checkVoiceServices();
   }, [isOpen]);
@@ -48,6 +53,7 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
   function saveSettings() {
     saveOpenAiApiKey(apiKey);
     saveVoiceJudgeMode(voiceJudgeMode);
+    saveTutoringLevel(tutoringLevel);
     saveSoundSettings(soundSettings);
     setHasSavedKey(hasStoredOpenAiApiKey());
     onClose();
@@ -70,6 +76,11 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
   function updateVoiceJudgeMode(nextMode: VoiceJudgeMode) {
     setVoiceJudgeMode(nextMode);
     saveVoiceJudgeMode(nextMode);
+  }
+
+  function updateTutoringLevel(nextLevel: TutoringLevel) {
+    setTutoringLevel(nextLevel);
+    saveTutoringLevel(nextLevel);
   }
 
   function openRoadmap() {
@@ -245,6 +256,31 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
           <p className="mt-3 text-sm font-bold leading-snug text-slate-700">
             Free local Whisper does not use a key. Realtime sends this key only to the local Realtime service on this machine.
           </p>
+
+          <div className="mt-4 grid gap-2">
+            <p className="text-sm font-black uppercase tracking-[0.12em] text-slate-700">Tutor Level</p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {[
+                ['easy', 'Easy', 'Friendly. Passes if a native speaker would understand.'],
+                ['medium', 'Medium', 'Balanced beginner coaching.'],
+                ['hard', 'Hard', 'Strict pronunciation, tone, and rhythm checks.'],
+              ].map(([level, label, description]) => (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => updateTutoringLevel(level as TutoringLevel)}
+                  className={`min-h-24 rounded-2xl border-4 px-3 py-3 text-left active:translate-y-1 ${
+                    tutoringLevel === level
+                      ? 'border-fuchsia-950 bg-fuchsia-200 text-fuchsia-950'
+                      : 'border-slate-950 bg-white text-slate-800'
+                  }`}
+                >
+                  <span className="block text-sm font-black uppercase tracking-[0.1em]">{label}</span>
+                  <span className="mt-2 block text-xs font-bold leading-snug">{description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="mt-4 rounded-2xl border-2 border-slate-950 bg-white px-3 py-2 text-sm font-black text-slate-800">
             {hasSavedKey ? 'A key is saved on this browser.' : 'No key saved yet.'}

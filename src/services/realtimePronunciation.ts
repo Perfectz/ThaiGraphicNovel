@@ -1,6 +1,30 @@
-import { getStoredOpenAiApiKey } from './openAiSettings';
+import { getStoredOpenAiApiKey, getTutoringLevel, type TutoringLevel } from './openAiSettings';
 
-const PRONUNCIATION_PASS_SCORE = 60;
+const TUTORING_LEVEL_SETTINGS: Record<TutoringLevel, {
+  passScore: number;
+  judgeTone: string;
+  passRule: string;
+  feedbackRule: string;
+}> = {
+  easy: {
+    passScore: 50,
+    judgeTone: 'You are Su, a friendly Thai language tutor for beginner learners.',
+    passRule: 'Mark pass true if a native Thai speaker would understand the intended phrase, even with accent, tone, or rhythm mistakes.',
+    feedbackRule: 'The feedback must name what was understandable if they passed, or the one biggest clarity issue if they failed.',
+  },
+  medium: {
+    passScore: 60,
+    judgeTone: 'You are Su, a patient Thai language tutor for beginner learners.',
+    passRule: 'Mark pass true when the learner is understandable enough for a beginner, even if pronunciation is not perfect.',
+    feedbackRule: 'The feedback must explain what was understandable if they passed, or what needs work if they failed.',
+  },
+  hard: {
+    passScore: 70,
+    judgeTone: 'You are Su, a strict but encouraging Thai pronunciation coach.',
+    passRule: 'Mark pass true only when the words match the target and pronunciation, tone, and rhythm are solid.',
+    feedbackRule: 'The feedback must explain exactly what sounded wrong, or what was correct if they passed.',
+  },
+};
 
 export type PronunciationPrompt = {
   targetPhrase: string;
@@ -64,10 +88,12 @@ type RealtimeServerEvent = {
 };
 
 function sessionEndpoint(prompt: PronunciationPrompt) {
+  const tutoringLevel = getTutoringLevel();
   const baseUrl = import.meta.env.VITE_OPENAI_REALTIME_SESSION_URL ?? '/api/realtime/session';
   const url = new URL(baseUrl, window.location.origin);
   url.searchParams.set('targetPhrase', prompt.targetPhrase);
   url.searchParams.set('romanization', prompt.romanization);
+  url.searchParams.set('tutoringLevel', tutoringLevel);
   if (prompt.phoneticSpelling) {
     url.searchParams.set('phoneticSpelling', prompt.phoneticSpelling);
   }
@@ -86,11 +112,12 @@ function extractResponseText(event: RealtimeServerEvent, bufferedText: string) {
 }
 
 function parseVerdict(rawText: string): PronunciationVerdict {
+  const tutoringSettings = TUTORING_LEVEL_SETTINGS[getTutoringLevel()];
   const jsonText = rawText.match(/\{[\s\S]*\}/)?.[0] ?? rawText;
   const parsed = JSON.parse(jsonText) as Partial<PronunciationVerdict>;
   const scoreValue = Number(parsed.score);
   const score = Number.isFinite(scoreValue) ? scoreValue : 0;
-  const passed = parsed.pass === true || score >= PRONUNCIATION_PASS_SCORE;
+  const passed = parsed.pass === true || score >= tutoringSettings.passScore;
 
   return {
     score: Math.max(0, Math.min(100, Math.round(score))),
@@ -102,20 +129,20 @@ function parseVerdict(rawText: string): PronunciationVerdict {
 }
 
 function createResponseInstructions(prompt: PronunciationPrompt) {
+  const tutoringSettings = TUTORING_LEVEL_SETTINGS[getTutoringLevel()];
   return [
     'Judge only the most recent microphone audio.',
-    'You are Su, a patient Thai language tutor for beginner learners.',
+    tutoringSettings.judgeTone,
     `Target Thai phrase: ${prompt.targetPhrase}`,
     `Romanization: ${prompt.romanization}`,
     prompt.phoneticSpelling ? `Phonetic spelling for learner: ${prompt.phoneticSpelling}` : '',
     `Meaning: ${prompt.translation}`,
-    'Be slightly forgiving about accent, tone, and rhythm when the main words are recognizable.',
-    'Mark pass true when the learner is understandable enough for a beginner, even if pronunciation is not perfect.',
-    `Use ${PRONUNCIATION_PASS_SCORE} as the passing score. Scores 60-69 are beginner passes with a small improvement tip.`,
-    'The feedback must explain what was understandable if they passed, or what needs work if they failed.',
+    tutoringSettings.passRule,
+    `Use ${tutoringSettings.passScore} as the passing score.`,
+    tutoringSettings.feedbackRule,
     'The tip must include the correct pronunciation and a slow syllable-by-syllable repeat.',
     'Return only JSON: {"score":0,"pass":false,"heard":"","feedback":"","tip":""}',
-    'feedback and tip must be one short sentence each. Do not fail for small accent differences if the target phrase is recognizable.',
+    'feedback and tip must be one short sentence each.',
   ].filter(Boolean).join('\n');
 }
 
