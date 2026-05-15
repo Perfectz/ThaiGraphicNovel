@@ -34,6 +34,7 @@ async function handleJudgeText(req, res) {
     phoneticSpelling: String(body.phoneticSpelling ?? body.romanization ?? ''),
     translation: String(body.translation ?? ''),
     transcript: String(body.transcript ?? ''),
+    tutoringLevel: String(body.tutoringLevel ?? ''),
   });
   sendJson(res, 200, verdict, corsHeaders);
 }

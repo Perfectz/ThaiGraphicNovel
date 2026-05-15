@@ -4,7 +4,20 @@ const TRANSCRIBE_SAMPLE_RATE = 16000;
 const CHUNKED_TRANSCRIPTION_THRESHOLD_SECONDS = 8;
 const CHUNK_LENGTH_SECONDS = 15;
 const STRIDE_LENGTH_SECONDS = 3;
-export const PRONUNCIATION_PASS_SCORE = 60;
+export const TUTORING_LEVELS = {
+  easy: {
+    passScore: 50,
+    description: 'friendly tutor that passes phrases a native speaker would understand',
+  },
+  medium: {
+    passScore: 60,
+    description: 'balanced beginner tutor',
+  },
+  hard: {
+    passScore: 70,
+    description: 'strict pronunciation tutor',
+  },
+};
 
 let localTranscriberPromise = null;
 
@@ -46,12 +59,14 @@ export function similarityScore(expected, actual) {
   return Math.max(0, Math.round((1 - distance / length) * 100));
 }
 
-export function judgeTranscript({ targetPhrase, romanization, phoneticSpelling = romanization, translation, transcript }) {
+export function judgeTranscript({ targetPhrase, romanization, phoneticSpelling = romanization, translation, transcript, tutoringLevel = 'medium' }) {
+  const resolvedTutoringLevel = getTutoringLevel(tutoringLevel);
+  const passScore = TUTORING_LEVELS[resolvedTutoringLevel].passScore;
   const thaiScore = similarityScore(targetPhrase, transcript);
   const romanizationScore = similarityScore(romanization, transcript);
   const phoneticScore = similarityScore(phoneticSpelling, transcript);
   const score = Math.max(thaiScore, romanizationScore, phoneticScore);
-  const pass = score >= PRONUNCIATION_PASS_SCORE;
+  const pass = score >= passScore;
 
   return {
     score,
@@ -70,7 +85,12 @@ export function readWhisperMetadata(source) {
     romanization: String(source.get?.('romanization') ?? source.romanization ?? ''),
     phoneticSpelling: String(source.get?.('phoneticSpelling') ?? source.phoneticSpelling ?? source.get?.('romanization') ?? source.romanization ?? ''),
     translation: String(source.get?.('translation') ?? source.translation ?? ''),
+    tutoringLevel: getTutoringLevel(source.get?.('tutoringLevel') ?? source.tutoringLevel),
   };
+}
+
+export function getTutoringLevel(value) {
+  return value === 'easy' || value === 'hard' ? value : 'medium';
 }
 
 export async function getLocalTranscriber({ onProgress } = {}) {
