@@ -1,5 +1,7 @@
 import { getStoredOpenAiApiKey } from './openAiSettings';
 
+const PRONUNCIATION_PASS_SCORE = 60;
+
 export type PronunciationPrompt = {
   targetPhrase: string;
   romanization: string;
@@ -88,7 +90,7 @@ function parseVerdict(rawText: string): PronunciationVerdict {
   const parsed = JSON.parse(jsonText) as Partial<PronunciationVerdict>;
   const scoreValue = Number(parsed.score);
   const score = Number.isFinite(scoreValue) ? scoreValue : 0;
-  const passed = typeof parsed.pass === 'boolean' ? parsed.pass : score >= 70;
+  const passed = parsed.pass === true || score >= PRONUNCIATION_PASS_SCORE;
 
   return {
     score: Math.max(0, Math.min(100, Math.round(score))),
@@ -102,15 +104,18 @@ function parseVerdict(rawText: string): PronunciationVerdict {
 function createResponseInstructions(prompt: PronunciationPrompt) {
   return [
     'Judge only the most recent microphone audio.',
-    'You are Su, a strict but kind Thai pronunciation coach.',
+    'You are Su, a patient Thai language tutor for beginner learners.',
     `Target Thai phrase: ${prompt.targetPhrase}`,
     `Romanization: ${prompt.romanization}`,
     prompt.phoneticSpelling ? `Phonetic spelling for learner: ${prompt.phoneticSpelling}` : '',
     `Meaning: ${prompt.translation}`,
-    'The feedback must explain what the learner said wrong, or say exactly what was correct if they passed.',
+    'Be slightly forgiving about accent, tone, and rhythm when the main words are recognizable.',
+    'Mark pass true when the learner is understandable enough for a beginner, even if pronunciation is not perfect.',
+    `Use ${PRONUNCIATION_PASS_SCORE} as the passing score. Scores 60-69 are beginner passes with a small improvement tip.`,
+    'The feedback must explain what was understandable if they passed, or what needs work if they failed.',
     'The tip must include the correct pronunciation and a slow syllable-by-syllable repeat.',
     'Return only JSON: {"score":0,"pass":false,"heard":"","feedback":"","tip":""}',
-    'feedback and tip must be one short sentence each.',
+    'feedback and tip must be one short sentence each. Do not fail for small accent differences if the target phrase is recognizable.',
   ].filter(Boolean).join('\n');
 }
 
