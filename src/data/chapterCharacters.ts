@@ -1,3 +1,4 @@
+import { charmShopVendorReactions } from './charmShopVendorReactions';
 import { frontDeskClerkReactions } from './frontDeskClerkReactions';
 import { lessonScenarios } from './lessonScenarios';
 import { streetFoodVendorReactions } from './streetFoodVendorReactions';
@@ -39,6 +40,14 @@ const chapterCharacters: ChapterCharacterDefinition[] = [
     scenarioId: 'taxi-ride',
     alt: 'Taxi driver',
     reactions: taxiDriverReactions,
+    className:
+      'left-[-4rem] h-[min(53dvh,32rem)] sm:left-[4vw] sm:h-[min(59dvh,37rem)] lg:left-[9vw]',
+  },
+  {
+    id: 'charm-shop-vendor',
+    scenarioId: 'market-bargain',
+    alt: 'Charm shop vendor',
+    reactions: charmShopVendorReactions,
     className:
       'left-[-4rem] h-[min(53dvh,32rem)] sm:left-[4vw] sm:h-[min(59dvh,37rem)] lg:left-[9vw]',
   },
