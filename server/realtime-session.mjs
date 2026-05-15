@@ -8,7 +8,30 @@ const port = Number(process.env.REALTIME_SESSION_PORT || process.env.REALTIME_TO
 const model = process.env.OPENAI_REALTIME_MODEL ?? DEFAULT_REALTIME_MODEL;
 const allowedOrigin = process.env.REALTIME_ALLOWED_ORIGIN ?? '*';
 const corsHeaders = createCorsHeaders(allowedOrigin);
-const pronunciationPassScore = 60;
+const tutoringLevelSettings = {
+  easy: {
+    passScore: 50,
+    judgeTone: 'You are a friendly Thai pronunciation judge inside an RPG language-learning game for beginner learners.',
+    passRule: 'Mark pass true if a native Thai speaker would understand the intended phrase, even with accent, tone, or rhythm mistakes.',
+    feedbackRule: 'feedback must name what was understandable if the learner passed, or the one biggest clarity issue if they failed.',
+  },
+  medium: {
+    passScore: 60,
+    judgeTone: 'You are a patient Thai pronunciation judge inside an RPG language-learning game for beginner learners.',
+    passRule: 'Mark pass true when the learner is understandable enough for a beginner, even if pronunciation is not perfect.',
+    feedbackRule: 'feedback must explain what was understandable if the learner passed, or the one main issue if they failed.',
+  },
+  hard: {
+    passScore: 70,
+    judgeTone: 'You are a strict but encouraging Thai pronunciation judge inside an RPG language-learning game.',
+    passRule: 'Mark pass true only when the words match the target and pronunciation, tone, and rhythm are solid.',
+    feedbackRule: 'feedback must explain exactly what sounded wrong, or what was correct if the learner passed.',
+  },
+};
+
+function getTutoringLevel(value) {
+  return value === 'easy' || value === 'hard' ? value : 'medium';
+}
 
 function extractOpenAIError(status, rawText) {
   try {
@@ -45,22 +68,22 @@ function healthPayload(req) {
   };
 }
 
-function pronunciationInstructions(targetPhrase, romanization, phoneticSpelling, translation) {
+function pronunciationInstructions(targetPhrase, romanization, phoneticSpelling, translation, tutoringLevel) {
+  const settings = tutoringLevelSettings[tutoringLevel];
   return [
-    'You are a patient Thai pronunciation judge inside an RPG language-learning game for beginner learners.',
+    settings.judgeTone,
     'The coach character is Su.',
     'Listen to the user audio and judge whether they said the target Thai phrase.',
     `Target phrase: ${targetPhrase}`,
     `Romanization hint: ${romanization}`,
     `Phonetic spelling for learner: ${phoneticSpelling}`,
     `Meaning: ${translation}`,
-    'Prioritize whether the words are recognizable. Be slightly forgiving about accent, tone, and rhythm.',
-    'Mark pass true when the learner is understandable enough for a beginner, even if pronunciation is not perfect.',
-    'feedback must explain what was understandable if the learner passed, or the one main issue if they failed.',
+    settings.passRule,
+    settings.feedbackRule,
     'tip must include the correct pronunciation and a slow syllable-by-syllable repeat.',
     'Return only compact JSON with this exact shape:',
     '{"score":0,"pass":false,"heard":"","feedback":"","tip":""}',
-    `score is 0-100. pass is true when score is ${pronunciationPassScore} or higher. feedback and tip must be one short sentence each.`,
+    `score is 0-100. pass is true when score is ${settings.passScore} or higher. feedback and tip must be one short sentence each.`,
   ].join('\n');
 }
 
@@ -70,11 +93,12 @@ function createSessionConfig(req) {
   const romanization = url.searchParams.get('romanization') ?? 'sawatdee khrap';
   const phoneticSpelling = url.searchParams.get('phoneticSpelling') ?? romanization;
   const translation = url.searchParams.get('translation') ?? 'hello';
+  const tutoringLevel = getTutoringLevel(url.searchParams.get('tutoringLevel'));
 
   return {
     type: 'realtime',
     model,
-    instructions: pronunciationInstructions(targetPhrase, romanization, phoneticSpelling, translation),
+    instructions: pronunciationInstructions(targetPhrase, romanization, phoneticSpelling, translation, tutoringLevel),
     audio: {
       input: {
         turn_detection: null,
@@ -174,12 +198,13 @@ function similarityScore(expected, actual) {
   return Math.max(0, Math.round((1 - distance / length) * 100));
 }
 
-function judgeWhisperTranscript({ targetPhrase, romanization, phoneticSpelling, translation, transcript }) {
+function judgeWhisperTranscript({ targetPhrase, romanization, phoneticSpelling, translation, transcript, tutoringLevel = 'medium' }) {
+  const settings = tutoringLevelSettings[getTutoringLevel(tutoringLevel)];
   const thaiScore = similarityScore(targetPhrase, transcript);
   const romanizationScore = similarityScore(romanization, transcript);
   const phoneticScore = similarityScore(phoneticSpelling, transcript);
   const score = Math.max(thaiScore, romanizationScore, phoneticScore);
-  const pass = score >= pronunciationPassScore;
+  const pass = score >= settings.passScore;
 
   return {
     score,
@@ -214,6 +239,7 @@ async function createWhisperJudgement(req, res) {
   const romanization = String(incomingForm.get('romanization') ?? 'sawatdee khrap');
   const phoneticSpelling = String(incomingForm.get('phoneticSpelling') ?? romanization);
   const translation = String(incomingForm.get('translation') ?? 'hello');
+  const tutoringLevel = getTutoringLevel(incomingForm.get('tutoringLevel'));
 
   const transcriptionForm = new FormData();
   transcriptionForm.set('file', audio, 'thai-attempt.webm');
@@ -241,7 +267,7 @@ async function createWhisperJudgement(req, res) {
   }
 
   const transcript = String(payload.text ?? '');
-  sendJson(res, 200, judgeWhisperTranscript({ targetPhrase, romanization, phoneticSpelling, translation, transcript }), corsHeaders);
+  sendJson(res, 200, judgeWhisperTranscript({ targetPhrase, romanization, phoneticSpelling, translation, transcript, tutoringLevel }), corsHeaders);
 }
 
 createServer(async (req, res) => {

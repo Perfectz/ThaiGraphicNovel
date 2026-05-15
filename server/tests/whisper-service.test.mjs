@@ -61,6 +61,19 @@ test('judgeTranscript passes beginner near-misses at the softer threshold', () =
   assert.equal(verdict.score, 62);
 });
 
+test('judgeTranscript applies easy, medium, and hard tutoring levels', () => {
+  const baseAttempt = {
+    targetPhrase: 'สวัสดีครับ',
+    romanization: 'sawatdee khrap',
+    translation: 'Hello',
+    transcript: 'sawatdee',
+  };
+
+  assert.equal(judgeTranscript({ ...baseAttempt, tutoringLevel: 'easy' }).pass, true);
+  assert.equal(judgeTranscript({ ...baseAttempt, tutoringLevel: 'medium' }).pass, true);
+  assert.equal(judgeTranscript({ ...baseAttempt, tutoringLevel: 'hard' }).pass, false);
+});
+
 test('judgeTranscript accepts learner phonetic spelling and returns phonetic retry tip', () => {
   const verdict = judgeTranscript({
     targetPhrase: 'สวัสดีครับ',
