@@ -17,6 +17,8 @@ type SuPronunciationJudgeProps = {
   verdict: PronunciationVerdict | null;
   voiceError: string;
   voiceStatus: string;
+  stageComplete?: boolean;
+  stageReport?: string[];
 };
 
 function getSuReaction({
@@ -26,6 +28,7 @@ function getSuReaction({
   verdict,
   voiceError,
   voiceStatus,
+  stageComplete,
 }: SuPronunciationJudgeProps): SuReaction {
   if (voiceError) {
     return {
@@ -63,6 +66,15 @@ function getSuReaction({
     };
   }
 
+  if (stageComplete) {
+    return {
+      index: 3,
+      title: 'Stage report ready',
+      line: 'Su wrote down your score notes and the practice focus for the next stage.',
+      toneClass: 'border-emerald-950 bg-emerald-50 text-emerald-950',
+    };
+  }
+
   if (!hasVoiceCoach) {
     return {
       index: 0,
@@ -85,7 +97,7 @@ function getSuReaction({
     return {
       index: 3,
       title: 'Excellent',
-      line: 'That was sharp. The tone and rhythm landed like real street magic.',
+      line: 'Su says that was sharp. The tone and rhythm landed clearly.',
       toneClass: 'border-emerald-950 bg-emerald-50 text-emerald-950',
     };
   }
@@ -94,7 +106,7 @@ function getSuReaction({
     return {
       index: 4,
       title: 'Good attempt',
-      line: 'Strong pronunciation. Keep that shape and push the ending sound a little cleaner.',
+      line: 'Su says that was strong. Keep that shape and clean up the ending sound.',
       toneClass: 'border-lime-950 bg-lime-50 text-lime-950',
     };
   }
@@ -103,7 +115,7 @@ function getSuReaction({
     return {
       index: 5,
       title: 'Passed',
-      line: 'Understandable. Not perfect yet, but the meaning came through clearly.',
+      line: 'Su says the meaning came through clearly enough to move on.',
       toneClass: 'border-yellow-950 bg-yellow-50 text-yellow-950',
     };
   }
@@ -142,7 +154,8 @@ function getPortraitPosition(index: number) {
 
 export function SuPronunciationJudge(props: SuPronunciationJudgeProps) {
   const reaction = getSuReaction(props);
-  const detailLine = props.voiceError || props.voiceStatus;
+  const detailLine = props.stageComplete ? '' : props.voiceError || props.voiceStatus;
+  const report = props.stageReport ?? [];
   const portraitStyle = {
     backgroundImage: `url(${suPronunciationReactionsUrl})`,
     backgroundPosition: getPortraitPosition(reaction.index),
@@ -150,8 +163,8 @@ export function SuPronunciationJudge(props: SuPronunciationJudgeProps) {
   };
 
   return (
-    <div className={`grid grid-cols-[5.25rem_1fr] items-center gap-3 rounded-2xl border-[3px] p-2 shadow-md sm:grid-cols-[6.25rem_1fr] ${reaction.toneClass}`}>
-      <div className="relative aspect-square overflow-hidden rounded-xl border-[3px] border-slate-950 bg-slate-950">
+    <div className={`grid grid-cols-[4.75rem_1fr] items-start gap-3 rounded-2xl border p-2 shadow-sm sm:grid-cols-[5.75rem_1fr] ${reaction.toneClass}`}>
+      <div className="relative aspect-square overflow-hidden rounded-xl border border-slate-950/30 bg-slate-950">
         <div className="absolute inset-0 bg-cover bg-no-repeat" style={portraitStyle} aria-hidden="true" />
       </div>
       <div className="min-w-0">
@@ -159,6 +172,42 @@ export function SuPronunciationJudge(props: SuPronunciationJudgeProps) {
         <p className="text-base font-black leading-tight sm:text-lg">{reaction.title}</p>
         <p className="mt-1 text-sm font-bold leading-snug">{reaction.line}</p>
         {detailLine ? <p className="mt-1 text-xs font-black leading-snug opacity-80">{detailLine}</p> : null}
+        {props.verdict ? (
+          <div className="mt-2 grid gap-1.5 text-xs font-bold leading-snug">
+            <div className="grid grid-cols-[5.75rem_1fr] gap-2">
+              <span className="font-black uppercase tracking-[0.12em] opacity-70">Score</span>
+              <span>
+                {props.verdict.score}/100 - {props.verdict.pass ? 'Passed' : 'Needs practice'}
+              </span>
+            </div>
+            {props.verdict.heard ? (
+              <div className="grid grid-cols-[5.75rem_1fr] gap-2">
+                <span className="font-black uppercase tracking-[0.12em] opacity-70">Heard</span>
+                <span className="min-w-0 break-words">{props.verdict.heard}</span>
+              </div>
+            ) : null}
+            <div className="grid grid-cols-[5.75rem_1fr] gap-2">
+              <span className="font-black uppercase tracking-[0.12em] opacity-70">Su Feedback</span>
+              <span className="min-w-0 break-words">{props.verdict.feedback}</span>
+            </div>
+            <div className="grid grid-cols-[5.75rem_1fr] gap-2">
+              <span className="font-black uppercase tracking-[0.12em] opacity-70">Su Tip</span>
+              <span className="min-w-0 break-words">{props.verdict.tip}</span>
+            </div>
+          </div>
+        ) : null}
+        {props.stageComplete && report.length > 0 ? (
+          <div className="mt-2 border-t border-current/20 pt-2">
+            <p className="font-display text-[10px] font-black uppercase tracking-[0.16em] opacity-80">End of Stage Report</p>
+            <ul className="mt-1 grid gap-1 text-xs font-bold leading-snug">
+              {report.map((item) => (
+                <li key={item} className="min-w-0 break-words">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </div>
   );

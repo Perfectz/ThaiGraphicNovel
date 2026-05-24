@@ -9,6 +9,7 @@ import howMuchAudio from '../../humandropbox/raa khaa tao rai khrap.mp3';
 import helloAudio from '../../humandropbox/sawatdee khrap.mp3';
 import niceToMeetYouAudio from '../../humandropbox/yin dee tee dai roo jak khrap.mp3';
 import { type ThaiPhrase } from '../data/thaiPhrases';
+import { generatedPhraseAudioById } from '../generated/conversationAudioManifest';
 
 const phraseAudioById: Partial<Record<string, string>> = {
   hello: helloAudio,
@@ -24,5 +25,5 @@ const phraseAudioById: Partial<Record<string, string>> = {
 };
 
 export function getPhraseAudioSrc(phrase: ThaiPhrase): string | undefined {
-  return phraseAudioById[phrase.id];
+  return generatedPhraseAudioById[phrase.id] ?? phraseAudioById[phrase.id];
 }

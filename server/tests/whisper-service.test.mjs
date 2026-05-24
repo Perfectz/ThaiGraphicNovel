@@ -85,6 +85,8 @@ test('judgeTranscript accepts learner phonetic spelling and returns phonetic ret
 
   assert.equal(verdict.pass, true);
   assert.equal(verdict.score, 100);
+  assert.match(verdict.feedback, /^Su heard/);
+  assert.match(verdict.tip, /^Su says/);
 
   const retry = judgeTranscript({
     targetPhrase: 'สวัสดีครับ',
@@ -93,6 +95,8 @@ test('judgeTranscript accepts learner phonetic spelling and returns phonetic ret
     translation: 'Hello',
     transcript: 'bathroom please',
   });
+  assert.match(retry.feedback, /^Su heard/);
+  assert.match(retry.tip, /^Su says/);
   assert.match(retry.tip, /sah-waht-dee krahp/);
 });
 

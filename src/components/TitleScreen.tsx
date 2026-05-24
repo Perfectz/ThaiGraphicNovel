@@ -1,16 +1,19 @@
-import suBattleSpriteUrl from '../assets/battle/su-battle-sprite.png';
 import { useGameStore } from '../store/gameStore';
-import { TitleSpaceBackdrop } from './TitleSpaceBackdrop';
+import { TitleThreeScene } from './TitleThreeScene';
+
+function getCharacterDebugUrl() {
+  const baseUrl = import.meta.env.BASE_URL;
+  return `${baseUrl}${baseUrl.endsWith('/') ? '' : '/'}character-debug`;
+}
 
 export function TitleScreen() {
   const hasSavedGame = useGameStore((state) => state.hasSavedGame);
   const completedTutorial = useGameStore((state) => state.completedTutorial);
-  const startAdventure = useGameStore((state) => state.startAdventure);
   const continueAdventure = useGameStore((state) => state.continueAdventure);
 
   return (
-    <main className="title-screen title-vn title-space relative h-dvh min-h-[640px] w-screen overflow-hidden bg-[#020312] text-slate-50">
-      <TitleSpaceBackdrop />
+    <main className="title-screen title-vn title-space relative h-dvh min-h-[620px] w-screen overflow-hidden bg-[#020312] text-slate-50">
+      <TitleThreeScene />
       <div className="title-space-haze absolute inset-0" />
       <div className="title-space-scan absolute inset-0" />
 
@@ -38,66 +41,44 @@ export function TitleScreen() {
               <span className="block text-cyan-200">Thai Quest</span>
             </h1>
 
-            <div className="mt-4 max-w-2xl border border-cyan-100/35 bg-slate-950/58 p-4 shadow-[0_20px_60px_rgba(2,6,23,0.5)] backdrop-blur-md sm:p-4">
+            <div className="title-panel-glass mt-4 max-w-2xl p-4 sm:p-4">
               <div className="mb-3 flex items-center gap-2">
                 <span className="bg-cyan-200 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-slate-950">Su</span>
                 <span className="h-px flex-1 bg-cyan-100/30" />
               </div>
               <p className="text-base font-black leading-relaxed text-slate-50 sm:text-lg">
-                You fell through the rift again, Patrick. This time, every Thai phrase is a choice that changes the scene.
+                Patrick wakes in the Chao Phraya Star Hotel. Su is across the room, and the first spell is learning how to say hello.
               </p>
             </div>
           </div>
 
-          <div className="relative min-h-[22rem] sm:min-h-[29rem]">
-            <div className="absolute inset-x-6 bottom-6 top-6 rotate-2 border border-cyan-100/30 bg-gradient-to-br from-white/10 via-cyan-200/10 to-fuchsia-300/12 shadow-[0_0_70px_rgba(34,211,238,0.22)] backdrop-blur-[2px]" />
-            <div className="absolute right-0 top-8 z-0 h-28 w-28 border border-yellow-100/40 bg-yellow-200/16 shadow-[0_0_35px_rgba(250,204,21,0.28)] sm:right-6 sm:h-36 sm:w-36" />
-            <div className="absolute left-2 top-16 z-0 h-20 w-20 -rotate-12 border border-fuchsia-100/40 bg-fuchsia-300/18 shadow-[0_0_35px_rgba(217,70,239,0.26)] sm:left-0 sm:h-28 sm:w-28" />
-            <img
-              src={suBattleSpriteUrl}
-              alt="Su"
-              className="absolute bottom-0 left-1/2 z-10 h-[min(66vh,34rem)] max-h-full -translate-x-1/2 object-contain drop-shadow-[0_0_36px_rgba(34,211,238,0.28)] sm:h-[min(64vh,35rem)]"
-              draggable={false}
-            />
+          <div className="relative min-h-[20rem] sm:min-h-[29rem]" aria-hidden="true">
             <div className="absolute bottom-4 right-2 z-20 rotate-3 border border-cyan-100/50 bg-slate-950/72 px-4 py-2 text-sm font-black uppercase tracking-[0.14em] text-cyan-50 shadow-[0_0_26px_rgba(34,211,238,0.24)] backdrop-blur-md sm:bottom-2 sm:right-4">
-              Language Coach
+              3D Su Online
+            </div>
+            <div className="absolute right-4 top-10 z-20 max-w-52 border border-fuchsia-100/40 bg-fuchsia-400/14 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-fuchsia-50 shadow-[0_0_30px_rgba(217,70,239,0.24)] backdrop-blur-md sm:right-10">
+              Rift training field active
             </div>
           </div>
         </div>
 
-        <div className="relative z-20 grid gap-3 border border-cyan-100/35 bg-slate-950/66 p-3 text-slate-50 shadow-[0_22px_80px_rgba(2,6,23,0.58)] backdrop-blur-md sm:grid-cols-[1fr_auto] sm:p-3">
-          <div className="grid grid-cols-3 gap-2 text-center text-[9px] font-black uppercase tracking-[0.08em] text-slate-200 sm:max-w-md sm:text-[10px]">
-            <div className="border border-fuchsia-100/35 bg-fuchsia-300/12 px-2 py-3">
-              <span className="block text-lg text-fuchsia-200">10</span>
-              Scenes
-            </div>
-            <div className="border border-cyan-100/35 bg-cyan-300/12 px-2 py-3">
-              <span className="block text-lg text-cyan-200">Gear</span>
-              Rewards
-            </div>
-            <div className="border border-yellow-100/35 bg-yellow-200/12 px-2 py-3">
-              <span className="block text-lg text-yellow-100">Voice</span>
-              Choices
-            </div>
-          </div>
-
-          <div className="grid gap-2 sm:w-72">
+        <div className="relative z-20 flex justify-end pb-1">
+          <div className="title-panel-glass grid gap-2 p-3 text-slate-50 sm:w-72">
             {hasSavedGame ? (
               <button
                 type="button"
                 onClick={continueAdventure}
-                className="border border-cyan-100/70 bg-cyan-300 px-5 py-3 text-left text-sm font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.28)] transition-transform hover:-translate-y-0.5 active:translate-y-1 sm:text-base"
+                className="vn-action-button bg-cyan-300 px-5 py-3 text-left text-sm font-black uppercase tracking-[0.14em] text-slate-950 sm:text-base"
               >
                 Continue
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={startAdventure}
-              className="border border-fuchsia-100/70 bg-fuchsia-400 px-5 py-3 text-left text-sm font-black uppercase tracking-[0.14em] text-white shadow-[0_0_30px_rgba(217,70,239,0.32)] transition-transform hover:-translate-y-0.5 active:translate-y-1 sm:text-base"
+            <a
+              href={getCharacterDebugUrl()}
+              className="vn-action-button bg-fuchsia-400 px-5 py-3 text-left text-sm font-black uppercase tracking-[0.14em] text-white sm:text-base"
             >
-              Start Adventure
-            </button>
+              Start Level 1
+            </a>
             {completedTutorial ? (
               <p className="border-2 border-emerald-950 bg-emerald-100 px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-900">
                 Save found: tutorial battle completed

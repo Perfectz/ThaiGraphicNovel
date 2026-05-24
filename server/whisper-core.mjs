@@ -73,9 +73,9 @@ export function judgeTranscript({ targetPhrase, romanization, phoneticSpelling =
     pass,
     heard: String(transcript ?? ''),
     feedback: pass
-      ? `Whisper heard the ${translation} phrase clearly enough.`
-      : `Whisper heard "${transcript || 'nothing clear'}" instead of the target phrase.`,
-    tip: pass ? 'Good. Keep the rhythm steady.' : `Try again slowly: ${phoneticSpelling}.`,
+      ? `Su heard the ${translation} phrase clearly enough.`
+      : `Su heard "${transcript || 'nothing clear'}" instead of the target phrase.`,
+    tip: pass ? 'Su says to keep the rhythm steady.' : `Su says to try again slowly: ${phoneticSpelling}.`,
   };
 }
 

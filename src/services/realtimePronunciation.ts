@@ -53,6 +53,7 @@ type SessionOptions = {
   onStatus: (status: string) => void;
   onVerdict: (verdict: PronunciationVerdict) => void;
   onError: (message: string) => void;
+  enableFailureCoachingAudio?: boolean;
 };
 
 type RealtimeResponseKind = 'idle' | 'verdict' | 'su-audio';
@@ -111,6 +112,11 @@ function extractResponseText(event: RealtimeServerEvent, bufferedText: string) {
     .trim();
 }
 
+function isBenignRealtimeError(event: RealtimeServerEvent) {
+  const message = `${event.error?.message ?? ''} ${event.error?.code ?? ''}`.toLowerCase();
+  return message.includes('cancellation failed') && message.includes('no active response');
+}
+
 function parseVerdict(rawText: string): PronunciationVerdict {
   const tutoringSettings = TUTORING_LEVEL_SETTINGS[getTutoringLevel()];
   const jsonText = rawText.match(/\{[\s\S]*\}/)?.[0] ?? rawText;
@@ -140,9 +146,11 @@ function createResponseInstructions(prompt: PronunciationPrompt) {
     tutoringSettings.passRule,
     `Use ${tutoringSettings.passScore} as the passing score.`,
     tutoringSettings.feedbackRule,
-    'The tip must include the correct pronunciation and a slow syllable-by-syllable repeat.',
+    'Write feedback and tip in English only, as Su speaking to Patrick.',
+    'Do not use Thai script in feedback or tip; use the romanization or phonetic spelling when you need to show pronunciation.',
+    'The tip must include the correct pronunciation using romanization or phonetic spelling and a slow syllable-by-syllable repeat.',
     'Return only JSON: {"score":0,"pass":false,"heard":"","feedback":"","tip":""}',
-    'feedback and tip must be one short sentence each.',
+    'feedback and tip must be one short English sentence each.',
   ].filter(Boolean).join('\n');
 }
 
@@ -172,6 +180,7 @@ export async function createPronunciationSession({
   onStatus,
   onVerdict,
   onError,
+  enableFailureCoachingAudio = true,
 }: SessionOptions): Promise<PronunciationSession> {
   onStatus('Requesting microphone access...');
   const stream = await navigator.mediaDevices.getUserMedia({
@@ -206,6 +215,9 @@ export async function createPronunciationSession({
   let responseText = '';
   let responseKind: RealtimeResponseKind = 'idle';
   let suAudioTimeout: number | undefined;
+  let pendingSuCoaching: PronunciationVerdict | null = null;
+  let isCancellingSuAudio = false;
+  let ignoreNextCancelledResponse = false;
   let isRecording = false;
 
   dataChannel.addEventListener('open', () => {
@@ -216,6 +228,9 @@ export async function createPronunciationSession({
     const event = JSON.parse(message.data) as RealtimeServerEvent;
 
     if (event.type === 'error') {
+      if (isBenignRealtimeError(event)) {
+        return;
+      }
       if (suAudioTimeout !== undefined) {
         window.clearTimeout(suAudioTimeout);
         suAudioTimeout = undefined;
@@ -241,6 +256,30 @@ export async function createPronunciationSession({
       const text = extractResponseText(event, responseText);
       responseText = '';
       const responseStatus = event.response?.status;
+      if (ignoreNextCancelledResponse) {
+        if (suAudioTimeout !== undefined) {
+          window.clearTimeout(suAudioTimeout);
+          suAudioTimeout = undefined;
+        }
+        ignoreNextCancelledResponse = false;
+        isCancellingSuAudio = false;
+        return;
+      }
+      if (completedKind === 'su-audio' && isCancellingSuAudio) {
+        if (suAudioTimeout !== undefined) {
+          window.clearTimeout(suAudioTimeout);
+          suAudioTimeout = undefined;
+        }
+        isCancellingSuAudio = false;
+        if (pendingSuCoaching) {
+          const nextVerdict = pendingSuCoaching;
+          pendingSuCoaching = null;
+          speakSuCoaching(nextVerdict);
+          return;
+        }
+        onStatus('Su paused the old line. Hold to try again.');
+        return;
+      }
       if (responseStatus === 'failed' || responseStatus === 'incomplete') {
         if (suAudioTimeout !== undefined) {
           window.clearTimeout(suAudioTimeout);
@@ -257,6 +296,12 @@ export async function createPronunciationSession({
           window.clearTimeout(suAudioTimeout);
           suAudioTimeout = undefined;
         }
+        if (pendingSuCoaching) {
+          const nextVerdict = pendingSuCoaching;
+          pendingSuCoaching = null;
+          speakSuCoaching(nextVerdict);
+          return;
+        }
         onStatus('Su finished coaching. Hold to try again.');
         return;
       }
@@ -266,10 +311,14 @@ export async function createPronunciationSession({
           const verdict = parseVerdict(text);
           onVerdict(verdict);
           if (verdict.pass) {
-            onStatus('Good pronunciation. Hold for the next phrase.');
+            onStatus('Good job. Su accepted the phrase. Hold for the next one.');
             return;
           }
-          speakSuCoaching(verdict);
+          if (enableFailureCoachingAudio) {
+            speakSuCoaching(verdict);
+            return;
+          }
+          onStatus('Su correction is ready. Read the feedback, then try again.');
         } catch {
           onError(`Could not parse pronunciation verdict: ${text || 'empty response'}`);
         }
@@ -349,8 +398,33 @@ export async function createPronunciationSession({
     suAudioTimeout = undefined;
   }
 
-  function speakSuCoaching(verdict: PronunciationVerdict) {
+  function cancelActiveSuAudio() {
+    if (responseKind !== 'su-audio') return;
     cancelSuAudioTimeout();
+    isCancellingSuAudio = true;
+    sendEvent({ type: 'response.cancel' });
+  }
+
+  function abandonActiveResponse() {
+    if (responseKind === 'idle') return;
+    cancelSuAudioTimeout();
+    pendingSuCoaching = null;
+    isCancellingSuAudio = false;
+    ignoreNextCancelledResponse = true;
+    sendEvent({ type: 'response.cancel' });
+    responseKind = 'idle';
+  }
+
+  function speakSuCoaching(verdict: PronunciationVerdict) {
+    if (responseKind === 'su-audio') {
+      pendingSuCoaching = verdict;
+      onStatus('Su is switching to the newest correction...');
+      cancelActiveSuAudio();
+      return;
+    }
+
+    cancelSuAudioTimeout();
+    isCancellingSuAudio = false;
     responseKind = 'su-audio';
     onStatus('Su is giving a short correction...');
     sendEvent({
@@ -380,10 +454,12 @@ export async function createPronunciationSession({
     },
     startRecording: () => {
       if (isRecording) return;
+      const shouldCancelResponse = responseKind !== 'idle';
       responseText = '';
-      cancelSuAudioTimeout();
-      responseKind = 'idle';
-      sendEvent({ type: 'response.cancel' });
+      pendingSuCoaching = null;
+      if (shouldCancelResponse) {
+        abandonActiveResponse();
+      }
       sendEvent({ type: 'input_audio_buffer.clear' });
       audioTrack.enabled = true;
       isRecording = true;
@@ -406,6 +482,7 @@ export async function createPronunciationSession({
     },
     disconnect: () => {
       cancelSuAudioTimeout();
+      pendingSuCoaching = null;
       audioTrack.enabled = false;
       remoteAudio.pause();
       remoteAudio.srcObject = null;

@@ -3,6 +3,7 @@ export type DialogueLine = {
   text: string;
   thai?: string;
   translation?: string;
+  spokenText?: string;
 };
 
 export const suTutorialDialogue: DialogueLine[] = [
@@ -12,17 +13,17 @@ export const suTutorialDialogue: DialogueLine[] = [
   },
   {
     speaker: 'Su',
-    text: 'Patrick! You are awake. Do not panic. You fell through the Bangkok rift and landed in the lobby of the Chao Phraya Star Hotel.',
+    text: 'สวัสดี (hello - sawatdee), Patrick! You are awake. Do not panic. You fell through the Bangkok rift and landed in the lobby of the Chao Phraya Star Hotel.',
   },
   {
     speaker: 'Su',
-    text: 'Before you step outside, you need your first kind of magic: polite Thai. We will start with:',
+    text: 'ไม่เป็นไร (it is okay - mai pen rai). Before you step outside, you need your first kind of magic: polite Thai. We will start with:',
     thai: 'สวัสดีครับ',
     translation: 'Hello',
   },
   {
     speaker: 'Su',
-    text: 'I will teach you ten Thai basics you can use every day: greeting, checking in, food, tiredness, gratitude, apologies, care, and a gentle goodnight.',
+    text: 'วันนี้ (today - wan nee), I will teach you ten Thai basics you can use every day: greeting, checking in, food, tiredness, gratitude, apologies, care, and a gentle goodnight.',
   },
   {
     speaker: 'Patrick',
@@ -30,7 +31,8 @@ export const suTutorialDialogue: DialogueLine[] = [
   },
   {
     speaker: 'Su',
-    text: 'Exactly. Say each phrase into the AI mic. Clear pronunciation builds Understanding and completes your first Thai lesson.',
+    text: 'ใช่ (yes - chai). Battle rules, tiny rift hero: hold Speak and talk, release to let the AI judge, tap Hear for my example, Review to retry, and Skip only if your mouth has dramatically resigned. พร้อมไหม (ready? - phrom mai)',
+    spokenText: 'Chai, yes. Battle tutorial speedrun. Hold Speak and talk, then release so the AI can judge your pronunciation. Tap Hear if your ears need snacks, Review to redo the last phrase, and Skip only if your mouth has entered witness protection. Phrom mai, ready? Try not to duel the Thai language like it owes you rent.',
   },
 ];
 
@@ -60,7 +62,8 @@ export function buildScenarioDialogue(scenario: {
     },
     {
       speaker: 'Su',
-      text: `Yes. Clear the chunks to earn ${scenario.equipmentReward.name} and charge ${scenario.superMove.name}.`,
+      text: `Yes. Before the encounter: hold Speak and talk, release for the AI judge, use Hear for my example, Review for the previous phrase, and Skip only when your tongue is filing a formal complaint. Clear the chunks to earn ${scenario.equipmentReward.name} and charge ${scenario.superMove.name}.`,
+      spokenText: `Stage ${scenario.scenarioNumber} briefing. Hold Speak and talk, release for the AI judge, tap Hear for my perfect example, Review the previous phrase when your brain drops a receipt, and Skip only in a pronunciation emergency. Clear the chunks to earn ${scenario.equipmentReward.name} and charge ${scenario.superMove.name}. Let's cause educational chaos politely.`,
     },
   ];
 }

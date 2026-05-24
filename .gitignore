@@ -11,8 +11,12 @@ yarn-error.log*
 pnpm-debug.log*
 .codex-run-logs/
 thai-quest-demo-video/
+tmp/
+pride_park_storyboard_first_5.md
 
 # Local drop box and source art exports stay local unless copied into src/assets.
+humandropbox/*.mp3
+humandropbox/*.wav
 humandropbox/*.glb
 humandropbox/*.zip
 humandropbox/*.fbx

@@ -11,6 +11,10 @@
     "test:whisper": "node --test server/tests/whisper-service.test.mjs",
     "test:whisper:silence": "node server/tests/whisper-live-smoke.mjs --silence",
     "test:whisper:live": "node server/tests/whisper-live-smoke.mjs",
+    "audio:plan": "node scripts/generate-conversation-audio.mjs --dry-run",
+    "audio:generate": "node scripts/generate-conversation-audio.mjs",
+    "audio:su:plan": "node scripts/generate-stage-one-su-audio.mjs --dry-run",
+    "audio:su:generate": "node scripts/generate-stage-one-su-audio.mjs",
     "build": "tsc -b && vite build",
     "build:pages": "node scripts/build-pages.mjs",
     "preview": "vite preview --host 0.0.0.0"
@@ -32,6 +36,7 @@
     "postcss": "latest",
     "tailwindcss": "^3.4.17",
     "typescript": "latest",
-    "vite": "latest"
+    "vite": "latest",
+    "ws": "^8.21.0"
   }
 }

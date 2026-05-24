@@ -1,8 +1,19 @@
 import { create } from 'zustand';
-import { lessonScenarios, starterScenario, type LessonScenario } from '../data/lessonScenarios';
-import { suThaiBasicsTrial } from '../data/enemies';
+import { type LessonScenario } from '../data/lessonScenarios';
 import { startPosition, suPosition, type GridPosition } from '../data/map';
+import { type ThaiPhrase } from '../data/thaiPhrases';
 import { buildScenarioDialogue } from '../data/dialogue';
+import {
+  completeScenario,
+  createBattleStateForScenario,
+  createInitialBattleState,
+  createSaveSnapshot,
+  getScenarioByIndex,
+  getScenarioIndex,
+  getScenarioPhrases as getScenarioPhrasesByIndex,
+  type BattleState,
+  type PronunciationAttempt,
+} from '../domain/scenarioRules';
 import {
   resolveBattleTurn,
   resolvePronunciationTurn,
@@ -12,22 +23,7 @@ import {
 import { isInsideMap, isSamePosition } from '../systems/movement';
 import { loadSave, writeSave, type SaveData } from '../systems/saveSystem';
 
-export type GameScene = 'title' | 'overworld' | 'dialogue' | 'battle';
-
-export type BattleState = {
-  enemyName: string;
-  enemyConfidence: number;
-  enemyMaxConfidence: number;
-  courage: number;
-  maxCourage: number;
-  superCharge: number;
-  maxSuperCharge: number;
-  phraseIndex: number;
-  reviewPhraseIndex: number | null;
-  phrasesPassed: number;
-  log: string[];
-  hasWon: boolean;
-};
+export type GameScene = 'title' | 'overworld' | 'pointClickAdventure' | 'dialogue' | 'battle';
 
 type GameStore = {
   currentScene: GameScene;
@@ -47,6 +43,7 @@ type GameStore = {
   setTargetPosition: (position: GridPosition) => void;
   setPlayerPosition: (position: GridPosition) => void;
   startTutorialDialogue: () => void;
+  finishPointClickAdventure: () => void;
   getActiveScenario: () => LessonScenario;
   getActivePhrases: () => LessonScenario['chunks'][number]['phrases'];
   advanceDialogue: () => void;
@@ -56,33 +53,6 @@ type GameStore = {
   returnToOverworld: () => void;
 };
 
-const initialBattleState = (): BattleState => ({
-  enemyName: suThaiBasicsTrial.name,
-  enemyConfidence: suThaiBasicsTrial.maxConfidence,
-  enemyMaxConfidence: suThaiBasicsTrial.maxConfidence,
-  courage: 22,
-  maxCourage: 30,
-  superCharge: 0,
-  maxSuperCharge: 3,
-  phraseIndex: 0,
-  reviewPhraseIndex: null,
-  phrasesPassed: 0,
-  log: [
-    suThaiBasicsTrial.openingLine,
-    `${starterScenario.title}: say each phrase clearly with your voice to complete the lesson.`,
-  ],
-  hasWon: false,
-});
-
-function getScenarioIndex(index: number): number {
-  return Math.max(0, Math.min(index, lessonScenarios.length - 1));
-}
-
-function getScenarioPhrases(index: number) {
-  const scenario = lessonScenarios[getScenarioIndex(index)] ?? lessonScenarios[0];
-  return scenario.chunks.flatMap((chunk) => chunk.phrases);
-}
-
 function saveProgress(
   hasStarted: boolean,
   completedTutorial: boolean,
@@ -90,15 +60,89 @@ function saveProgress(
   activeScenarioIndex: number,
   completedScenarioIds: string[],
 ): SaveData {
-  const saveData = {
-    hasStarted,
-    completedTutorial,
-    activeScenarioIndex: getScenarioIndex(activeScenarioIndex),
-    completedScenarioIds,
-    lastPlayerPosition,
-  };
+  const saveData = createSaveSnapshot(hasStarted, completedTutorial, lastPlayerPosition, activeScenarioIndex, completedScenarioIds);
   writeSave(saveData);
   return saveData;
+}
+
+function createPronunciationAttempt(
+  phrase: ThaiPhrase,
+  pronunciation: PronunciationBattleResult,
+  isReview: boolean,
+): PronunciationAttempt {
+  return {
+    phraseId: phrase.id,
+    phrase: phrase.targetPhrase,
+    romanization: phrase.romanization,
+    translation: phrase.translation,
+    score: pronunciation.score,
+    pass: pronunciation.pass,
+    heard: pronunciation.heard,
+    feedback: pronunciation.feedback,
+    tip: pronunciation.tip,
+    isReview,
+    isSkipped: false,
+  };
+}
+
+function createSkippedAttempt(phrase: ThaiPhrase): PronunciationAttempt {
+  return {
+    phraseId: phrase.id,
+    phrase: phrase.targetPhrase,
+    romanization: phrase.romanization,
+    translation: phrase.translation,
+    score: 0,
+    pass: false,
+    heard: 'Skipped',
+    feedback: `Skipped "${phrase.translation}".`,
+    tip: `Practice ${phrase.romanization} slowly before moving on.`,
+    isReview: false,
+    isSkipped: true,
+  };
+}
+
+function getScenarioStartScene(scenario: LessonScenario): GameScene {
+  return scenario.id === 'front-desk-check-in' ? 'pointClickAdventure' : 'dialogue';
+}
+
+function createStagePracticeReport(attempts: PronunciationAttempt[], phrases: ThaiPhrase[]): string[] {
+  const lessonAttempts = attempts.filter((attempt) => !attempt.isReview);
+  if (lessonAttempts.length === 0) {
+    return ['No pronunciation attempts were recorded for this stage. Replay the lesson and say each phrase out loud.'];
+  }
+
+  const scoredAttempts = lessonAttempts.filter((attempt) => !attempt.isSkipped);
+  const averageScore = scoredAttempts.length
+    ? Math.round(scoredAttempts.reduce((total, attempt) => total + attempt.score, 0) / scoredAttempts.length)
+    : 0;
+  const missedAttempts = lessonAttempts
+    .filter((attempt) => !attempt.pass)
+    .sort((a, b) => a.score - b.score);
+  const hardestAttempts = (missedAttempts.length ? missedAttempts : lessonAttempts)
+    .slice()
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 3);
+  const passedCount = lessonAttempts.filter((attempt) => attempt.pass).length;
+  const skippedCount = lessonAttempts.filter((attempt) => attempt.isSkipped).length;
+  const phrasesTouched = new Set(lessonAttempts.map((attempt) => attempt.phraseId)).size;
+
+  const report = [
+    `Stage score: ${passedCount}/${phrases.length} phrases passed, average ${averageScore}/100 across ${scoredAttempts.length} spoken attempt${scoredAttempts.length === 1 ? '' : 's'}.`,
+    `Coverage: ${phrasesTouched}/${phrases.length} phrases practiced${skippedCount ? `, ${skippedCount} skipped` : ''}.`,
+  ];
+
+  hardestAttempts.forEach((attempt, index) => {
+    const focus = attempt.isSkipped
+      ? `Say "${attempt.romanization}" from scratch and connect it to "${attempt.translation}".`
+      : attempt.tip || attempt.feedback || `Repeat "${attempt.romanization}" slowly, then at normal speed.`;
+    report.push(`Focus ${index + 1}: ${attempt.translation} (${attempt.romanization}) - ${focus}`);
+  });
+
+  if (missedAttempts.length === 0 && skippedCount === 0) {
+    report.push('Next practice: keep the same rhythm, then speed up without losing the final polite sound.');
+  }
+
+  return report;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -110,7 +154,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerPosition: startPosition,
   targetPosition: null,
   dialogueIndex: 0,
-  battle: initialBattleState(),
+  battle: createInitialBattleState(),
   saveData: null,
   hasSavedGame: false,
 
@@ -140,7 +184,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       playerPosition: startPosition,
       targetPosition: null,
       dialogueIndex: 0,
-      battle: initialBattleState(),
+      battle: createInitialBattleState(),
       saveData,
       hasSavedGame: true,
     });
@@ -162,7 +206,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       playerPosition: saveData.lastPlayerPosition,
       targetPosition: null,
       dialogueIndex: 0,
-      battle: initialBattleState(),
+      battle: createInitialBattleState(),
       saveData,
       hasSavedGame: true,
     });
@@ -177,8 +221,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!isInsideMap(position)) return;
 
     const { activeScenarioIndex, completedScenarioIds, completedTutorial, hasStarted, targetPosition } = get();
-    const activeScenario = lessonScenarios[activeScenarioIndex] ?? lessonScenarios[0];
+    const activeScenario = getScenarioByIndex(activeScenarioIndex);
     const shouldStartDialogue = isSamePosition(position, suPosition);
+    const startScene = getScenarioStartScene(activeScenario);
     const reachedTarget = targetPosition ? isSamePosition(position, targetPosition) : false;
     const saveData = saveProgress(hasStarted, completedTutorial, position, activeScenarioIndex, completedScenarioIds);
 
@@ -186,10 +231,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       playerPosition: position,
       saveData,
       hasSavedGame: true,
-      currentScene: shouldStartDialogue ? 'dialogue' : get().currentScene,
+      currentScene: shouldStartDialogue ? startScene : get().currentScene,
       targetPosition: shouldStartDialogue || reachedTarget ? null : targetPosition,
       dialogueIndex: shouldStartDialogue ? 0 : get().dialogueIndex,
-      battle: shouldStartDialogue ? initialBattleStateForScenario(activeScenario) : get().battle,
+      battle: shouldStartDialogue ? createBattleStateForScenario(activeScenario) : get().battle,
     });
   },
 
@@ -197,21 +242,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { currentScene } = get();
     if (currentScene !== 'overworld') return;
 
+    const activeScenario = get().getActiveScenario();
+    set({
+      currentScene: getScenarioStartScene(activeScenario),
+      targetPosition: null,
+      dialogueIndex: 0,
+      battle: createBattleStateForScenario(activeScenario),
+    });
+  },
+
+  finishPointClickAdventure: () => {
+    const activeScenario = get().getActiveScenario();
+    if (activeScenario.id !== 'front-desk-check-in') return;
+
     set({
       currentScene: 'dialogue',
       targetPosition: null,
       dialogueIndex: 0,
+      battle: createBattleStateForScenario(activeScenario),
     });
   },
 
   getActiveScenario: () => {
     const { activeScenarioIndex } = get();
-    return lessonScenarios[getScenarioIndex(activeScenarioIndex)] ?? lessonScenarios[0];
+    return getScenarioByIndex(activeScenarioIndex);
   },
 
   getActivePhrases: () => {
     const { activeScenarioIndex } = get();
-    return getScenarioPhrases(activeScenarioIndex);
+    return getScenarioPhrasesByIndex(activeScenarioIndex);
   },
 
   advanceDialogue: () => {
@@ -225,7 +284,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       currentScene: 'battle',
       dialogueIndex: 0,
-      battle: initialBattleStateForScenario(get().getActiveScenario()),
+      battle: createBattleStateForScenario(get().getActiveScenario()),
     });
   },
 
@@ -265,6 +324,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const nextCourage = Math.max(0, Math.min(battle.maxCourage, battle.courage + result.courageDelta));
       const hasWon = nextPhrasesPassed >= activePhrases.length;
       const nextPhrase = activePhrases[nextPhraseIndex] ?? phrase;
+      const nextAttempts = [...battle.pronunciationAttempts, createSkippedAttempt(phrase)];
+      const stagePracticeReport = hasWon ? createStagePracticeReport(nextAttempts, activePhrases) : battle.stagePracticeReport;
       const completion = hasWon ? completeActiveScenario(playerPosition, get()) : null;
       const saveData = completion?.saveData ?? get().saveData;
 
@@ -280,6 +341,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
           phraseIndex: nextPhraseIndex,
           reviewPhraseIndex: null,
           phrasesPassed: nextPhrasesPassed,
+          pronunciationAttempts: nextAttempts,
+          stagePracticeReport,
           log: [
             result.playerText,
             'No Understanding gained. No Super charge gained.',
@@ -333,6 +396,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const activePhraseIndex = reviewPhraseIndex ?? battle.phraseIndex;
     const phrase = activePhrases[activePhraseIndex] ?? activePhrases[0];
     const result = resolvePronunciationTurn(pronunciation, phrase);
+    const nextAttempts = [
+      ...battle.pronunciationAttempts,
+      createPronunciationAttempt(phrase, pronunciation, reviewPhraseIndex !== null),
+    ];
 
     if (reviewPhraseIndex !== null) {
       const nextCourage = Math.max(0, Math.min(battle.maxCourage, battle.courage + (pronunciation.pass ? 2 : -2)));
@@ -341,6 +408,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ...battle,
           courage: nextCourage,
           reviewPhraseIndex: null,
+          pronunciationAttempts: nextAttempts,
           log: [
             result.playerText,
             pronunciation.heard ? `AI heard: ${pronunciation.heard}` : 'AI listened to your review attempt.',
@@ -360,6 +428,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const nextSuperCharge = result.shouldAdvancePhrase ? Math.min(battle.maxSuperCharge, battle.superCharge + 1) : battle.superCharge;
     const hasWon = nextPhrasesPassed >= activePhrases.length;
     const nextPhrase = activePhrases[nextPhraseIndex] ?? phrase;
+    const stagePracticeReport = hasWon ? createStagePracticeReport(nextAttempts, activePhrases) : battle.stagePracticeReport;
     const log = [
       result.playerText,
       pronunciation.heard ? `AI heard: ${pronunciation.heard}` : 'AI listened to your pronunciation.',
@@ -387,6 +456,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         phraseIndex: nextPhraseIndex,
         reviewPhraseIndex: null,
         phrasesPassed: nextPhrasesPassed,
+        pronunciationAttempts: nextAttempts,
+        stagePracticeReport,
         log,
         hasWon,
       },
@@ -398,7 +469,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (battle.hasWon) return;
 
     const completion = completeActiveScenario(playerPosition, get());
-    const nextScenario = lessonScenarios[completion.activeScenarioIndex] ?? lessonScenarios[0];
+    const nextScenario = getScenarioByIndex(completion.activeScenarioIndex);
 
     set({
       currentScene: 'overworld',
@@ -409,7 +480,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       hasSavedGame: true,
       targetPosition: null,
       battle: {
-        ...initialBattleStateForScenario(nextScenario),
+        ...createBattleStateForScenario(nextScenario),
         log: [
           `Skipped ahead to ${nextScenario.title}.`,
           `${nextScenario.location}: ${nextScenario.lessonGoal}`,
@@ -422,43 +493,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       currentScene: 'overworld',
       targetPosition: null,
-      battle: initialBattleStateForScenario(get().getActiveScenario()),
+      battle: createBattleStateForScenario(get().getActiveScenario()),
     });
   },
 }));
 
-function initialBattleStateForScenario(scenario: LessonScenario): BattleState {
-  const phraseCount = scenario.chunks.reduce((count, chunk) => count + chunk.phrases.length, 0);
-
-  return {
-    ...initialBattleState(),
-    enemyConfidence: phraseCount * 10,
-    enemyMaxConfidence: phraseCount * 10,
-    log: [
-      `${scenario.title}: ${scenario.storyGoal}`,
-      `Clear ${phraseCount} phrases to reach ${scenario.equipmentReward.name}.`,
-    ],
-  };
-}
-
-type ScenarioCompletion = {
+type PersistedScenarioCompletion = {
   saveData: SaveData;
   activeScenarioIndex: number;
   completedScenarioIds: string[];
   completedTutorial: boolean;
 };
 
-function completeActiveScenario(playerPosition: GridPosition, state: GameStore): ScenarioCompletion {
-  const scenario = state.getActiveScenario();
-  const completedScenarioIds = Array.from(new Set([...state.completedScenarioIds, scenario.id]));
-  const nextScenarioIndex = getScenarioIndex(state.activeScenarioIndex + 1);
-  const completedTutorial = completedScenarioIds.includes(lessonScenarios[0].id);
-  const saveData = saveProgress(true, completedTutorial, playerPosition, nextScenarioIndex, completedScenarioIds);
+function completeActiveScenario(playerPosition: GridPosition, state: GameStore): PersistedScenarioCompletion {
+  const completion = completeScenario(state.activeScenarioIndex, state.completedScenarioIds);
+  const saveData = saveProgress(
+    true,
+    completion.completedTutorial,
+    playerPosition,
+    completion.activeScenarioIndex,
+    completion.completedScenarioIds,
+  );
 
   return {
+    ...completion,
     saveData,
-    activeScenarioIndex: nextScenarioIndex,
-    completedScenarioIds,
-    completedTutorial,
   };
 }

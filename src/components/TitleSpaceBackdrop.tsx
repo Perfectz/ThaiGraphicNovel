@@ -42,6 +42,15 @@ function createSpark(index: number): Spark {
   };
 }
 
+function getParticleBudget() {
+  const isCompactViewport = window.innerWidth < 768 || window.innerHeight < 680;
+  return {
+    maxDpr: isCompactViewport ? 1.15 : 1.5,
+    stars: isCompactViewport ? 86 : 148,
+    sparks: isCompactViewport ? 34 : 58,
+  };
+}
+
 export function TitleSpaceBackdrop() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -55,16 +64,19 @@ export function TitleSpaceBackdrop() {
     const canvasElement = canvas;
     const ctx = context;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const stars = Array.from({ length: 220 }, createStar);
-    const sparks = Array.from({ length: 90 }, (_, index) => createSpark(index));
+    let particleBudget = getParticleBudget();
+    const stars = Array.from({ length: particleBudget.stars }, createStar);
+    const sparks = Array.from({ length: particleBudget.sparks }, (_, index) => createSpark(index));
     const pointer = { x: 0, y: 0, targetX: 0, targetY: 0 };
     let animationFrame = 0;
+    let isVisible = !document.hidden;
     let width = 0;
     let height = 0;
     let dpr = 1;
 
     function resizeCanvas() {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      particleBudget = getParticleBudget();
+      dpr = Math.min(window.devicePixelRatio || 1, particleBudget.maxDpr);
       width = window.innerWidth;
       height = window.innerHeight;
       canvasElement.width = Math.floor(width * dpr);
@@ -195,6 +207,8 @@ export function TitleSpaceBackdrop() {
     }
 
     function drawFrame(time: number) {
+      if (!isVisible) return;
+
       pointer.x += (pointer.targetX - pointer.x) * 0.035;
       pointer.y += (pointer.targetY - pointer.y) * 0.035;
 
@@ -208,6 +222,21 @@ export function TitleSpaceBackdrop() {
       }
     }
 
+    function resumeAnimation() {
+      if (reducedMotion || animationFrame) return;
+      animationFrame = window.requestAnimationFrame(drawFrame);
+    }
+
+    function handleVisibilityChange() {
+      isVisible = !document.hidden;
+      if (!isVisible) {
+        window.cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+        return;
+      }
+      resumeAnimation();
+    }
+
     function handlePointerMove(event: PointerEvent) {
       pointer.targetX = (event.clientX / Math.max(1, width) - 0.5) * 2;
       pointer.targetY = (event.clientY / Math.max(1, height) - 0.5) * 2;
@@ -218,11 +247,13 @@ export function TitleSpaceBackdrop() {
 
     window.addEventListener('resize', resizeCanvas);
     window.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.cancelAnimationFrame(animationFrame);
       window.removeEventListener('resize', resizeCanvas);
       window.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
