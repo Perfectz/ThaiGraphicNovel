@@ -25,8 +25,10 @@ function run(command, args, env = {}) {
   });
 }
 
+const basePath = process.env.PAGES_BASE_PATH ?? '/ThaiGraphicNovel/';
+
 await run('npm', ['run', 'build'], {
-  VITE_BASE_PATH: '/ThaiGraphicNovel/',
+  VITE_BASE_PATH: basePath,
   VITE_DEFAULT_DEBUG: 'true',
 });
 
