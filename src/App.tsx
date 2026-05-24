@@ -1,42 +1,60 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import stageOneThemeUrl from '../humandropbox/Stage 1 Thai adventure.mp3';
 import titleThemeUrl from '../humandropbox/Title Screen Thai adventure.mp3';
 import { GameCanvas } from './components/GameCanvas';
 import { GameSettings } from './components/GameSettings';
 import { LessonRoadmap } from './components/LessonRoadmap';
 import { TitleScreen } from './components/TitleScreen';
-import { getSoundSettings, SOUND_SETTINGS_CHANGED_EVENT, type SoundSettings } from './services/soundSettings';
+import { useGameMusic } from './hooks/useGameMusic';
+import { useSoundSettings } from './hooks/useSoundSettings';
 import { useGameStore } from './store/gameStore';
 
+const CharacterDebugPage = lazy(() =>
+  import('./components/CharacterDebugPage').then((module) => ({ default: module.CharacterDebugPage })),
+);
+
+function getRoutePath() {
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+  if (basePath && window.location.pathname.startsWith(basePath)) {
+    return window.location.pathname.slice(basePath.length) || '/';
+  }
+  return window.location.pathname;
+}
+
 export default function App() {
+  const routePath = getRoutePath();
+  const isCharacterDebugRoute =
+    routePath === '/character-debug' || (import.meta.env.VITE_DEFAULT_DEBUG === 'true' && routePath === '/');
   const currentScene = useGameStore((state) => state.currentScene);
   const hydrateSave = useGameStore((state) => state.hydrateSave);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
-  const [soundSettings, setSoundSettings] = useState<SoundSettings>(() => getSoundSettings());
+  const soundSettings = useSoundSettings();
   const musicTrackUrl = useMemo(() => {
+    if (isCharacterDebugRoute) return null;
     if (currentScene === 'title') return titleThemeUrl;
     return stageOneThemeUrl;
-  }, [currentScene]);
+  }, [currentScene, isCharacterDebugRoute]);
 
   useEffect(() => {
     hydrateSave();
   }, [hydrateSave]);
 
-  useEffect(() => {
-    function syncSoundSettings() {
-      setSoundSettings(getSoundSettings());
-    }
-
-    window.addEventListener(SOUND_SETTINGS_CHANGED_EVENT, syncSoundSettings);
-    window.addEventListener('focus', syncSoundSettings);
-    return () => {
-      window.removeEventListener(SOUND_SETTINGS_CHANGED_EVENT, syncSoundSettings);
-      window.removeEventListener('focus', syncSoundSettings);
-    };
-  }, []);
-
   useGameMusic(musicTrackUrl, soundSettings);
+
+  if (isCharacterDebugRoute) {
+    return (
+      <Suspense
+        fallback={
+          <main className="grid h-dvh w-screen place-items-center bg-slate-950 text-sm font-black uppercase tracking-[0.16em] text-cyan-100">
+            Loading character debug...
+          </main>
+        }
+      >
+        <CharacterDebugPage />
+      </Suspense>
+    );
+  }
 
   return (
     <>
@@ -57,79 +75,4 @@ export default function App() {
       <LessonRoadmap isOpen={roadmapOpen} onClose={() => setRoadmapOpen(false)} />
     </>
   );
-}
-
-function useGameMusic(trackUrl: string | null, soundSettings: SoundSettings) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const hasUserGestureRef = useRef(false);
-
-  useEffect(() => {
-    if (!audioRef.current) {
-      const audio = new Audio();
-      audio.loop = true;
-      audio.preload = 'auto';
-      audioRef.current = audio;
-    }
-
-    const audio = audioRef.current;
-
-    async function playMusic() {
-      if (!trackUrl || !soundSettings.musicEnabled || !hasUserGestureRef.current) {
-        audio.pause();
-        return;
-      }
-
-      if (!audio.src.endsWith(trackUrl)) {
-        audio.src = trackUrl;
-        audio.currentTime = 0;
-      }
-
-      audio.volume = soundSettings.musicVolume;
-
-      try {
-        await audio.play();
-      } catch {
-        audio.pause();
-      }
-    }
-
-    void playMusic();
-  }, [soundSettings.musicEnabled, soundSettings.musicVolume, trackUrl]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.volume = soundSettings.musicVolume;
-  }, [soundSettings.musicVolume]);
-
-  useEffect(() => {
-    function unlockMusic() {
-      hasUserGestureRef.current = true;
-      const audio = audioRef.current;
-      if (!audio || !trackUrl || !soundSettings.musicEnabled) return;
-
-      if (!audio.src.endsWith(trackUrl)) {
-        audio.src = trackUrl;
-        audio.currentTime = 0;
-      }
-
-      audio.volume = soundSettings.musicVolume;
-      void audio.play().catch(() => {
-        audio.pause();
-      });
-    }
-
-    window.addEventListener('pointerdown', unlockMusic, { once: true });
-    window.addEventListener('keydown', unlockMusic, { once: true });
-    return () => {
-      window.removeEventListener('pointerdown', unlockMusic);
-      window.removeEventListener('keydown', unlockMusic);
-    };
-  }, [soundSettings.musicEnabled, soundSettings.musicVolume, trackUrl]);
-
-  useEffect(() => {
-    return () => {
-      audioRef.current?.pause();
-    };
-  }, []);
 }

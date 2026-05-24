@@ -12,17 +12,20 @@
     "test:whisper:silence": "node server/tests/whisper-live-smoke.mjs --silence",
     "test:whisper:live": "node server/tests/whisper-live-smoke.mjs",
     "build": "tsc -b && vite build",
+    "build:pages": "node scripts/build-pages.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
     "react": "latest",
     "react-dom": "latest",
+    "three": "^0.184.0",
     "zustand": "latest"
   },
   "devDependencies": {
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "latest",
     "autoprefixer": "latest",
     "playwright-core": "^1.60.0",

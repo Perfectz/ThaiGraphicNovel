@@ -9,3 +9,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.codex-run-logs/
+thai-quest-demo-video/
+
+# Local drop box and source art exports stay local unless copied into src/assets.
+humandropbox/*.glb
+humandropbox/*.zip
+humandropbox/*.fbx
+humandropbox/*.msi
+humandropbox/*.png
+humandropbox/*.mp4
+humandropbox/meshywithanimationrigpatrick/
