@@ -11,6 +11,12 @@ import runningAnimationUrl from '../assets/debug/patrick-rig/Meshy_AI_Red_Jacket
 import talkAnimationUrl from '../assets/debug/patrick-rig/Meshy_AI_Red_Jacket_Rebel_biped_Animation_Talk_Passionately_withSkin.glb?url';
 import victoryAnimationUrl from '../assets/debug/patrick-rig/Meshy_AI_Red_Jacket_Rebel_biped_Animation_Victory_Cheer_withSkin.glb?url';
 import walkingAnimationUrl from '../assets/debug/patrick-rig/Meshy_AI_Red_Jacket_Rebel_biped_Animation_Walking_withSkin.glb?url';
+import suModelUrl from '../assets/debug/su-rig/Meshy_AI_Neon_Circuit_Princess_biped_Character_output.glb?url';
+import suIdleAnimationUrl from '../assets/debug/su-rig/Meshy_AI_Neon_Circuit_Princess_biped_Animation_Idle_4_withSkin.glb?url';
+import suRunAnimationUrl from '../assets/debug/su-rig/Meshy_AI_Neon_Circuit_Princess_biped_Animation_Running_withSkin.glb?url';
+import suTalkAnimationUrl from '../assets/debug/su-rig/Meshy_AI_Neon_Circuit_Princess_biped_Animation_Talk_Passionately_withSkin.glb?url';
+import suWalkAnimationUrl from '../assets/debug/su-rig/Meshy_AI_Neon_Circuit_Princess_biped_Animation_Walking_withSkin.glb?url';
+import suWaveAnimationUrl from '../assets/debug/su-rig/Meshy_AI_Neon_Circuit_Princess_biped_Animation_Wave_for_Help_4_withSkin.glb?url';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
 
@@ -28,9 +34,12 @@ type ModelStats = {
 };
 
 const MODEL_FILE_NAME = 'meshywithanimationrigpatrick.zip';
+const SU_FILE_NAME = 'surigged.zip';
 const WALK_CENTER_X = 1.85;
 const ROOM_CENTER_X = 0.65;
 const SPAWN_POINT = new THREE.Vector3(WALK_CENTER_X, 0, 0.86);
+const SU_SPAWN_POINT = new THREE.Vector3(4.62, 0, 2.08);
+const SU_APPROACH_POINT = new THREE.Vector3(3.45, 0, 1.42);
 const ROOM_BOUNDS = {
   minX: -5.25,
   maxX: 6.45,
@@ -56,6 +65,15 @@ const animationSources = [
 ];
 
 type MotionMode = 'idle' | 'walking' | 'running' | 'manual';
+type TravelIntent = 'free' | 'su';
+
+const suAnimationSources = [
+  { id: 'idle', label: 'Su Idle', url: suIdleAnimationUrl, preload: false },
+  { id: 'walk', label: 'Su Walk', url: suWalkAnimationUrl, preload: false },
+  { id: 'run', label: 'Su Run', url: suRunAnimationUrl, preload: false },
+  { id: 'talk', label: 'Su Talk', url: suTalkAnimationUrl, preload: true },
+  { id: 'wave', label: 'Su Wave', url: suWaveAnimationUrl, preload: true },
+];
 
 function createMat(color: number, roughness = 0.68, metalness = 0.04) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -335,6 +353,13 @@ function prepareCharacterForDebugView(model: THREE.Object3D) {
   });
 }
 
+function faceObjectToward(object: THREE.Object3D, target: THREE.Vector3) {
+  const dx = target.x - object.position.x;
+  const dz = target.z - object.position.z;
+  if (Math.hypot(dx, dz) < 0.001) return;
+  object.rotation.y = Math.atan2(dx, dz);
+}
+
 export function CharacterDebugPage() {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playAnimationRef = useRef<(id: string) => Promise<void>>(async () => {});
@@ -347,6 +372,7 @@ export function CharacterDebugPage() {
   const [activeAnimation, setActiveAnimation] = useState('Loading');
   const [motionMode, setMotionMode] = useState<MotionMode>('idle');
   const [targetDistance, setTargetDistance] = useState(0);
+  const [interactionPrompt, setInteractionPrompt] = useState('Su is waving from the lobby corner');
   const [availableAnimations, setAvailableAnimations] = useState<string[]>([]);
   const [stats, setStats] = useState<ModelStats>(initialStats);
 
@@ -361,10 +387,17 @@ export function CharacterDebugPage() {
     let disposed = false;
     let frameId = 0;
     let mixer: THREE.AnimationMixer | null = null;
+    let suMixer: THREE.AnimationMixer | null = null;
     let modelRoot: THREE.Object3D | null = null;
+    let suRoot: THREE.Object3D | null = null;
     let baseModelY = 0;
+    let suBaseModelY = 0;
     let currentAction: THREE.AnimationAction | null = null;
+    let currentSuAction: THREE.AnimationAction | null = null;
+    let travelIntent: TravelIntent = 'free';
+    let suConversationActive = false;
     const actionMap = new Map<string, THREE.AnimationAction>();
+    const suActionMap = new Map<string, THREE.AnimationAction>();
     const moveTarget = new THREE.Vector3(SPAWN_POINT.x, 0, SPAWN_POINT.z);
     const scratchDirection = new THREE.Vector3();
     const raycaster = new THREE.Raycaster();
@@ -373,6 +406,8 @@ export function CharacterDebugPage() {
     const pointerStart = new THREE.Vector2();
     const loadedClips: THREE.AnimationClip[] = [];
     const loadingActions = new Map<string, Promise<boolean>>();
+    const suClickTargets: THREE.Object3D[] = [];
+    const loadingSuActions = new Map<string, Promise<boolean>>();
 
     let lastFrameTime = performance.now();
     const scene = new THREE.Scene();
@@ -455,6 +490,29 @@ export function CharacterDebugPage() {
     targetMarker.visible = false;
     scene.add(targetMarker);
 
+    const suInteractionMarker = new THREE.Group();
+    suInteractionMarker.name = 'su-interaction-marker';
+    const suInteractionRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.34, 0.014, 8, 46),
+      new THREE.MeshBasicMaterial({ color: 0xf9a8d4, transparent: true, opacity: 0.85 }),
+    );
+    suInteractionRing.rotation.x = Math.PI / 2;
+    const suInteractionPulse = new THREE.Mesh(
+      new THREE.CircleGeometry(0.3, 32),
+      new THREE.MeshBasicMaterial({ color: 0xf9a8d4, transparent: true, opacity: 0.12 }),
+    );
+    suInteractionPulse.rotation.x = -Math.PI / 2;
+    suInteractionMarker.add(suInteractionRing, suInteractionPulse);
+    suInteractionMarker.position.set(SU_SPAWN_POINT.x, 0.035, SU_SPAWN_POINT.z);
+    scene.add(suInteractionMarker);
+
+    const suNameTag = createTextSprite('SU', 256, 96);
+    if (suNameTag) {
+      suNameTag.position.set(SU_SPAWN_POINT.x, 2.48, SU_SPAWN_POINT.z);
+      suNameTag.scale.set(0.72, 0.28, 1);
+      scene.add(suNameTag);
+    }
+
     const loader = new GLTFLoader();
 
     const loadAction = async (id: string) => {
@@ -498,6 +556,39 @@ export function CharacterDebugPage() {
       return loadPromise;
     };
 
+    const loadSuAction = async (id: string) => {
+      if (suActionMap.has(id)) return true;
+      if (!suMixer || !suRoot) return false;
+
+      const source = suAnimationSources.find((candidate) => candidate.id === id);
+      if (!source) return false;
+
+      const existingLoad = loadingSuActions.get(id);
+      if (existingLoad) return existingLoad;
+
+      const loadPromise = loader
+        .loadAsync(source.url)
+        .then((animationGltf) => {
+          if (disposed || !suMixer || !suRoot) return false;
+          const clip = animationGltf.animations[0]?.clone();
+          if (!clip) return false;
+
+          clip.name = source.label;
+          const action = suMixer.clipAction(clip, suRoot);
+          action.enabled = true;
+          action.setEffectiveWeight(1);
+          suActionMap.set(id, action);
+          return true;
+        })
+        .catch(() => false)
+        .finally(() => {
+          loadingSuActions.delete(id);
+        });
+
+      loadingSuActions.set(id, loadPromise);
+      return loadPromise;
+    };
+
     const playAction = (id: string, fadeDuration = 0.18) => {
       const nextAction = actionMap.get(id);
       if (!nextAction || nextAction === currentAction) return;
@@ -516,10 +607,51 @@ export function CharacterDebugPage() {
       setActiveAnimation(animationSources.find((source) => source.id === id)?.label ?? id);
     };
 
+    const playSuAction = (id: string, fadeDuration = 0.18) => {
+      const nextAction = suActionMap.get(id);
+      if (!nextAction || nextAction === currentSuAction) return;
+
+      nextAction.reset();
+      nextAction.enabled = true;
+      nextAction.setEffectiveWeight(1);
+      nextAction.play();
+
+      if (currentSuAction) {
+        currentSuAction.crossFadeTo(nextAction, fadeDuration, false);
+      }
+
+      currentSuAction = nextAction;
+    };
+
+    const playSuWave = () => {
+      if (suActionMap.has('wave')) {
+        playSuAction('wave', 0.2);
+        setInteractionPrompt('Su is waving from the lobby corner');
+      }
+    };
+
+    const startSuConversation = async () => {
+      if (!modelRoot || !suRoot || suConversationActive) return;
+      suConversationActive = true;
+      setInteractionPrompt('Patrick and Su are talking');
+      setMotionMode('manual');
+      faceObjectToward(modelRoot, suRoot.position);
+      faceObjectToward(suRoot, modelRoot.position);
+
+      const [patrickTalkLoaded, suTalkLoaded] = await Promise.all([loadAction('talk'), loadSuAction('talk')]);
+      if (disposed || travelIntent !== 'su' || !suConversationActive) return;
+      if (patrickTalkLoaded) playAction('talk', 0.16);
+      if (suTalkLoaded) playSuAction('talk', 0.16);
+    };
+
     const playManualAction = async (id: string) => {
       moveTarget.copy(modelRoot?.position ?? SPAWN_POINT);
+      travelIntent = 'free';
+      suConversationActive = false;
       targetMarker.visible = false;
+      playSuWave();
       setMotionMode('manual');
+      setInteractionPrompt('Manual animation preview');
       setTargetDistance(0);
       const source = animationSources.find((candidate) => candidate.id === id);
       if (!actionMap.has(id)) {
@@ -531,8 +663,11 @@ export function CharacterDebugPage() {
     };
     playAnimationRef.current = playManualAction;
 
-    const setTravelTarget = (target: THREE.Vector3) => {
+    const setTravelTarget = (target: THREE.Vector3, intent: TravelIntent = 'free') => {
       if (!modelRoot) return;
+      travelIntent = intent;
+      suConversationActive = false;
+      if (intent === 'free') playSuWave();
 
       moveTarget.set(
         THREE.MathUtils.clamp(target.x, ROOM_BOUNDS.minX, ROOM_BOUNDS.maxX),
@@ -546,8 +681,14 @@ export function CharacterDebugPage() {
       const distance = modelRoot.position.distanceTo(moveTarget);
       const nextMode: MotionMode = distance > RUN_DISTANCE ? 'running' : 'walking';
       setMotionMode(nextMode);
+      setInteractionPrompt(intent === 'su' ? 'Patrick is walking over to Su' : 'Click Su to start a conversation');
       setTargetDistance(distance);
       playAction(nextMode === 'running' ? 'run' : 'walk', 0.14);
+    };
+
+    const walkToSu = () => {
+      if (!modelRoot) return;
+      setTravelTarget(SU_APPROACH_POINT, 'su');
     };
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -564,6 +705,12 @@ export function CharacterDebugPage() {
       );
 
       raycaster.setFromCamera(pointer, camera);
+      const suHits = raycaster.intersectObjects(suClickTargets, true);
+      if (suHits.length > 0) {
+        walkToSu();
+        return;
+      }
+
       if (raycaster.ray.intersectPlane(floorPlane, floorHit)) {
         setTravelTarget(floorHit);
       }
@@ -617,8 +764,8 @@ export function CharacterDebugPage() {
         model.position.set(SPAWN_POINT.x, baseModelY, SPAWN_POINT.z);
         moveTarget.set(SPAWN_POINT.x, baseModelY, SPAWN_POINT.z);
 
-        controls.target.set(WALK_CENTER_X, targetY * 0.88, -0.42);
-        camera.position.set(WALK_CENTER_X + fittedRadius * 2.25, targetY + fittedRadius * 0.72, fittedRadius * 4.18);
+        controls.target.set(ROOM_CENTER_X + 1.7, targetY * 0.9, 0.25);
+        camera.position.set(ROOM_CENTER_X + fittedRadius * 3.6, targetY + fittedRadius * 1.15, fittedRadius * 5.6);
         camera.near = Math.max(fittedRadius / 100, 0.01);
         camera.far = CAMERA_FAR_PLANE;
         camera.updateProjectionMatrix();
@@ -649,13 +796,68 @@ export function CharacterDebugPage() {
       }
     }
 
+    async function loadSu() {
+      try {
+        const gltf = await loader.loadAsync(suModelUrl);
+        if (disposed) return;
+
+        const model = gltf.scene;
+        suRoot = model;
+        model.visible = false;
+        prepareCharacterForDebugView(model);
+        scene.add(model);
+        model.updateMatrixWorld(true);
+
+        const unscaledBox = new THREE.Box3().setFromObject(model);
+        const unscaledSize = unscaledBox.getSize(new THREE.Vector3());
+        const maxAxis = Math.max(unscaledSize.x, unscaledSize.y, unscaledSize.z);
+        model.scale.setScalar(maxAxis > 0 ? 1.85 / maxAxis : 1);
+        model.updateMatrixWorld(true);
+
+        const scaledBox = new THREE.Box3().setFromObject(model);
+        const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+        model.position.x -= scaledCenter.x;
+        model.position.y -= scaledBox.min.y;
+        model.position.z -= scaledCenter.z;
+        model.updateMatrixWorld(true);
+
+        suBaseModelY = model.position.y;
+        model.position.set(SU_SPAWN_POINT.x, suBaseModelY, SU_SPAWN_POINT.z);
+        faceObjectToward(model, SU_APPROACH_POINT);
+
+        suMixer = new THREE.AnimationMixer(model);
+        const preloadIds = suAnimationSources.filter((source) => source.preload).map((source) => source.id);
+        await Promise.all(preloadIds.map((id) => loadSuAction(id)));
+        if (disposed) return;
+
+        playSuAction(suActionMap.has('wave') ? 'wave' : 'idle', 0);
+        suMixer.update(0.016);
+        model.visible = true;
+
+        const clickCollider = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.58, 0.58, 2.28, 16),
+          new THREE.MeshBasicMaterial({ color: 0xf9a8d4, transparent: true, opacity: 0, depthWrite: false }),
+        );
+        clickCollider.name = 'su-click-target';
+        clickCollider.position.set(SU_SPAWN_POINT.x, 1.14, SU_SPAWN_POINT.z);
+        scene.add(clickCollider);
+        suClickTargets.push(clickCollider);
+        setInteractionPrompt('Su is waving from the lobby corner');
+      } catch (error) {
+        if (disposed) return;
+        setInteractionPrompt(error instanceof Error ? `Su failed to load: ${error.message}` : 'Su failed to load');
+      }
+    }
+
     void loadCharacter();
+    void loadSu();
 
     const render = () => {
       const now = performance.now();
       const delta = Math.min((now - lastFrameTime) / 1000, 0.05);
       lastFrameTime = now;
       mixer?.update(delta);
+      suMixer?.update(delta);
 
       if (modelRoot) {
         scratchDirection.set(moveTarget.x - modelRoot.position.x, 0, moveTarget.z - modelRoot.position.z);
@@ -683,10 +885,22 @@ export function CharacterDebugPage() {
           modelRoot.position.set(moveTarget.x, baseModelY, moveTarget.z);
           targetMarker.visible = false;
           setTargetDistance(0);
-          setMotionMode('idle');
-          playAction('idle', 0.18);
+          if (travelIntent === 'su') {
+            void startSuConversation();
+          } else {
+            setMotionMode('idle');
+            setInteractionPrompt('Click Su to start a conversation');
+            playAction('idle', 0.18);
+          }
         }
       }
+
+      if (suRoot && !suConversationActive) {
+        suRoot.position.y = suBaseModelY;
+        faceObjectToward(suRoot, modelRoot?.position ?? SU_APPROACH_POINT);
+      }
+      suInteractionPulse.scale.setScalar(1 + Math.sin(now * 0.004) * 0.12);
+      suInteractionRing.rotation.z += delta * 0.65;
 
       controls.autoRotate = autoRotateRef.current;
       grid.visible = gridVisibleRef.current;
@@ -727,20 +941,24 @@ export function CharacterDebugPage() {
         <div className="mb-3 flex items-start justify-between gap-4">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">Character Debug</p>
-            <h1 className="mt-1 text-lg font-black uppercase tracking-[0.08em] text-white sm:text-xl">Main Character GLB</h1>
+            <h1 className="mt-1 text-lg font-black uppercase tracking-[0.08em] text-white sm:text-xl">Patrick + Su Debug</h1>
             <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-fuchsia-100">
               Room: Large hotel lobby mockup
             </p>
           </div>
           <a
-            href="/"
+            href={import.meta.env.BASE_URL}
             className="border border-cyan-200/50 bg-cyan-300/16 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-50 hover:bg-cyan-300/28"
           >
             Game
           </a>
         </div>
 
-        <p className="break-all text-xs font-bold leading-relaxed text-slate-300">{MODEL_FILE_NAME}</p>
+        <p className="break-all text-xs font-bold leading-relaxed text-slate-300">
+          Patrick: {MODEL_FILE_NAME}
+          <br />
+          Su: {SU_FILE_NAME}
+        </p>
         <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-200">
           <div className="border border-white/15 bg-white/10 px-3 py-2">
             <span className="block text-cyan-200">Status</span>
@@ -790,11 +1008,15 @@ export function CharacterDebugPage() {
             <span className="block text-cyan-200">Target</span>
             {targetDistance > 0.05 ? `${targetDistance.toFixed(1)}m` : 'None'}
           </div>
+          <div className="col-span-2 border border-fuchsia-200/25 bg-fuchsia-300/10 px-3 py-2">
+            <span className="block text-fuchsia-100">Interaction</span>
+            {interactionPrompt}
+          </div>
         </div>
 
         {stats.status === 'error' ? (
           <p className="mt-3 border border-red-200/40 bg-red-500/14 px-3 py-2 text-xs font-bold text-red-100">
-            Check that the GLB remains in the humandropbox folder and can be imported by Vite.
+            Check that the debug GLB files remain in src/assets/debug and can be imported by Vite.
           </p>
         ) : null}
 
@@ -816,7 +1038,7 @@ export function CharacterDebugPage() {
         </div>
 
         <p className="mt-4 border border-fuchsia-200/30 bg-fuchsia-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-fuchsia-50">
-          Click the floor to travel. Short clicks walk, long clicks run.
+          Click the floor to travel. Click Su to walk over and talk.
         </p>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -877,6 +1099,7 @@ export function CharacterDebugPage() {
 
       <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-10 flex flex-wrap justify-between gap-3 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/80 sm:bottom-6 sm:left-6 sm:right-6">
         <span>Click floor to move</span>
+        <span>Click Su to talk</span>
         <span>Scroll to zoom</span>
         <span>Right drag to pan</span>
       </div>
