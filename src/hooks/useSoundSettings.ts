@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { getSoundSettings, SOUND_SETTINGS_CHANGED_EVENT, type SoundSettings } from '../services/soundSettings';
+import {
+  getSoundSettings,
+  SOUND_SETTINGS_CHANGED_EVENT,
+  type SoundSettings,
+} from '../services/soundSettings';
 
 export function useSoundSettings(): SoundSettings {
   const [soundSettings, setSoundSettings] = useState<SoundSettings>(() => getSoundSettings());

@@ -1,0 +1,39 @@
+# Build output
+dist
+dist-pages
+build
+
+# Dependencies
+node_modules
+
+# Generated code — written by codegen scripts, not for hand-formatting
+src/generated/
+
+# Asset binaries
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.mp3
+*.wav
+*.glb
+*.gltf
+*.pdf
+
+# Lockfiles
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Test/screenshot artefacts
+tmp
+.agents
+.claude
+thai-quest-trailer-v2

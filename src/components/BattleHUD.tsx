@@ -1,33 +1,33 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
-import stageOneClearCardUrl from '../assets/stage-01/stage-01-clear-card.png';
-import stageOneHitVfxUrl from '../assets/stage-01/stage-01-pronunciation-hit-vfx.png';
-import stageOnePropBellUrl from '../assets/stage-01/stage-01-prop-bell.png';
-import stageOnePropMapUrl from '../assets/stage-01/stage-01-prop-map.png';
-import stageOnePropMicUrl from '../assets/stage-01/stage-01-prop-mic.png';
-import stageOnePropNotebookUrl from '../assets/stage-01/stage-01-prop-notebook.png';
-import stageOnePropRiftUrl from '../assets/stage-01/stage-01-prop-rift.png';
-import stageOnePropSignUrl from '../assets/stage-01/stage-01-prop-sign.png';
-import stageOnePropSuitcaseUrl from '../assets/stage-01/stage-01-prop-suitcase.png';
-import stageOnePropWalletUrl from '../assets/stage-01/stage-01-prop-wallet.png';
-import stageOnePropWaterUrl from '../assets/stage-01/stage-01-prop-water.png';
-import stageOnePropsUrl from '../assets/stage-01/stage-01-lobby-practice-props.png';
-import stageOneRiftVfxUrl from '../assets/stage-01/stage-01-rift-glyph-vfx.png';
-import stageOneSuCutinsUrl from '../assets/stage-01/stage-01-su-cutins.png';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { lessonScenarios } from '../data/lessonScenarios';
 import { stageOneConversationDeck } from '../data/stageOneSuVoiceLines';
 import { getPhrasePhoneticSpelling } from '../data/thaiPhrases';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { useSoundSettings } from '../hooks/useSoundSettings';
-import { getVoiceJudgeMode, VOICE_JUDGE_MODE_CHANGED_EVENT, type VoiceJudgeMode } from '../services/openAiSettings';
+import {
+  getVoiceJudgeMode,
+  VOICE_JUDGE_MODE_CHANGED_EVENT,
+  type VoiceJudgeMode,
+} from '../services/openAiSettings';
 import { getPhraseAudioSrc } from '../services/phraseAudio';
-import { createPronunciationSession, type PronunciationSession, type PronunciationVerdict } from '../services/realtimePronunciation';
+import {
+  createPronunciationSession,
+  type PronunciationSession,
+  type PronunciationVerdict,
+} from '../services/realtimePronunciation';
 import { getStageOneSuAudioSrc } from '../services/suLineAudio';
 import { createWhisperPronunciationSession } from '../services/whisperPronunciation';
 import { type BattleOption } from '../systems/battleSystem';
 import { useGameStore } from '../store/gameStore';
+import { Button, Chip, MicButton, StatBar, VerdictBadge, type VerdictTone } from './ui';
 import { SuPronunciationJudge } from './SuPronunciationJudge';
 
-const battleOptions: BattleOption[] = ['Speak Phrase', 'Hear Example', 'Try Previous Phrase Again', 'Skip Phrase'];
+const battleOptions: BattleOption[] = [
+  'Speak Phrase',
+  'Hear Example',
+  'Try Previous Phrase Again',
+  'Skip Phrase',
+];
 const battleOptionLabels: Record<BattleOption, string> = {
   'Speak Phrase': 'Speak',
   'Hear Example': 'Hear',
@@ -35,125 +35,56 @@ const battleOptionLabels: Record<BattleOption, string> = {
   'Skip Phrase': 'Skip',
 };
 
-const stageOnePropSprites: Record<string, string> = {
-  bell: stageOnePropBellUrl,
-  map: stageOnePropMapUrl,
-  mic: stageOnePropMicUrl,
-  notebook: stageOnePropNotebookUrl,
-  rift: stageOnePropRiftUrl,
-  sign: stageOnePropSignUrl,
-  suitcase: stageOnePropSuitcaseUrl,
-  wallet: stageOnePropWalletUrl,
-  water: stageOnePropWaterUrl,
-};
-
-type StageOneCue = {
-  id: string;
-  label: string;
-  prompt: string;
-  sprite: string;
-};
-
-type PronunciationFlashTone = 'excellent' | 'great' | 'passed' | 'try-harder' | 'failure';
-
 type PronunciationScoreFlash = {
   id: number;
-  tone: PronunciationFlashTone;
+  tone: VerdictTone;
   label: string;
   detail: string;
 };
 
-
-const stageOneCueDeck: Record<string, { mission: string; sceneBeat: string; cues: StageOneCue[] }> = {
-  'first-contact': {
-    mission: 'Open the lobby conversation politely before the rift gets louder.',
-    sceneBeat: 'Su is waiting by the glowing lobby rift. Start simple, clear, and polite.',
-    cues: [
-      { id: 'rift', label: 'Rift shimmer', prompt: 'The rift reacts when Patrick greets Su clearly.', sprite: 'rift' },
-      { id: 'su', label: 'Su coaching mark', prompt: 'Su points to the polite ending: khrap.', sprite: 'mic' },
-      { id: 'guest', label: 'Lobby guest', prompt: 'A guest pauses nearby, so Patrick needs a calm introduction.', sprite: 'notebook' },
-    ],
-  },
-  'polite-repair': {
-    mission: 'Repair small social mistakes with respect before the lobby staff notices.',
-    sceneBeat: 'A suitcase bumps the bell stand. Su wants Patrick to recover politely.',
-    cues: [
-      { id: 'bell', label: 'Front-desk bell', prompt: 'Use gratitude or an apology before touching the bell again.', sprite: 'bell' },
-      { id: 'suitcase', label: 'Suitcase cue', prompt: 'The suitcase blocks the path. Yes or no needs to be crisp.', sprite: 'suitcase' },
-      { id: 'staff', label: 'Staff glance', prompt: 'A staff member looks over. Keep the phrase short and respectful.', sprite: 'map' },
-    ],
-  },
-  'first-needs': {
-    mission: 'Ask for essentials and use Thai to recover Courage.',
-    sceneBeat: 'The lobby opens into real survival needs: price, bathroom, and water.',
-    cues: [
-      { id: 'water', label: 'Water glass', prompt: 'Say you are thirsty clearly to turn the glass into a Courage heal.', sprite: 'water' },
-      { id: 'sign', label: 'Bathroom sign', prompt: 'Follow the sign by asking where the bathroom is.', sprite: 'sign' },
-      { id: 'wallet', label: 'Wallet check', prompt: 'Before buying water or a charm, ask the price.', sprite: 'wallet' },
-    ],
-  },
-};
-
-
-function getPhraseChunkId(phraseId: string, chunks: typeof lessonScenarios[number]['chunks']) {
-  return chunks.find((chunk) => chunk.phrases.some((phrase) => phrase.id === phraseId))?.id ?? chunks[0]?.id ?? 'first-contact';
-}
-
-function splitRomanization(romanization: string) {
-  return romanization.split(' ').filter(Boolean);
-}
-
+/**
+ * Reduces the five legacy gradient flash tones (excellent/great/passed/
+ * try-harder/failure) to three semantic VerdictBadge tones. The verdict
+ * signal is an outline + dot — no neon glow, no display-1000 type. See
+ * plan §2.7.
+ */
 function getPronunciationScoreFlash(verdict: PronunciationVerdict): Omit<PronunciationScoreFlash, 'id'> {
-  if (verdict.score >= 95) {
-    return {
-      tone: 'excellent',
-      label: 'Excellent',
-      detail: `${verdict.score}/100 - Su heard it clearly.`,
-    };
-  }
-
   if (verdict.score >= 85) {
     return {
-      tone: 'great',
-      label: 'Great',
-      detail: `${verdict.score}/100 - rhythm landed.`,
+      tone: 'jade',
+      label: verdict.score >= 95 ? 'Excellent' : 'Strong',
+      detail: `${verdict.score}/100 — Su heard it clearly.`,
     };
   }
-
   if (verdict.pass) {
     return {
-      tone: 'passed',
+      tone: 'paper',
       label: 'Passed',
-      detail: `${verdict.score}/100 - keep sharpening it.`,
+      detail: `${verdict.score}/100 — keep sharpening it.`,
     };
   }
-
   if (verdict.score >= 45) {
     return {
-      tone: 'try-harder',
-      label: 'Try Harder',
-      detail: `${verdict.score}/100 - slow it down.`,
+      tone: 'coach',
+      label: 'Almost',
+      detail: `${verdict.score}/100 — slow it down.`,
     };
   }
-
   return {
-    tone: 'failure',
-    label: 'Failure',
-    detail: `${verdict.score}/100 - listen and retry.`,
+    tone: 'ember',
+    label: 'Try again',
+    detail: `${verdict.score}/100 — listen and retry.`,
   };
 }
 
 function PronunciationScoreFlashOverlay({ flash }: { flash: PronunciationScoreFlash | null }) {
   if (!flash) return null;
-
   return (
     <div
       key={flash.id}
-      className={`pronunciation-score-flash pronunciation-score-flash--${flash.tone}`}
-      aria-live="polite"
+      className="pointer-events-none absolute -top-14 left-1/2 z-10 -translate-x-1/2 animate-[fadeInDown_320ms_ease-out]"
     >
-      <span className="pronunciation-score-flash__label">{flash.label}</span>
-      <span className="pronunciation-score-flash__detail">{flash.detail}</span>
+      <VerdictBadge tone={flash.tone} label={flash.label} detail={flash.detail} emphasis />
     </div>
   );
 }
@@ -176,11 +107,10 @@ export function BattleHUD() {
   const [verdict, setVerdict] = useState<PronunciationVerdict | null>(null);
   const [pronunciationFlash, setPronunciationFlash] = useState<PronunciationScoreFlash | null>(null);
   const [listenHighlight, setListenHighlight] = useState(false);
-  const [selectedCueId, setSelectedCueId] = useState<string | null>(null);
   const pronunciationSession = useRef<PronunciationSession | null>(null);
   const connectionPromise = useRef<Promise<PronunciationSession | null> | null>(null);
-  const pressedSpeakPointers = useRef<Set<number>>(new Set());
   const suPlaybackRun = useRef(0);
+
   const activeScenario = useMemo(() => {
     if (!battle.hasWon) return lessonScenarios[activeScenarioIndex] ?? lessonScenarios[0];
     return (
@@ -190,7 +120,10 @@ export function BattleHUD() {
       lessonScenarios[0]
     );
   }, [activeScenarioIndex, battle.hasWon, battle.scenarioId]);
-  const activePhrases = useMemo(() => activeScenario.chunks.flatMap((chunk) => chunk.phrases), [activeScenario]);
+  const activePhrases = useMemo(
+    () => activeScenario.chunks.flatMap((chunk) => chunk.phrases),
+    [activeScenario],
+  );
   const displayedPhraseIndex = battle.reviewPhraseIndex ?? battle.phraseIndex;
   const isReviewingPrevious = battle.reviewPhraseIndex !== null;
   const currentPhrase = activePhrases[displayedPhraseIndex] ?? activePhrases[0];
@@ -199,15 +132,9 @@ export function BattleHUD() {
   const phraseAudioError = phraseAudioPlayer.error;
   const lessonProgress = `${Math.min(displayedPhraseIndex + 1, activePhrases.length)}/${activePhrases.length}`;
   const phoneticSpelling = getPhrasePhoneticSpelling(currentPhrase);
-  const activeChunkId = getPhraseChunkId(currentPhrase.id, activeScenario.chunks);
-  const stageOneChallenge = stageOneCueDeck[activeChunkId] ?? stageOneCueDeck['first-contact'];
-  const selectedCue = stageOneChallenge.cues.find((cue) => cue.id === selectedCueId) ?? stageOneChallenge.cues[0];
-  const romanizationParts = splitRomanization(currentPhrase.romanization);
   const lastAttempt = battle.pronunciationAttempts[battle.pronunciationAttempts.length - 1] ?? null;
   const hasFailedCurrentPhrase =
-    lastAttempt?.phraseId === currentPhrase.id &&
-    !lastAttempt.pass &&
-    !lastAttempt.isSkipped;
+    lastAttempt?.phraseId === currentPhrase.id && !lastAttempt.pass && !lastAttempt.isSkipped;
   const conversationLine = stageOneConversationDeck[currentPhrase.id] ?? {
     suLine: currentPhrase.example,
     coachingLine: `Say it slowly: ${currentPhrase.romanization}. Repeat: ${currentPhrase.romanization}.`,
@@ -217,37 +144,7 @@ export function BattleHUD() {
   };
   const suLineAudioSrc = getStageOneSuAudioSrc(conversationLine.suAudioId);
   const suCoachingAudioSrc = getStageOneSuAudioSrc(conversationLine.coachingAudioId);
-  const stageOneAssetStyle = {
-    '--stage-one-props-sheet': `url(${stageOnePropsUrl})`,
-    '--stage-one-hit-vfx-sheet': `url(${stageOneHitVfxUrl})`,
-    '--stage-one-rift-vfx-sheet': `url(${stageOneRiftVfxUrl})`,
-    '--stage-one-su-cutins-sheet': `url(${stageOneSuCutinsUrl})`,
-    '--stage-one-clear-card': `url(${stageOneClearCardUrl})`,
-  } as CSSProperties;
-  const stageOneVfxClass = isRecording
-    ? 'stage-one-vfx--mic'
-    : verdict?.pass && currentPhrase.isHeal
-      ? 'stage-one-vfx--heal'
-      : verdict?.pass
-        ? 'stage-one-vfx--pass'
-        : verdict && !verdict.pass
-          ? 'stage-one-vfx--retry'
-          : listenHighlight
-            ? 'stage-one-vfx--listen'
-            : 'stage-one-vfx--idle';
-  const stageOneEffectClass = isRecording
-    ? 'stage-one-practice--recording'
-    : verdict?.pass && currentPhrase.isHeal
-      ? 'stage-one-practice--heal'
-      : verdict?.pass
-        ? 'stage-one-practice--pass'
-        : verdict && !verdict.pass
-          ? 'stage-one-practice--retry'
-          : listenHighlight
-            ? 'stage-one-practice--listen'
-            : '';
-  const couragePercent = (battle.courage / battle.maxCourage) * 100;
-  const understandingPercent = 100 - (battle.enemyConfidence / battle.enemyMaxConfidence) * 100;
+
   const pronunciationPrompt = useMemo(
     () => ({
       targetPhrase: currentPhrase.targetPhrase,
@@ -262,22 +159,22 @@ export function BattleHUD() {
   useEffect(() => {
     pronunciationSession.current?.updatePrompt(pronunciationPrompt);
     if (pronunciationSession.current && !battle.hasWon) {
-      setVoiceStatus(isReviewingPrevious ? 'Review phrase ready. Hold to speak.' : 'Next phrase ready. Hold to speak.');
+      setVoiceStatus(
+        isReviewingPrevious ? 'Review phrase ready. Hold to speak.' : 'Next phrase ready. Hold to speak.',
+      );
     }
   }, [battle.hasWon, isReviewingPrevious, pronunciationPrompt]);
 
   useEffect(() => {
-    setSelectedCueId(stageOneChallenge.cues[0]?.id ?? null);
     setListenHighlight(false);
     setVerdict(null);
     setIsAwaitingPronunciationResult(false);
-  }, [currentPhrase.id, stageOneChallenge.cues]);
+  }, [currentPhrase.id]);
 
   useEffect(() => {
     function syncVoiceMode() {
       setVoiceMode(getVoiceJudgeMode());
     }
-
     window.addEventListener(VOICE_JUDGE_MODE_CHANGED_EVENT, syncVoiceMode);
     window.addEventListener('focus', syncVoiceMode);
     return () => {
@@ -293,15 +190,18 @@ export function BattleHUD() {
       phraseAudioPlayer.stop();
       stopSuPlayback();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     phraseAudioPlayer.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phraseAudioSrc]);
 
+  // Su voice playback for Stage 1 onboarding lines. Kept for Stage 1 only since
+  // later stages don't ship the same Su VO deck.
   useEffect(() => {
     stopSuPlayback();
-
     if (
       activeScenario.scenarioNumber !== 1 ||
       battle.hasWon ||
@@ -311,12 +211,10 @@ export function BattleHUD() {
     ) {
       return;
     }
-
     const sequence = (hasFailedCurrentPhrase ? [] : [suLineAudioSrc, suCoachingAudioSrc]).filter(
       (src): src is string => Boolean(src),
     );
     if (!sequence.length) return;
-
     const runId = suPlaybackRun.current;
     setVoiceError('');
     void (async () => {
@@ -325,10 +223,10 @@ export function BattleHUD() {
         await suAudioPlayer.playUntilEnded(src, soundSettings.guideAudioVolume);
       }
     })();
-
     return () => {
       if (suPlaybackRun.current === runId) stopSuPlayback();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeScenario.scenarioNumber,
     battle.hasWon,
@@ -362,6 +260,7 @@ export function BattleHUD() {
     }
     phraseAudioPlayer.setVolume(soundSettings.guideAudioVolume);
     suAudioPlayer.setVolume(soundSettings.guideAudioVolume);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [soundSettings.guideAudioEnabled, soundSettings.guideAudioVolume]);
 
   function stopSuPlayback() {
@@ -392,7 +291,9 @@ export function BattleHUD() {
           setIsAwaitingPronunciationResult(false);
           setVerdict(nextVerdict);
           setPronunciationFlash({ id: Date.now(), ...getPronunciationScoreFlash(nextVerdict) });
-          setVoiceStatus(nextVerdict.pass ? 'Good job. Su accepted the phrase.' : 'Pronunciation needs another try.');
+          setVoiceStatus(
+            nextVerdict.pass ? 'Good job. Su accepted the phrase.' : 'Pronunciation needs another try.',
+          );
           submitPronunciationResult(nextVerdict);
         },
       };
@@ -411,7 +312,9 @@ export function BattleHUD() {
       return await connectionPromise.current;
     } catch (error) {
       setVoiceError(error instanceof Error ? error.message : String(error));
-      setVoiceStatus(`${selectedMode === 'whisper' ? 'Local Whisper' : 'Realtime'} voice coach could not connect.`);
+      setVoiceStatus(
+        `${selectedMode === 'whisper' ? 'Local Whisper' : 'Realtime'} voice coach could not connect.`,
+      );
       return null;
     } finally {
       setIsConnecting(false);
@@ -440,296 +343,92 @@ export function BattleHUD() {
     setIsRecording(false);
   }
 
-  function startVoiceAttemptWithPointerCapture(event: PointerEvent<HTMLButtonElement>) {
-    if (battle.hasWon || !pronunciationSession.current) return;
-    const pointerId = event.pointerId;
-    event.currentTarget.setPointerCapture(pointerId);
-    pressedSpeakPointers.current.add(pointerId);
-
-    startVoiceAttempt(pronunciationSession.current);
-  }
-
-  function stopVoiceAttemptWithPointerCapture(event: PointerEvent<HTMLButtonElement>) {
-    pressedSpeakPointers.current.delete(event.pointerId);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    stopVoiceAttempt();
-  }
-
   async function playCurrentPhrase() {
     if (!phraseAudioSrc) {
       setVoiceError('No guide audio is available for this phrase yet.');
       return;
     }
-
     if (!soundSettings.guideAudioEnabled) {
       setVoiceError('Guide audio is turned off in Game Settings.');
       return;
     }
-
     setVoiceError('');
     stopSuPlayback();
     setListenHighlight(true);
     await phraseAudioPlayer.play(phraseAudioSrc, soundSettings.guideAudioVolume);
   }
 
-  async function playSuVoice(src: string | undefined) {
-    if (!src) return;
-
-    if (!soundSettings.guideAudioEnabled) {
-      setVoiceError('Guide audio is turned off in Game Settings.');
-      return;
-    }
-
-    stopSuPlayback();
-    setVoiceError('');
-    phraseAudioPlayer.stop();
-    setListenHighlight(false);
-    await suAudioPlayer.play(src, soundSettings.guideAudioVolume);
-  }
-
   function chooseBattleOptionWithAudio(option: BattleOption) {
     if (option === 'Hear Example') {
       void playCurrentPhrase();
     }
-
     chooseBattleOption(option);
   }
 
-  const battleActionControls = battle.hasWon ? (
-    <button
-      type="button"
-      onClick={returnToOverworld}
-      className="vn-action-button bg-emerald-300 px-3 py-2.5 text-left text-sm font-black uppercase tracking-[0.12em] text-slate-950"
-    >
-      Continue Journey
-    </button>
-  ) : (
-    battleOptions.map((option) => {
-      const isSpeak = option === 'Speak Phrase';
-      const disabled = option === 'Hear Example' && (!phraseAudioSrc || isPhraseAudioPlaying);
+  // Mic start/stop handlers wired into the MicButton primitive. The primitive
+  // owns pointer capture + Space/Enter press-and-hold; we just hand it
+  // start/stop callbacks.
+  function handleMicStart() {
+    if (battle.hasWon) return;
+    if (!pronunciationSession.current) {
+      phraseAudioPlayer.stop();
+      stopSuPlayback();
+      setListenHighlight(false);
+      void connectVoiceCoach();
+      return;
+    }
+    startVoiceAttempt(pronunciationSession.current);
+  }
 
-      return (
-        <button
-          key={option}
-          type="button"
-          onClick={() => {
-            if (isSpeak && !pronunciationSession.current) {
-              phraseAudioPlayer.stop();
-              stopSuPlayback();
-              setListenHighlight(false);
-              void connectVoiceCoach();
-              return;
-            }
+  function handleMicStop() {
+    stopVoiceAttempt();
+  }
 
-            if (!isSpeak) chooseBattleOptionWithAudio(option);
-          }}
-          onPointerDown={isSpeak ? startVoiceAttemptWithPointerCapture : undefined}
-          onPointerUp={isSpeak ? stopVoiceAttemptWithPointerCapture : undefined}
-          onPointerCancel={isSpeak ? stopVoiceAttemptWithPointerCapture : undefined}
-          disabled={disabled || isConnecting}
-          className={`vn-action-button px-3 py-1.5 text-left text-xs font-black uppercase tracking-[0.1em] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none sm:py-2 ${
-            isSpeak
-              ? isRecording
-                ? 'bg-red-500 text-white'
-                : 'bg-emerald-300 text-emerald-950'
-              : 'bg-white text-slate-950'
-          }`}
-        >
-          {battleOptionLabels[option]}
-          {isSpeak ? (
-            <span className="mt-0.5 block text-[10px] normal-case tracking-normal opacity-80">
-              {!hasVoiceCoach ? `Connect ${voiceMode === 'whisper' ? 'Whisper' : 'Realtime'} mic` : isRecording ? 'Release to judge' : 'Hold to talk'}
-            </span>
-          ) : null}
-        </button>
-      );
-    })
-  );
+  const micHint = !hasVoiceCoach
+    ? `Connect ${voiceMode === 'whisper' ? 'Whisper' : 'Realtime'} mic`
+    : isRecording
+      ? 'Release to judge'
+      : 'Hold to talk';
 
-  if (activeScenario.scenarioNumber === 1) {
+  // Secondary action buttons (Hear / Review / Skip). Speak gets the MicButton.
+  const secondaryOptions = battleOptions.filter((option) => option !== 'Speak Phrase');
+
+  // ──────────────────────────────────────────────────────────────
+  // Render
+  // ──────────────────────────────────────────────────────────────
+
+  if (battle.hasWon) {
     return (
       <section
-        className={`stage-one-practice pointer-events-none absolute inset-x-3 bottom-[var(--vn-panel-bottom)] z-50 h-[var(--stage-one-panel-height)] sm:inset-x-6 lg:inset-x-12 ${stageOneEffectClass}`}
-        style={stageOneAssetStyle}
+        className="battle-hud pointer-events-none absolute inset-x-3 bottom-[var(--vn-panel-bottom)] z-50 h-[min(28rem,48dvh)] sm:inset-x-10 sm:h-[var(--vn-panel-height)] lg:inset-x-16"
+        aria-label={`${activeScenario.title} — stage complete`}
       >
-        <PronunciationScoreFlashOverlay flash={pronunciationFlash} />
-        <div className="stage-one-practice__rift" aria-hidden="true">
-          <span className="stage-one-rift-sprite stage-one-rift-sprite--glyphs" />
-          <span className="stage-one-rift-sprite stage-one-rift-sprite--ring" />
-          <span className="stage-one-rift-sprite stage-one-rift-sprite--sparks" />
-        </div>
-
-        <div className="vn-glass-panel pointer-events-auto grid h-full min-h-0 gap-2 overflow-hidden p-2 sm:grid-cols-[minmax(12rem,0.46fr)_minmax(0,1fr)_minmax(12rem,0.46fr)] sm:p-3 lg:grid-cols-[minmax(14rem,0.5fr)_minmax(0,1fr)_minmax(14rem,0.5fr)]">
-          <aside className="stage-one-mission min-w-0">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="vn-status-chip px-3 py-1 font-display text-[10px] font-black uppercase tracking-[0.16em]">
-                Su's Mission
-              </span>
-              <span className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">
-                {isReviewingPrevious ? 'Review' : `Phrase ${lessonProgress}`}
-              </span>
+        <div className="pointer-events-auto grid h-full grid-cols-1 gap-4 overflow-y-auto rounded-[12px] border border-hairline bg-ink-raised p-5 text-paper shadow-card sm:grid-cols-[minmax(0,1fr)_minmax(15rem,0.5fr)] sm:p-6">
+          <div className="min-w-0">
+            <Chip tone="jade">Stage Clear</Chip>
+            <h2 className="mt-3 font-display text-2xl font-black uppercase tracking-tight text-paper">
+              {activeScenario.title}
+            </h2>
+            <p className="mt-2 text-sm font-medium text-paper-muted">{activeScenario.lessonGoal}</p>
+            {battle.stagePracticeReport.length ? (
+              <ul className="mt-4 grid gap-2">
+                {battle.stagePracticeReport.map((line) => (
+                  <li
+                    key={line}
+                    className="rounded-md border border-hairline bg-ink-elevated px-3 py-2 text-xs font-medium text-paper-muted"
+                  >
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="mt-5">
+              <Button onClick={returnToOverworld} variant="primary" size="md">
+                Continue journey
+              </Button>
             </div>
-            <p className="text-sm font-black leading-snug text-slate-950">{stageOneChallenge.mission}</p>
-            <p className="mt-2 text-xs font-bold leading-snug text-slate-600">{stageOneChallenge.sceneBeat}</p>
-
-            <div className="mt-3 grid gap-1.5">
-              {stageOneChallenge.cues.map((cue) => (
-                <button
-                  key={cue.id}
-                  type="button"
-                  onClick={() => setSelectedCueId(cue.id)}
-                  className={`stage-one-cue text-left ${selectedCue.id === cue.id ? 'stage-one-cue--active' : ''}`}
-                >
-                  <img
-                    src={stageOnePropSprites[cue.sprite]}
-                    alt=""
-                    className="stage-one-prop-sprite"
-                    decoding="async"
-                    draggable={false}
-                  />
-                  <span>{cue.label}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="stage-one-cue-card mt-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-900">Scene prompt</p>
-              <p className="mt-1 text-xs font-bold leading-snug text-slate-700">{selectedCue.prompt}</p>
-            </div>
-          </aside>
-
-          <div className="stage-one-phrase min-w-0">
-            {battle.hasWon ? (
-              <div className="stage-one-recap">
-                <div className="stage-one-clear-card-art" aria-hidden="true" />
-                <span className="vn-status-chip px-3 py-1 font-display text-[10px] font-black uppercase tracking-[0.16em]">
-                  Stage Clear
-                </span>
-                <h2 className="mt-3 text-2xl font-black leading-tight text-slate-950">Su locks in your lobby basics.</h2>
-                <div className="mt-3 grid gap-2">
-                  {battle.stagePracticeReport.map((line) => (
-                    <p key={line} className="rounded-lg border border-cyan-900/15 bg-white/70 px-3 py-2 text-xs font-bold leading-snug text-slate-700">
-                      {line}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="vn-status-chip px-3 py-1 font-display text-xs font-black uppercase tracking-[0.16em]">
-                    {currentPhrase.lesson}
-                  </span>
-                  <span className="h-px flex-1 bg-slate-950/20" />
-                </div>
-
-                <div className="stage-one-thai-card">
-                  <span className={`stage-one-vfx ${stageOneVfxClass}`} aria-hidden="true" />
-                  <div className="stage-one-conversation">
-                    <div className="stage-one-bubble stage-one-bubble--su">
-                      <span className="stage-one-su-cutin stage-one-su-cutin--coach" aria-hidden="true" />
-                      <div className="min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-900">Su says</p>
-                          {suLineAudioSrc ? (
-                            <button
-                              type="button"
-                              onClick={() => void playSuVoice(suLineAudioSrc)}
-                              className="stage-one-voice-button"
-                            >
-                              Play Su
-                            </button>
-                          ) : null}
-                        </div>
-                        <p className="mt-1 text-sm font-black leading-snug text-slate-950">{conversationLine.suLine}</p>
-                      </div>
-                    </div>
-                    <div className="stage-one-bubble stage-one-bubble--coach">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-900">Su coaches</p>
-                        {suCoachingAudioSrc ? (
-                          <button
-                            type="button"
-                            onClick={() => void playSuVoice(suCoachingAudioSrc)}
-                            className="stage-one-voice-button"
-                          >
-                            Coach
-                          </button>
-                        ) : null}
-                      </div>
-                      <p className="mt-1 text-xs font-bold leading-snug text-slate-700">{conversationLine.coachingLine}</p>
-                    </div>
-                    <div className="stage-one-bubble stage-one-bubble--player">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-fuchsia-900">Your reply</p>
-                      <p className="mt-1 text-xs font-bold leading-snug text-slate-600">{conversationLine.playerIntent}</p>
-                      <p className="stage-one-thai-glyph mt-1 text-3xl font-black leading-tight text-slate-950 sm:text-4xl">{currentPhrase.targetPhrase}</p>
-                      <div className={`mt-2 flex flex-wrap gap-1.5 ${listenHighlight ? 'stage-one-syllables--listen' : ''}`}>
-                        {romanizationParts.map((part, index) => (
-                          <span key={`${part}-${index}`} className="stage-one-syllable">
-                            {part}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="mt-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-600">Phonetic: {phoneticSpelling}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-2 grid gap-2 sm:grid-cols-[0.8fr_1fr]">
-                  <div className="rounded-lg border border-cyan-900/15 bg-cyan-50/80 px-3 py-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-900">Meaning</p>
-                    <p className="mt-1 text-sm font-black leading-snug text-slate-950">{currentPhrase.translation}</p>
-                  </div>
-                  <div className="rounded-lg border border-fuchsia-900/15 bg-fuchsia-50/70 px-3 py-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-fuchsia-900">Use this when</p>
-                    <p className="mt-1 text-sm font-bold leading-snug text-slate-700">{currentPhrase.context}</p>
-                  </div>
-                </div>
-
-                <div className="stage-one-result mt-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">Last result</p>
-                  <p className="mt-1 text-xs font-bold leading-snug text-slate-700">
-                    {lastAttempt
-                      ? lastAttempt.isSkipped
-                        ? `Skipped: practice ${lastAttempt.romanization} before replaying the stage.`
-                        : `${lastAttempt.pass ? 'Passed' : 'Retry'} ${lastAttempt.translation}. Heard: ${lastAttempt.heard || 'voice attempt recorded'}.`
-                      : listenHighlight
-                        ? 'Su is marking the sound shape. Listen once, then hold Speak.'
-                        : 'Pick a lobby cue, listen once, then say the phrase out loud.'}
-                  </p>
-                  {lastAttempt?.tip ? <p className="mt-1 text-xs font-bold leading-snug text-cyan-900">Su tip: {lastAttempt.tip}</p> : null}
-                </div>
-
-                <div className="mt-2 grid grid-cols-2 gap-1.5">
-                  <div>
-                    <div className="mb-1 flex justify-between text-[10px] font-black uppercase tracking-[0.12em] text-slate-600">
-                      <span>Courage</span>
-                      <span>
-                        {battle.courage}/{battle.maxCourage}
-                      </span>
-                    </div>
-                    <div className="vn-meter h-2.5">
-                      <div className="h-full bg-fuchsia-400" style={{ width: `${couragePercent}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-1 flex justify-between text-[10px] font-black uppercase tracking-[0.12em] text-slate-600">
-                      <span>Understanding</span>
-                      <span>{Math.round(understandingPercent)}%</span>
-                    </div>
-                    <div className="vn-meter h-2.5">
-                      <div className="h-full bg-cyan-400" style={{ width: `${understandingPercent}%` }} />
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
           </div>
-
-          <aside className="stage-one-controls grid min-w-0 content-start gap-2">
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-1">{battleActionControls}</div>
+          <div className="min-w-0">
             <SuPronunciationJudge
               hasVoiceCoach={hasVoiceCoach}
               isConnecting={isConnecting}
@@ -737,115 +436,113 @@ export function BattleHUD() {
               verdict={verdict}
               voiceError={voiceError || phraseAudioError || suAudioPlayer.error}
               voiceStatus={voiceStatus}
-              stageComplete={battle.hasWon}
+              stageComplete
               stageReport={battle.stagePracticeReport}
             />
-          </aside>
+          </div>
         </div>
       </section>
     );
   }
 
   return (
-    <section className="pointer-events-none absolute inset-x-3 bottom-[var(--vn-panel-bottom)] z-50 h-[min(28rem,48dvh)] sm:inset-x-10 sm:h-[var(--vn-panel-height)] lg:inset-x-16">
+    <section
+      className="battle-hud pointer-events-none absolute inset-x-3 bottom-[var(--vn-panel-bottom)] z-50 h-[min(30rem,52dvh)] sm:inset-x-10 sm:h-[var(--vn-panel-height)] lg:inset-x-16"
+      aria-label={`${activeScenario.title} — pronunciation practice`}
+    >
       <PronunciationScoreFlashOverlay flash={pronunciationFlash} />
-      <div className="vn-glass-panel pointer-events-auto grid h-full gap-2 overflow-y-auto p-3 sm:grid-cols-[minmax(0,1.18fr)_minmax(12rem,0.5fr)_minmax(15rem,0.62fr)] sm:p-3 lg:p-4">
-        <div className="min-w-0">
-          <div className="mb-1.5 flex items-center justify-between gap-3">
-            <span className="vn-status-chip px-3 py-1 font-display text-xs font-black uppercase tracking-[0.16em]">
-              Su
-            </span>
-            <span className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">
+      <div className="pointer-events-auto grid h-full grid-cols-1 gap-4 overflow-y-auto rounded-[12px] border border-hairline bg-ink-raised p-4 text-paper shadow-card sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] sm:gap-5 sm:p-5">
+        {/* Left column — phrase + coaching + stat bars */}
+        <div className="flex min-w-0 flex-col gap-3">
+          <header className="flex items-center justify-between gap-3">
+            <Chip>{currentPhrase.lesson || 'Su'}</Chip>
+            <span className="text-[0.65rem] font-bold uppercase tracking-[0.22em] text-paper-muted">
               {isReviewingPrevious ? 'Review' : `Phrase ${lessonProgress}`}
             </span>
+          </header>
+
+          <div>
+            <p className="font-display text-3xl font-bold leading-tight text-paper sm:text-4xl">
+              {currentPhrase.targetPhrase}
+            </p>
+            <p className="mt-1 text-xl font-bold leading-tight text-accent sm:text-2xl">
+              {currentPhrase.romanization}
+            </p>
+            <p className="mt-1 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-paper-quiet">
+              Phonetic · {phoneticSpelling}
+            </p>
           </div>
 
-          <p className="text-xl font-black leading-tight text-slate-950 sm:text-2xl lg:text-3xl">{currentPhrase.targetPhrase}</p>
-          <p className="mt-1 text-base font-black leading-tight text-cyan-900 sm:text-lg lg:text-xl">{currentPhrase.romanization}</p>
-          <p className="mt-0.5 text-[11px] font-black uppercase tracking-[0.08em] text-slate-600">Phonetic: {phoneticSpelling}</p>
-          <p className="mt-2 text-sm font-bold leading-snug text-slate-700">
-            {currentPhrase.translation}
-            <span className="hidden sm:inline"> - {currentPhrase.context}</span>
-          </p>
+          <div>
+            <p className="text-sm font-semibold text-paper">{currentPhrase.translation}</p>
+            <p className="mt-1 text-xs font-medium leading-relaxed text-paper-muted">
+              {currentPhrase.context}
+            </p>
+          </div>
 
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <div>
-              <div className="mb-1 flex justify-between text-[10px] font-black uppercase tracking-[0.12em] text-slate-600">
-                <span>Courage</span>
-                <span>
-                  {battle.courage}/{battle.maxCourage}
-                </span>
-              </div>
-              <div className="vn-meter h-2.5">
-                <div className="h-full bg-fuchsia-400" style={{ width: `${couragePercent}%` }} />
-              </div>
+          {/* Su's coaching line — replaces the three-bubble Su/Coach/Player layout */}
+          {conversationLine.coachingLine ? (
+            <div className="border-t border-hairline pt-3">
+              <p className="text-[0.65rem] font-bold uppercase tracking-[0.22em] text-paper-muted">
+                Su coaches
+              </p>
+              <p className="mt-1 text-sm font-medium leading-relaxed text-paper">
+                {conversationLine.coachingLine}
+              </p>
+              {listenHighlight ? (
+                <p className="mt-1 text-[0.7rem] font-medium uppercase tracking-[0.18em] text-accent">
+                  Listening cue — repeat after Su.
+                </p>
+              ) : null}
             </div>
-            <div>
-              <div className="mb-1 flex justify-between text-[10px] font-black uppercase tracking-[0.12em] text-slate-600">
-                <span>Understanding</span>
-                <span>{Math.round(understandingPercent)}%</span>
-              </div>
-              <div className="vn-meter h-2.5">
-                <div className="h-full bg-cyan-400" style={{ width: `${understandingPercent}%` }} />
-              </div>
-            </div>
+          ) : null}
+
+          {/* Stat bars — both accent, both fraction, both labeled in player-meaningful terms */}
+          <div className="mt-auto grid grid-cols-2 gap-3 border-t border-hairline pt-3">
+            <StatBar
+              label="Courage"
+              value={battle.courage}
+              max={battle.maxCourage}
+              format="fraction"
+              tone="accent"
+            />
+            <StatBar
+              label="Phrases passed"
+              value={battle.phrasesPassed}
+              max={activePhrases.length}
+              format="fraction"
+              tone="accent"
+            />
           </div>
         </div>
 
-        <div className="grid grid-cols-2 content-start gap-1.5 sm:grid-cols-1">
-          {battle.hasWon ? (
-            <button
-              type="button"
-              onClick={returnToOverworld}
-              className="vn-action-button bg-emerald-300 px-3 py-2.5 text-left text-sm font-black uppercase tracking-[0.12em] text-slate-950"
-            >
-              Continue Journey
-            </button>
-          ) : (
-            battleOptions.map((option) => {
-              const isSpeak = option === 'Speak Phrase';
-              const disabled = option === 'Hear Example' && (!phraseAudioSrc || isPhraseAudioPlaying);
-
+        {/* Right column — action stack + judge */}
+        <div className="flex min-w-0 flex-col gap-3">
+          <MicButton
+            isRecording={isRecording}
+            onStart={handleMicStart}
+            onStop={handleMicStop}
+            hint={micHint}
+            disabled={isConnecting}
+            className="w-full"
+          />
+          <div className="grid grid-cols-3 gap-2">
+            {secondaryOptions.map((option) => {
+              const disabled =
+                (option === 'Hear Example' && (!phraseAudioSrc || isPhraseAudioPlaying)) || isConnecting;
               return (
-                <button
+                <Button
                   key={option}
-                  type="button"
-                  onClick={() => {
-                    if (isSpeak && !pronunciationSession.current) {
-                      phraseAudioPlayer.stop();
-                      stopSuPlayback();
-                      setListenHighlight(false);
-                      void connectVoiceCoach();
-                      return;
-                    }
-
-                    if (!isSpeak) chooseBattleOptionWithAudio(option);
-                  }}
-                  onPointerDown={isSpeak ? startVoiceAttemptWithPointerCapture : undefined}
-                  onPointerUp={isSpeak ? stopVoiceAttemptWithPointerCapture : undefined}
-                  onPointerCancel={isSpeak ? stopVoiceAttemptWithPointerCapture : undefined}
-                  disabled={disabled || isConnecting}
-                  className={`vn-action-button px-3 py-1.5 text-left text-xs font-black uppercase tracking-[0.1em] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none sm:py-2 ${
-                    isSpeak
-                      ? isRecording
-                        ? 'bg-red-500 text-white'
-                        : 'bg-emerald-300 text-emerald-950'
-                      : 'bg-white text-slate-950'
-                  }`}
+                  variant="ghost"
+                  size="sm"
+                  disabled={disabled}
+                  onClick={() => chooseBattleOptionWithAudio(option)}
                 >
                   {battleOptionLabels[option]}
-                  {isSpeak ? (
-                    <span className="mt-0.5 block text-[10px] normal-case tracking-normal opacity-80">
-                      {!hasVoiceCoach ? `Connect ${voiceMode === 'whisper' ? 'Whisper' : 'Realtime'} mic` : isRecording ? 'Release to judge' : 'Hold to talk'}
-                    </span>
-                  ) : null}
-                </button>
+                </Button>
               );
-            })
-          )}
-        </div>
-
-        <div className="min-w-0">
+            })}
+          </div>
           <SuPronunciationJudge
             hasVoiceCoach={hasVoiceCoach}
             isConnecting={isConnecting}

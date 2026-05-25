@@ -5,7 +5,13 @@ import smileUrl from '../assets/characters/stage-02/front-desk-clerk/front-desk-
 import surprisedUrl from '../assets/characters/stage-02/front-desk-clerk/front-desk-clerk-surprised.png';
 import worriedUrl from '../assets/characters/stage-02/front-desk-clerk/front-desk-clerk-worried.png';
 
-export type FrontDeskClerkReaction = 'smile' | 'explaining' | 'surprised' | 'worried' | 'determined' | 'playful';
+export type FrontDeskClerkReaction =
+  | 'smile'
+  | 'explaining'
+  | 'surprised'
+  | 'worried'
+  | 'determined'
+  | 'playful';
 
 export const frontDeskClerkReactions: Record<FrontDeskClerkReaction, string> = {
   smile: smileUrl,

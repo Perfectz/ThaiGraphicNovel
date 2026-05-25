@@ -68,7 +68,8 @@ export function useAudioPlayer(errorMessage = 'The audio could not be played.'):
         { once: true },
       );
 
-      audio.play()
+      audio
+        .play()
         .then(() => {
           if (!waitForEnd) resolveOnce();
         })

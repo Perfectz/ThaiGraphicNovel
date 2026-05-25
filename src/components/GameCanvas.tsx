@@ -3,21 +3,36 @@ import { useGameStore } from '../store/gameStore';
 import { BattleHUD } from './BattleHUD';
 import { ChapterCharacterLayer } from './ChapterCharacterLayer';
 import { DialogueBox } from './DialogueBox';
-import { PointClickAdventureScene } from './PointClickAdventureScene';
+import { Stage3DAdventureDispatcher } from './Stage3DAdventureDispatcher';
+import { Button, Chip } from './ui';
 
 export function GameCanvas() {
   const currentScene = useGameStore((state) => state.currentScene);
   const activeScenarioIndex = useGameStore((state) => state.activeScenarioIndex);
   const startTutorialDialogue = useGameStore((state) => state.startTutorialDialogue);
   const battle = useGameStore((state) => state.battle);
-  const { activeScenario, activeStage, focusCharacter, focusLabel, focusLine, startLessonLabel } = getScenePresentation(
-    currentScene,
-    activeScenarioIndex,
-    battle,
-  );
+
+  // Every gameplay stage (1–10) now renders through the data-driven
+  // Stage3DAdventureDispatcher. Stage 1 ('dialogue' scene, index 0) and
+  // Stage 2 ('pointClickAdventure' scene, index 1) previously routed through
+  // bespoke `CharacterDebugPage` and `LevelTwoDebugPage` components — those
+  // were retired in Q1 of the 2-year roadmap once their adventure-config
+  // equivalents reached parity. The legacy scene names are preserved here so
+  // existing save data and store transitions keep working without a state
+  // migration; they just resolve to the dispatcher now.
+  if (
+    currentScene === 'stage3dAdventure' ||
+    (currentScene === 'dialogue' && activeScenarioIndex === 0) ||
+    (currentScene === 'pointClickAdventure' && activeScenarioIndex === 1)
+  ) {
+    return <Stage3DAdventureDispatcher />;
+  }
+
+  const { activeScenario, activeStage, focusCharacter, focusLabel, focusLine, startLessonLabel } =
+    getScenePresentation(currentScene, activeScenarioIndex, battle);
 
   return (
-    <main className="vn-game-shell relative h-dvh w-screen overflow-hidden bg-slate-950 text-slate-950">
+    <main className="vn-game-shell relative h-dvh w-screen overflow-hidden bg-ink text-paper">
       <img
         src={activeStage.backgroundImage}
         alt=""
@@ -25,17 +40,19 @@ export function GameCanvas() {
         decoding="async"
         draggable={false}
       />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,244,251,0.08),rgba(15,23,42,0.16)),radial-gradient(circle_at_78%_22%,rgba(34,211,238,0.12),transparent_24%)]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[58%] bg-gradient-to-t from-slate-950/62 via-slate-950/12 to-transparent" />
+      {/* Subtle bottom vignette so the modern UI chrome reads against any background image. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[58%] bg-gradient-to-t from-ink/85 via-ink/30 to-transparent" />
 
       <header className="pointer-events-none absolute left-3 right-16 top-3 z-30 flex items-start justify-between gap-3 sm:left-6 sm:right-6 sm:top-5">
-        <div className="vn-glass-panel px-4 py-2">
-          <p className="font-display text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-700">
+        <div className="rounded-md border border-hairline bg-ink-raised/90 px-3 py-2 shadow-card backdrop-blur-sm">
+          <p className="font-display text-[0.6rem] font-bold uppercase tracking-[0.28em] text-accent">
             Stage {activeScenario.scenarioNumber}/10
           </p>
-          <p className="mt-1 text-sm font-black leading-tight text-slate-950 sm:text-lg">{activeScenario.title}</p>
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-800">
-            {activeStage.routeLabel} to {activeStage.nextRouteLabel}
+          <p className="mt-0.5 text-sm font-semibold leading-tight text-paper sm:text-base">
+            {activeScenario.title}
+          </p>
+          <p className="text-[0.6rem] font-medium uppercase tracking-[0.22em] text-paper-muted">
+            {activeStage.routeLabel} → {activeStage.nextRouteLabel}
           </p>
         </div>
       </header>
@@ -43,32 +60,23 @@ export function GameCanvas() {
       <ChapterCharacterLayer characters={focusCharacter ? [focusCharacter] : []} />
 
       {currentScene === 'overworld' ? (
-        <section className="vn-glass-panel pointer-events-auto absolute inset-x-3 bottom-[var(--vn-panel-bottom)] z-40 grid min-h-[9.5rem] gap-2 overflow-y-auto p-3 sm:inset-x-10 sm:grid-cols-[1fr_auto] sm:gap-4 sm:p-4 lg:inset-x-16">
+        <section className="pointer-events-auto absolute inset-x-3 bottom-[var(--vn-panel-bottom)] z-40 grid min-h-[9.5rem] gap-3 overflow-y-auto rounded-[12px] border border-hairline bg-ink-raised/95 p-4 text-paper shadow-card backdrop-blur-sm sm:inset-x-10 sm:grid-cols-[1fr_auto] sm:gap-5 sm:p-5 lg:inset-x-16">
           <div className="min-w-0">
             <div className="mb-2 flex items-center gap-2">
-              <span className="vn-status-chip px-3 py-1 font-display text-xs font-black uppercase tracking-[0.16em]">
-                {focusLabel}
-              </span>
-              <span className="h-px flex-1 bg-slate-950/25" />
+              <Chip>{focusLabel}</Chip>
+              <span className="h-px flex-1 bg-hairline" />
             </div>
-            <p className="text-base font-black leading-snug text-slate-950 sm:text-xl">
-              {focusLine}
-            </p>
+            <p className="text-base font-medium leading-relaxed text-paper sm:text-lg">{focusLine}</p>
           </div>
           <div className="grid gap-2 sm:w-64">
-            <button
-              type="button"
-              onClick={startTutorialDialogue}
-              className="vn-action-button bg-fuchsia-400 px-4 py-2.5 text-left text-sm font-black uppercase tracking-[0.14em] text-white sm:text-base"
-            >
+            <Button variant="primary" onClick={startTutorialDialogue}>
               {startLessonLabel}
-            </button>
+            </Button>
           </div>
         </section>
       ) : null}
 
       {currentScene === 'dialogue' ? <DialogueBox /> : null}
-      {currentScene === 'pointClickAdventure' ? <PointClickAdventureScene /> : null}
       {currentScene === 'battle' ? <BattleHUD /> : null}
     </main>
   );

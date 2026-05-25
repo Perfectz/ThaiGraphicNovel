@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import test from 'node:test';
-import { getTranscriptionChunkOptions, judgeTranscript, similarityScore } from '../whisper-core.mjs';
+import {
+  analyzeFloat32Audio,
+  getTranscriptionChunkOptions,
+  isLikelyWhisperHallucination,
+  judgeTranscript,
+  similarityScore,
+} from '../whisper-core.mjs';
 
 const TEST_PORT = 8798;
 const BASE_URL = `http://127.0.0.1:${TEST_PORT}`;
@@ -108,6 +114,23 @@ test('long Whisper recordings use chunked transcription options', () => {
   });
 });
 
+test('audio analysis rejects silence before Whisper can hallucinate a transcript', () => {
+  const silence = new Float32Array(16000);
+  const quietNoise = Float32Array.from({ length: 16000 }, (_, index) => (index % 2 === 0 ? 0.0004 : -0.0004));
+  const speechLikeSignal = Float32Array.from({ length: 16000 }, (_, index) => Math.sin(index / 8) * 0.04);
+
+  assert.equal(analyzeFloat32Audio(silence).isSilent, true);
+  assert.equal(analyzeFloat32Audio(quietNoise).isSilent, true);
+  assert.equal(analyzeFloat32Audio(speechLikeSignal).isSilent, false);
+});
+
+test('repeated-noise transcripts are treated as Whisper hallucinations', () => {
+  assert.equal(isLikelyWhisperHallucination('อีก อีก อีก อีก อีก อีก อีก อีก อีก อีก อีก อีก'), true);
+  assert.equal(isLikelyWhisperHallucination('เจอเจอเจอเจอเจอเจอเจอเจอเจอเจอเจอเจอ'), true);
+  assert.equal(isLikelyWhisperHallucination('เอาอันนี้ครับ'), false);
+  assert.equal(isLikelyWhisperHallucination('sawatdee khrap'), false);
+});
+
 test('standalone Whisper service exposes health, transcript judging, and audio validation', async () => {
   const child = await startWhisperService();
 
@@ -146,6 +169,22 @@ test('standalone Whisper service exposes health, transcript judging, and audio v
     assert.equal(missingAudio.status, 400);
     const missingAudioPayload = await missingAudio.json();
     assert.match(missingAudioPayload.error, /Missing audio recording/);
+
+    const silenceBytes = Buffer.alloc(16000 * Float32Array.BYTES_PER_ELEMENT);
+    const silenceFormData = new FormData();
+    silenceFormData.set('audio', new Blob([silenceBytes]), 'silence.f32');
+    silenceFormData.set('audioFormat', 'f32le');
+    silenceFormData.set('sampleRate', '16000');
+    silenceFormData.set('targetPhrase', 'à¸‚à¸­à¸šà¸„à¸¸à¸“à¸„à¸£à¸±à¸š');
+    silenceFormData.set('romanization', 'khop khun khrap');
+    silenceFormData.set('translation', 'Thank you');
+    const silenceAudio = await fetch(`${BASE_URL}/api/whisper/judge-audio`, {
+      method: 'POST',
+      body: silenceFormData,
+    });
+    assert.equal(silenceAudio.status, 422);
+    const silenceAudioPayload = await silenceAudio.json();
+    assert.match(silenceAudioPayload.error, /No clear microphone audio/);
   } finally {
     child.kill();
   }

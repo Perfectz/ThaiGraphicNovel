@@ -90,7 +90,10 @@ export function createBattleStateForScenario(scenario: LessonScenario): BattleSt
   };
 }
 
-export function completeScenario(activeScenarioIndex: number, completedScenarioIds: string[]): ScenarioCompletion {
+export function completeScenario(
+  activeScenarioIndex: number,
+  completedScenarioIds: string[],
+): ScenarioCompletion {
   const scenario = getScenarioByIndex(activeScenarioIndex);
   const nextCompletedScenarioIds = Array.from(new Set([...completedScenarioIds, scenario.id]));
   const nextScenarioIndex = getScenarioIndex(activeScenarioIndex + 1);

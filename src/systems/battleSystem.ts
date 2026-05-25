@@ -26,7 +26,8 @@ export function resolveBattleTurn(option: BattleOption, phrase: ThaiPhrase): Bat
         courageDelta: 0,
         shouldAdvancePhrase: false,
         playerText: `Patrick focuses on "${phrase.targetPhrase}".`,
-        enemyText: 'Su points to the mic button. Say it out loud so the language magic can judge your pronunciation.',
+        enemyText:
+          'Su points to the mic button. Say it out loud so the language magic can judge your pronunciation.',
       };
     case 'Hear Example':
       return {
@@ -50,12 +51,16 @@ export function resolveBattleTurn(option: BattleOption, phrase: ThaiPhrase): Bat
         courageDelta: -2,
         shouldAdvancePhrase: false,
         playerText: `Patrick skips "${phrase.translation}".`,
-        enemyText: 'Su lets the lesson move on, but no Understanding or Super charge is earned for this phrase.',
+        enemyText:
+          'Su lets the lesson move on, but no Understanding or Super charge is earned for this phrase.',
       };
   }
 }
 
-export function resolvePronunciationTurn(result: PronunciationBattleResult, phrase: ThaiPhrase): BattleResult {
+export function resolvePronunciationTurn(
+  result: PronunciationBattleResult,
+  phrase: ThaiPhrase,
+): BattleResult {
   if (!result.pass) {
     return {
       confidenceDamage: 0,
@@ -67,7 +72,12 @@ export function resolvePronunciationTurn(result: PronunciationBattleResult, phra
   }
 
   const confidenceDamage = 10;
-  const courageDelta = phrase.isHeal ? 8 : 1;
+  // courageDelta depends on the phrase's mechanical effect:
+  //   - 'heal'        restores a chunk of Courage (used for needs-phrasing like "I'm thirsty")
+  //   - 'damage'      penalises Courage (rude phrasing the player should learn to avoid)
+  //   - 'reveal-hint' is purely informational; it advances and grants a neutral tick
+  //   - undefined     baseline +1 tick
+  const courageDelta = phrase.phraseEffect === 'heal' ? 8 : phrase.phraseEffect === 'damage' ? -3 : 1;
 
   return {
     confidenceDamage,

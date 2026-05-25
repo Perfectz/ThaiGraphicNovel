@@ -32,7 +32,8 @@ export const suTutorialDialogue: DialogueLine[] = [
   {
     speaker: 'Su',
     text: 'ใช่ (yes - chai). Battle rules, tiny rift hero: hold Speak and talk, release to let the AI judge, tap Hear for my example, Review to retry, and Skip only if your mouth has dramatically resigned. พร้อมไหม (ready? - phrom mai)',
-    spokenText: 'Chai, yes. Battle tutorial speedrun. Hold Speak and talk, then release so the AI can judge your pronunciation. Tap Hear if your ears need snacks, Review to redo the last phrase, and Skip only if your mouth has entered witness protection. Phrom mai, ready? Try not to duel the Thai language like it owes you rent.',
+    spokenText:
+      'Chai, yes. Battle tutorial speedrun. Hold Speak and talk, then release so the AI can judge your pronunciation. Tap Hear if your ears need snacks, Review to redo the last phrase, and Skip only if your mouth has entered witness protection. Phrom mai, ready? Try not to duel the Thai language like it owes you rent.',
   },
 ];
 

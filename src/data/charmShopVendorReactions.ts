@@ -5,7 +5,13 @@ import smileUrl from '../assets/characters/stage-05/charm-shop-vendor/charm-shop
 import surprisedUrl from '../assets/characters/stage-05/charm-shop-vendor/charm-shop-vendor-surprised.png';
 import worriedUrl from '../assets/characters/stage-05/charm-shop-vendor/charm-shop-vendor-worried.png';
 
-export type CharmShopVendorReaction = 'smile' | 'explaining' | 'surprised' | 'worried' | 'determined' | 'playful';
+export type CharmShopVendorReaction =
+  | 'smile'
+  | 'explaining'
+  | 'surprised'
+  | 'worried'
+  | 'determined'
+  | 'playful';
 
 export const charmShopVendorReactions: Record<CharmShopVendorReaction, string> = {
   smile: smileUrl,

@@ -4,6 +4,9 @@ const TRANSCRIBE_SAMPLE_RATE = 16000;
 const CHUNKED_TRANSCRIPTION_THRESHOLD_SECONDS = 8;
 const CHUNK_LENGTH_SECONDS = 15;
 const STRIDE_LENGTH_SECONDS = 3;
+const MIN_TRANSCRIBE_DURATION_SECONDS = 0.18;
+const SILENCE_RMS_THRESHOLD = 0.0025;
+const SILENCE_PEAK_THRESHOLD = 0.015;
 export const TUTORING_LEVELS = {
   easy: {
     passScore: 50,
@@ -124,6 +127,61 @@ export async function readFloat32Audio(audio) {
   return new Float32Array(arrayBuffer);
 }
 
+export function analyzeFloat32Audio(samples, sampleRate = TRANSCRIBE_SAMPLE_RATE) {
+  if (!samples.length) {
+    return {
+      durationSeconds: 0,
+      rms: 0,
+      peak: 0,
+      isSilent: true,
+    };
+  }
+
+  let sumSquares = 0;
+  let peak = 0;
+  for (const sample of samples) {
+    const value = Number.isFinite(sample) ? sample : 0;
+    sumSquares += value * value;
+    peak = Math.max(peak, Math.abs(value));
+  }
+
+  const rms = Math.sqrt(sumSquares / samples.length);
+  const durationSeconds = samples.length / sampleRate;
+  return {
+    durationSeconds,
+    rms,
+    peak,
+    isSilent:
+      durationSeconds < MIN_TRANSCRIBE_DURATION_SECONDS ||
+      (rms < SILENCE_RMS_THRESHOLD && peak < SILENCE_PEAK_THRESHOLD),
+  };
+}
+
+export function isLikelyWhisperHallucination(transcript) {
+  const text = String(transcript ?? '').trim();
+  if (!text) return false;
+
+  const words = text.split(/\s+/u).filter(Boolean);
+  if (words.length >= 8) {
+    const counts = new Map();
+    for (const word of words) counts.set(word, (counts.get(word) ?? 0) + 1);
+    const topCount = Math.max(...counts.values());
+    if (counts.size <= 3 && topCount / words.length >= 0.7) return true;
+  }
+
+  const compact = normalizeText(text);
+  if (compact.length < 24) return false;
+
+  for (let unitLength = 1; unitLength <= 4; unitLength += 1) {
+    const unit = compact.slice(0, unitLength);
+    if (!unit.trim()) continue;
+    const repeated = unit.repeat(Math.ceil(compact.length / unitLength)).slice(0, compact.length);
+    if (repeated === compact && compact.length / unitLength >= 8) return true;
+  }
+
+  return false;
+}
+
 export function getTranscriptionChunkOptions(sampleCount, sampleRate = TRANSCRIBE_SAMPLE_RATE) {
   const durationSeconds = sampleCount / sampleRate;
   return durationSeconds > CHUNKED_TRANSCRIPTION_THRESHOLD_SECONDS
@@ -137,11 +195,27 @@ export function getTranscriptionChunkOptions(sampleCount, sampleRate = TRANSCRIB
 export async function transcribeAudio({ audio, language }) {
   const transcriber = await getLocalTranscriber();
   const samples = await readFloat32Audio(audio);
+  const audioStats = analyzeFloat32Audio(samples);
+  if (audioStats.isSilent) {
+    const error = new Error('No clear microphone audio was captured. Hold the button while speaking, then release after the phrase.');
+    error.status = 422;
+    error.detail = audioStats;
+    throw error;
+  }
+
   const output = await transcriber(samples, {
     language: language || process.env.LOCAL_WHISPER_LANGUAGE || DEFAULT_TRANSCRIBE_LANGUAGE,
     task: 'transcribe',
     ...getTranscriptionChunkOptions(samples.length),
   });
 
-  return String(output.text ?? '');
+  const transcript = String(output.text ?? '');
+  if (isLikelyWhisperHallucination(transcript)) {
+    const error = new Error('Whisper heard repeated background noise instead of a clear phrase. Try again closer to the mic.');
+    error.status = 422;
+    error.detail = { transcript, audioStats };
+    throw error;
+  }
+
+  return transcript;
 }

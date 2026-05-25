@@ -1,4 +1,8 @@
-import { getChapterCharacters, type ChapterCharacterReaction, type ChapterCharacterSprite } from '../data/chapterCharacters';
+import {
+  getChapterCharacters,
+  type ChapterCharacterReaction,
+  type ChapterCharacterSprite,
+} from '../data/chapterCharacters';
 import { lessonScenarios } from '../data/lessonScenarios';
 import { getStageTheme } from '../data/stageThemes';
 import { suReactions, type SuReaction } from '../data/suReactions';
@@ -23,7 +27,11 @@ export type FocusCharacter = ChapterCharacterSprite & {
   label: string;
 };
 
-export function getScenePresentation(currentScene: SceneName, activeScenarioIndex: number, battle: BattleState) {
+export function getScenePresentation(
+  currentScene: SceneName,
+  activeScenarioIndex: number,
+  battle: BattleState,
+) {
   const displayScenarioIndex = getDisplayScenarioIndex(currentScene, activeScenarioIndex, battle);
   const activeScenario = getScenarioByIndex(displayScenarioIndex);
   const activeStage = getStageTheme(displayScenarioIndex);

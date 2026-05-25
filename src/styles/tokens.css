@@ -1,0 +1,37 @@
+/* Design tokens — single source of truth.
+ *
+ * Imported once from src/index.css. Every component (new + migrated) reads
+ * from these custom properties via the Tailwind aliases configured in
+ * tailwind.config.js (bg-ink, text-paper, border-hairline, etc.) or via
+ * var(--token) in raw CSS. Do not introduce new raw hex literals in app
+ * code — add a token here first if the palette needs to grow.
+ *
+ * Spec source: C:\Users\pzgam\.claude\plans\analysis-the-title-screen-keen-clarke.md §1.1
+ */
+
+:root {
+  /* Surfaces — three tiers of Ink + their text counterparts */
+  --ink: #0a0a0b;
+  --ink-raised: #15171b;
+  --ink-elevated: #1f2127;
+
+  --paper: #f4f1eb;
+  --paper-muted: rgba(244, 241, 235, 0.7);
+  --paper-quiet: rgba(244, 241, 235, 0.45);
+
+  --hairline: #3a3d44;
+
+  /* Accent — single hero (cyan) with semantic supporting tones */
+  --cyan: #67e8f9;
+  --cyan-soft: rgba(103, 232, 249, 0.18);
+
+  /* Semantic — each color carries one meaning, never both */
+  --jade: #7ae3b3; /* success only (verdict pass, completed stage) */
+  --ember: #ff5c2b; /* failure / destructive only (verdict fail, recording, error) */
+  --amber: #f5c26b; /* coaching only (single middle-state color) */
+
+  /* Motion — keep durations / easings in sync across primitives */
+  --motion-fast: 120ms;
+  --motion-medium: 220ms;
+  --ease-out: cubic-bezier(0.2, 0.92, 0.3, 1);
+}

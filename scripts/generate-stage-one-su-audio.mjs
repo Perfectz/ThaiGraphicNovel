@@ -6,9 +6,6 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const outputDir = resolve(rootDir, 'src/assets/audio/su/stage-01');
-const manifestPath = resolve(rootDir, 'src/generated/stageOneSuAudioManifest.ts');
-const provenancePath = resolve(outputDir, 'provenance.json');
 const realtimeUrl = 'wss://api.openai.com/v1/realtime';
 const fallbackModel = 'gpt-realtime-2';
 const fallbackVoice = 'sage';
@@ -33,6 +30,59 @@ const bannedPreamblePatterns = [
   /\brecite\b/i,
 ];
 
+const audioStageConfigs = {
+  '1': {
+    stageSlug: 'stage-01',
+    planLabel: 'Stage 1 Su',
+    dataPath: 'src/data/stageOneSuVoiceLines.ts',
+    dataExportName: 'stageOneSuVoiceLines',
+    outputDir: resolve(rootDir, 'src/assets/audio/su/stage-01'),
+    manifestPath: resolve(rootDir, 'src/generated/stageOneSuAudioManifest.ts'),
+    manifestExportName: 'generatedStageOneSuAudioById',
+    importPrefix: 'stageOneSuAudio',
+    tempPrefix: 'stage-one-su',
+    generationCommand: 'npm run audio:su:generate',
+  },
+  '2': {
+    stageSlug: 'stage-02',
+    planLabel: 'Stage 2 Su',
+    dataPath: 'src/data/stageTwoSuBriefing.ts',
+    dataExportName: 'stageTwoSuBriefingLines',
+    outputDir: resolve(rootDir, 'src/assets/audio/su/stage-02'),
+    manifestPath: resolve(rootDir, 'src/generated/stageTwoSuAudioManifest.ts'),
+    manifestExportName: 'generatedStageTwoSuAudioById',
+    importPrefix: 'stageTwoSuAudio',
+    tempPrefix: 'stage-two-su',
+    generationCommand: 'npm run audio:su:stage2:generate',
+  },
+  all: {
+    stageSlug: 'all-su',
+    planLabel: 'All remaining Su',
+    dataPath: 'src/data/suVoiceLines.ts',
+    dataExportName: 'suVoiceLines',
+    outputDir: resolve(rootDir, 'src/assets/audio/su/all'),
+    manifestPath: resolve(rootDir, 'src/generated/suAudioManifest.ts'),
+    manifestExportName: 'generatedSuAudioById',
+    importPrefix: 'suAudio',
+    tempPrefix: 'su-all',
+    generationCommand: 'npm run audio:su:all:generate',
+  },
+  characters: {
+    stageSlug: 'characters-02-03',
+    planLabel: 'Level 2-3 character',
+    dataPath: 'src/data/characterVoiceLines.ts',
+    dataExportName: 'characterVoiceLines',
+    outputDir: resolve(rootDir, 'src/assets/audio/characters/levels-02-03'),
+    manifestPath: resolve(rootDir, 'src/generated/characterVoiceAudioManifest.ts'),
+    manifestExportName: 'generatedCharacterVoiceAudioById',
+    importPrefix: 'characterVoiceAudio',
+    tempPrefix: 'character-voice',
+    generationCommand: 'npm run audio:characters:generate',
+  },
+};
+
+const tsModuleCache = new Map();
+
 function loadLocalEnv() {
   for (const envFile of ['.env.local', '.env']) {
     const envPath = resolve(rootDir, envFile);
@@ -48,6 +98,8 @@ function loadLocalEnv() {
 
 function loadTsModule(pathFromRoot) {
   const filename = resolve(rootDir, pathFromRoot);
+  if (tsModuleCache.has(filename)) return tsModuleCache.get(filename).exports;
+
   const source = readFileSync(filename, 'utf8');
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -60,10 +112,36 @@ function loadTsModule(pathFromRoot) {
   }).outputText;
 
   const module = { exports: {} };
-  const require = () => ({});
+  tsModuleCache.set(filename, module);
+  const require = (request) => loadRequiredModule(filename, request);
   const fn = new Function('exports', 'require', 'module', '__filename', '__dirname', transpiled);
   fn(module.exports, require, module, filename, dirname(filename));
   return module.exports;
+}
+
+function loadRequiredModule(parentFilename, request) {
+  if (!request.startsWith('.') && !request.startsWith('/')) return {};
+
+  const basePath = request.startsWith('/')
+    ? request
+    : resolve(dirname(parentFilename), request);
+  const candidates = [
+    basePath,
+    `${basePath}.ts`,
+    `${basePath}.tsx`,
+    `${basePath}.js`,
+    `${basePath}.jsx`,
+    `${basePath}.json`,
+    resolve(basePath, 'index.ts'),
+  ];
+  const resolved = candidates.find((candidate) => existsSync(candidate));
+  if (!resolved) return {};
+
+  if (/\.(png|jpg|jpeg|webp|gif|svg|mp3|wav|mp4)$/i.test(resolved)) return '';
+  if (resolved.endsWith('.json')) return JSON.parse(readFileSync(resolved, 'utf8'));
+
+  const relativePath = relative(rootDir, resolved).replace(/\\/g, '/');
+  return loadTsModule(relativePath);
 }
 
 function parseArgs() {
@@ -79,6 +157,7 @@ function parseArgs() {
     force: args.has('--force'),
     format: getValue('--format', defaultFormat),
     limit: Number(getValue('--limit', '0')),
+    stage: getValue('--stage', '1'),
   };
 }
 
@@ -88,48 +167,62 @@ function getApiKey() {
   return apiKey;
 }
 
-function buildAudioItems(format) {
-  const { stageOneSuVoiceLines } = loadTsModule('src/data/stageOneSuVoiceLines.ts');
-  return stageOneSuVoiceLines.map((line) => ({
+function getAudioStageConfig(stage) {
+  const config = audioStageConfigs[stage];
+  if (!config) throw new Error(`Unsupported audio stage "${stage}". Use --stage=1, --stage=2, --stage=all, or --stage=characters.`);
+  return {
+    ...config,
+    provenancePath: resolve(config.outputDir, 'provenance.json'),
+  };
+}
+
+function buildAudioItems(config, format) {
+  const moduleExports = loadTsModule(config.dataPath);
+  const voiceLines = moduleExports[config.dataExportName];
+  if (!Array.isArray(voiceLines)) {
+    throw new Error(`${config.dataPath} did not export ${config.dataExportName}.`);
+  }
+  return voiceLines.map((line) => ({
     ...line,
     model: line.model ?? fallbackModel,
     voice: line.voice ?? fallbackVoice,
-    outputPath: resolve(outputDir, `${line.id}.${format}`),
+    category: line.category ?? 'intro',
+    outputPath: resolve(config.outputDir, `${line.id}.${format}`),
   }));
 }
 
-function writeManifest(items) {
+function writeManifest(config, items) {
   const existingItems = items.filter((item) => existsSync(item.outputPath));
   const importLines = [];
   const mapLines = [];
 
   existingItems.forEach((item, index) => {
-    const importName = `stageOneSuAudio${index}`;
-    const relativePath = relative(dirname(manifestPath), item.outputPath).replace(/\\/g, '/');
+    const importName = `${config.importPrefix}${index}`;
+    const relativePath = relative(dirname(config.manifestPath), item.outputPath).replace(/\\/g, '/');
     importLines.push(`import ${importName} from '${relativePath.startsWith('.') ? relativePath : `./${relativePath}`}';`);
     mapLines.push(`  ${JSON.stringify(item.id)}: ${importName},`);
   });
 
   const contents = `${importLines.join('\n')}${importLines.length ? '\n\n' : ''}` +
-    `export const generatedStageOneSuAudioById: Partial<Record<string, string>> = {\n${mapLines.join('\n')}\n};\n`;
+    `export const ${config.manifestExportName}: Partial<Record<string, string>> = {\n${mapLines.join('\n')}\n};\n`;
 
-  mkdirSync(dirname(manifestPath), { recursive: true });
-  writeFileSync(manifestPath, contents, 'utf8');
+  mkdirSync(dirname(config.manifestPath), { recursive: true });
+  writeFileSync(config.manifestPath, contents, 'utf8');
   return existingItems.length;
 }
 
-function readProvenance() {
-  if (!existsSync(provenancePath)) return {};
+function readProvenance(config) {
+  if (!existsSync(config.provenancePath)) return {};
   try {
-    return JSON.parse(readFileSync(provenancePath, 'utf8'));
+    return JSON.parse(readFileSync(config.provenancePath, 'utf8'));
   } catch {
     return {};
   }
 }
 
-function writeProvenance(provenanceById) {
-  mkdirSync(dirname(provenancePath), { recursive: true });
-  writeFileSync(provenancePath, `${JSON.stringify(provenanceById, null, 2)}\n`, 'utf8');
+function writeProvenance(config, provenanceById) {
+  mkdirSync(dirname(config.provenancePath), { recursive: true });
+  writeFileSync(config.provenancePath, `${JSON.stringify(provenanceById, null, 2)}\n`, 'utf8');
 }
 
 function addSocketListener(socket, eventName, handler) {
@@ -181,12 +274,13 @@ function createSpokenScript(text) {
 
 function createPerformanceInstructions(item) {
   const lineType = item.id.endsWith('-coach') ? 'coaching' : item.category === 'intro' ? 'intro' : 'reaction';
+  const speaker = item.speaker ?? 'Su';
   return [
-    'You are recording FINAL in-game voice-over audio for Su in a bright RPG Thai-learning visual novel.',
+    `You are recording FINAL in-game voice-over audio for ${speaker} in a bright RPG Thai-learning visual novel.`,
     'Your audio will be inserted directly into the game. There is no editor and no cleanup pass.',
     'CRITICAL: Begin immediately with the first word of the supplied line. End immediately after the last word.',
-    'CRITICAL: Say only Su\'s line. Do not introduce it, explain it, describe the scene, mention Su, mention voice acting, or say anything like "alright", "okay", "sure", "let me", "as Su", "the line is", or "in the scene".',
-    'Su is warm, playful, alert, and encouraging. She sounds like she is standing in front of Patrick, coaching him directly.',
+    `CRITICAL: Say only ${speaker}'s line. Do not introduce it, explain it, describe the scene, mention ${speaker}, mention voice acting, or say anything like "alright", "okay", "sure", "let me", "as ${speaker}", "the line is", or "in the scene".`,
+    `${speaker} is a character in an expressive Thai-learning RPG. Keep the delivery natural, specific, and in-character.`,
     'Act the line as natural dialogue with emotion, not narration. Use small pauses, a light smile, and real conversational rhythm.',
     lineType === 'coaching'
       ? 'This is a coaching line: make the breakdown patient and clear, then make the final repeat slower and easier to copy.'
@@ -227,7 +321,7 @@ function validateOutputTranscript(item, transcript, spokenScript) {
   }
 }
 
-async function generateRealtimePcm(item, apiKey) {
+async function generateRealtimePcm(config, item, apiKey) {
   const socket = await createRealtimeSocket(apiKey, item.model);
   const chunks = [];
   let transcript = '';
@@ -287,7 +381,7 @@ async function generateRealtimePcm(item, apiKey) {
           output_modalities: ['audio'],
           instructions: createPerformanceInstructions(item),
           metadata: {
-            stage: 'stage-01',
+            stage: config.stageSlug,
             audio_id: item.id,
             requested_model: item.model,
             requested_voice: item.voice,
@@ -377,12 +471,12 @@ async function generateRealtimePcm(item, apiKey) {
   });
 }
 
-async function generateValidatedRealtimePcm(item, apiKey) {
+async function generateValidatedRealtimePcm(config, item, apiKey) {
   let lastError = null;
 
   for (let attempt = 1; attempt <= maxGenerationAttempts; attempt += 1) {
     try {
-      const result = await generateRealtimePcm(item, apiKey);
+      const result = await generateRealtimePcm(config, item, apiKey);
       validateOutputTranscript(item, result.provenance.outputTranscript, result.provenance.spokenScript);
       result.provenance.attempt = attempt;
       return result;
@@ -410,9 +504,9 @@ function runFfmpeg(args) {
   });
 }
 
-async function convertPcmToAudio(pcmBytes, outputPath, format) {
+async function convertPcmToAudio(config, pcmBytes, outputPath, format) {
   mkdirSync(dirname(outputPath), { recursive: true });
-  const rawPath = resolve(tmpdir(), `stage-one-su-${Date.now()}-${Math.random().toString(16).slice(2)}.pcm`);
+  const rawPath = resolve(tmpdir(), `${config.tempPrefix}-${Date.now()}-${Math.random().toString(16).slice(2)}.pcm`);
   writeFileSync(rawPath, pcmBytes);
   const formatArgs = format === 'wav'
     ? ['-codec:a', 'pcm_s16le']
@@ -442,18 +536,19 @@ async function convertPcmToAudio(pcmBytes, outputPath, format) {
 async function main() {
   loadLocalEnv();
   const options = parseArgs();
+  const config = getAudioStageConfig(options.stage);
   const apiKey = getApiKey();
   if (!['mp3', 'wav'].includes(options.format)) {
     throw new Error(`Unsupported audio format "${options.format}". Use mp3 or wav.`);
   }
 
-  const allItems = buildAudioItems(options.format);
+  const allItems = buildAudioItems(config, options.format);
   const missingItems = allItems.filter((item) => options.force || !existsSync(item.outputPath));
   const limitedItems = options.limit > 0 ? missingItems.slice(0, options.limit) : missingItems;
 
   if (options.dryRun) {
-    const manifestCount = writeManifest(allItems);
-    console.log(`Stage 1 Su Realtime audio plan: ${allItems.length} total, ${missingItems.length} missing, ${manifestCount} in manifest.`);
+    const manifestCount = writeManifest(config, allItems);
+    console.log(`${config.planLabel} Realtime audio plan: ${allItems.length} total, ${missingItems.length} missing, ${manifestCount} in manifest.`);
     for (const item of missingItems.slice(0, 30)) {
       console.log(`missing ${item.category}: ${item.id}`);
     }
@@ -462,23 +557,23 @@ async function main() {
   }
 
   if (!apiKey) {
-    writeManifest(allItems);
-    throw new Error('OPENAI_API_KEY is missing or still a placeholder. Add a real key to .env.local or the process environment, then run npm run audio:su:generate.');
+    writeManifest(config, allItems);
+    throw new Error(`OPENAI_API_KEY is missing or still a placeholder. Add a real key to .env.local or the process environment, then run ${config.generationCommand}.`);
   }
 
   for (const [index, item] of limitedItems.entries()) {
     console.log(`[${index + 1}/${limitedItems.length}] ${item.id} (${item.voice}, ${item.model})`);
-    const { pcmBytes, provenance } = await generateValidatedRealtimePcm(item, apiKey);
+    const { pcmBytes, provenance } = await generateValidatedRealtimePcm(config, item, apiKey);
     provenance.requestedFormat = options.format;
-    await convertPcmToAudio(pcmBytes, item.outputPath, options.format);
-    const provenanceById = readProvenance();
+    await convertPcmToAudio(config, pcmBytes, item.outputPath, options.format);
+    const provenanceById = readProvenance(config);
     provenanceById[item.id] = provenance;
-    writeProvenance(provenanceById);
+    writeProvenance(config, provenanceById);
     if (defaultDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, defaultDelayMs));
   }
 
-  const manifestCount = writeManifest(allItems);
-  console.log(`Generated ${limitedItems.length} Stage 1 Su audio files. Manifest contains ${manifestCount} files.`);
+  const manifestCount = writeManifest(config, allItems);
+  console.log(`Generated ${limitedItems.length} ${config.planLabel} audio files. Manifest contains ${manifestCount} files.`);
 }
 
 main().catch((error) => {

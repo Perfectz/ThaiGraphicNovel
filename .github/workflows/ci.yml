@@ -1,0 +1,47 @@
+name: CI
+
+# Run the quality gates on every push to main and every PR. The Stage3DAdventure
+# refactor (Q1 of the 2-year roadmap) is the first checkpoint where these gates
+# matter — keep them lean so the loop stays sub-3-minute.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint + Typecheck + Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        # `npm ci` is faster than `npm install` and verifies the lockfile.
+        # The repo currently uses ranged versions in package.json — once a
+        # lockfile is committed, swap this for `ci`.
+        run: npm install --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Prettier check
+        run: npm run format:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build

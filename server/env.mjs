@@ -29,10 +29,30 @@ function getHeaderValue(value) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+/**
+ * Returns true when the server has a usable OPENAI_API_KEY in its environment
+ * (loaded from .env.local or .env via loadLocalEnv()). The browser uses this
+ * via the /api/realtime/health endpoint to decide whether the user needs to
+ * enter their own key in Settings — when this is true, the server's env key
+ * acts as the default and no user-supplied key is required.
+ */
+export function hasServerEnvApiKey() {
+  return isUsableApiKey(process.env.OPENAI_API_KEY);
+}
+
+/**
+ * Resolve which API key to use for an incoming request. Semantics:
+ *   1. A user-supplied key (x-openai-api-key header) wins when usable — this
+ *      lets a player override the server's default with their own account.
+ *   2. Otherwise fall back to the server's env key — this is the "local .env
+ *      acts as default key" path, the common dev/single-player setup.
+ *   3. Otherwise return undefined and the caller errors out.
+ */
 export function getRequestApiKey(req) {
   const requestApiKey = getHeaderValue(req.headers['x-openai-api-key']);
+  if (isUsableApiKey(requestApiKey)) return requestApiKey.trim();
   const envApiKey = process.env.OPENAI_API_KEY;
-  return isUsableApiKey(envApiKey) ? envApiKey.trim() : requestApiKey?.trim();
+  return isUsableApiKey(envApiKey) ? envApiKey.trim() : undefined;
 }
 
 export function hasUsableApiKey(req) {

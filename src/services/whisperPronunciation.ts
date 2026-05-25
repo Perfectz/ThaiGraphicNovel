@@ -1,4 +1,8 @@
-import { type PronunciationPrompt, type PronunciationSession, type PronunciationVerdict } from './realtimePronunciation';
+import {
+  type PronunciationPrompt,
+  type PronunciationSession,
+  type PronunciationVerdict,
+} from './realtimePronunciation';
 import { getTutoringLevel } from './openAiSettings';
 
 type SessionOptions = {
@@ -40,7 +44,7 @@ async function assertWhisperServiceReady() {
     );
   }
 
-  const health = await response.json() as { ok?: boolean; requiresApiKey?: boolean };
+  const health = (await response.json()) as { ok?: boolean; requiresApiKey?: boolean };
   if (!health.ok) {
     throw new Error('Whisper service is running but did not report ready.');
   }
@@ -71,7 +75,10 @@ function float32AudioBlob(audio: Float32Array) {
   return new Blob([copy.buffer], { type: 'application/octet-stream' });
 }
 
-async function judgeWithWhisperService(audioBlob: Blob, prompt: PronunciationPrompt): Promise<PronunciationVerdict> {
+async function judgeWithWhisperService(
+  audioBlob: Blob,
+  prompt: PronunciationPrompt,
+): Promise<PronunciationVerdict> {
   const audio = await decodeTo16kMono(audioBlob);
   const formData = new FormData();
   formData.set('audio', float32AudioBlob(audio), 'thai-attempt.f32');
@@ -92,7 +99,8 @@ async function judgeWithWhisperService(audioBlob: Blob, prompt: PronunciationPro
 
   const payload = await response.json().catch(async () => ({ error: await response.text() }));
   if (!response.ok) {
-    const message = typeof payload.error === 'string' ? payload.error : `HTTP ${response.status} from Whisper service.`;
+    const message =
+      typeof payload.error === 'string' ? payload.error : `HTTP ${response.status} from Whisper service.`;
     const detail = payload.detail ? ` ${JSON.stringify(payload.detail)}` : '';
     throw new Error(`${message}${detail}`);
   }

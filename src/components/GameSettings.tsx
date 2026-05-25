@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   clearOpenAiApiKey,
+  fetchServerEnvKeyStatus,
   getStoredOpenAiApiKey,
   getTutoringLevel,
   getVoiceJudgeMode,
@@ -12,6 +13,9 @@ import {
   type VoiceJudgeMode,
 } from '../services/openAiSettings';
 import { getSoundSettings, saveSoundSettings, type SoundSettings } from '../services/soundSettings';
+import { useGameStore } from '../store/gameStore';
+import { useCurrentScene, useHasSavedGame } from '../store/selectors';
+import { Button, Card, Chip, Modal, SegmentedControl, type SegmentedOption } from './ui';
 
 type GameSettingsProps = {
   isOpen: boolean;
@@ -25,9 +29,126 @@ type VoiceServiceStatus = {
   isChecking: boolean;
 };
 
+type KeySource = 'local' | 'custom';
+
+const VOICE_MODES: ReadonlyArray<SegmentedOption<VoiceJudgeMode>> = [
+  { value: 'whisper', label: 'Whisper', description: 'Local mic. No API key.' },
+  { value: 'realtime', label: 'Realtime', description: 'Cloud mic. Needs key.' },
+  { value: 'no-mic', label: 'No mic', description: 'Read & tap. No audio in.' },
+];
+
+const KEY_SOURCES: ReadonlyArray<SegmentedOption<KeySource>> = [
+  { value: 'local', label: 'Local .env key', description: 'Use the OPENAI_API_KEY loaded by the server.' },
+  { value: 'custom', label: 'My own key', description: 'Paste a personal key that overrides the .env one.' },
+];
+
+const TUTORING_LEVELS: ReadonlyArray<SegmentedOption<TutoringLevel>> = [
+  { value: 'easy', label: 'Easy', description: 'Passes if a native speaker would understand.' },
+  { value: 'medium', label: 'Medium', description: 'Balanced beginner coaching.' },
+  { value: 'hard', label: 'Hard', description: 'Strict pronunciation, tone, and rhythm.' },
+];
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="grid gap-2">
+      <span className="font-display text-[0.65rem] font-bold uppercase tracking-[0.22em] text-paper-muted">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function Section({
+  eyebrow,
+  description,
+  tone = 'none',
+  children,
+}: {
+  eyebrow: string;
+  description?: string;
+  tone?: 'none' | 'ember';
+  children: ReactNode;
+}) {
+  return (
+    <Card tone={tone === 'ember' ? 'ember' : 'none'} className="p-4 sm:p-5">
+      <p
+        className={`font-display text-[0.65rem] font-bold uppercase tracking-[0.28em] ${
+          tone === 'ember' ? 'text-ember' : 'text-accent'
+        }`}
+      >
+        {eyebrow}
+      </p>
+      {description ? (
+        <p className="mt-1 text-xs font-medium leading-relaxed text-paper-muted">{description}</p>
+      ) : null}
+      <div className="mt-3 grid gap-4">{children}</div>
+    </Card>
+  );
+}
+
+/**
+ * Two-step destructive button. First click arms the action and renames the
+ * button to "Tap again to confirm" for 4 seconds; second click within that
+ * window fires the callback. Avoids browser confirm() jank without needing
+ * an extra confirmation modal layer.
+ */
+function ConfirmDestructiveButton({
+  label,
+  confirmLabel = 'Tap again to confirm',
+  onConfirm,
+}: {
+  label: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+}) {
+  const [armed, setArmed] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+    },
+    [],
+  );
+
+  const handleClick = useCallback(() => {
+    if (armed) {
+      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+      setArmed(false);
+      onConfirm();
+      return;
+    }
+    setArmed(true);
+    timeoutRef.current = window.setTimeout(() => {
+      setArmed(false);
+      timeoutRef.current = null;
+    }, 4000);
+  }, [armed, onConfirm]);
+
+  return (
+    <Button variant="destructive" onClick={handleClick} aria-live="polite">
+      {armed ? confirmLabel : label}
+    </Button>
+  );
+}
+
 export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsProps) {
   const [apiKey, setApiKey] = useState('');
   const [hasSavedKey, setHasSavedKey] = useState(false);
+  // serverEnvKeyAvailable is fetched from /api/realtime/health every time the
+  // modal opens. When true, the local dev server has OPENAI_API_KEY set in
+  // its .env / .env.local and that key acts as the default — the user does
+  // not need to paste their own key, and the UI relaxes the "needs a key"
+  // nag accordingly. A user-supplied key still overrides the env default if
+  // they want to use their own account.
+  const [serverEnvKeyAvailable, setServerEnvKeyAvailable] = useState(false);
+  // 'local' = let the server use its loaded OPENAI_API_KEY (clears any stored
+  // user key so no override header is sent). 'custom' = use the key the user
+  // pasted into the input below. We default to 'local' whenever the server
+  // reports a key and the user hasn't stored their own.
+  const [keySource, setKeySource] = useState<KeySource>('custom');
   const [voiceJudgeMode, setVoiceJudgeMode] = useState<VoiceJudgeMode>('whisper');
   const [tutoringLevel, setTutoringLevel] = useState<TutoringLevel>('medium');
   const [soundSettings, setSoundSettings] = useState<SoundSettings>(() => getSoundSettings());
@@ -38,17 +159,35 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
     isChecking: false,
   });
 
+  // Danger Zone state — driven by the store so the Settings modal can bail
+  // the player out of a stage or wipe their save without reloading the page.
+  const currentScene = useCurrentScene();
+  const hasSavedGame = useHasSavedGame();
+  const returnToTitle = useGameStore((state) => state.returnToTitle);
+  const clearAllProgress = useGameStore((state) => state.clearAllProgress);
+  const isOnTitle = currentScene === 'title';
+
   useEffect(() => {
     if (!isOpen) return;
-    setApiKey(getStoredOpenAiApiKey());
+    const storedKey = getStoredOpenAiApiKey();
+    setApiKey(storedKey);
     setHasSavedKey(hasStoredOpenAiApiKey());
     setVoiceJudgeMode(getVoiceJudgeMode());
     setTutoringLevel(getTutoringLevel());
     setSoundSettings(getSoundSettings());
     void checkVoiceServices();
+    // Refresh the server env-key signal each time the modal opens so the
+    // hint stays accurate if the dev restarted their server with a new
+    // .env value mid-session. Once that resolves, snap the key-source
+    // selector to whichever option matches reality: if a local .env key is
+    // present and the user hasn't stored their own, default to 'local' so
+    // they don't have to do anything; otherwise fall back to 'custom'.
+    void fetchServerEnvKeyStatus().then((envKeyAvailable) => {
+      setServerEnvKeyAvailable(envKeyAvailable);
+      setKeySource(envKeyAvailable && !storedKey.trim() ? 'local' : 'custom');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
-
-  if (!isOpen) return null;
 
   function saveSettings() {
     saveOpenAiApiKey(apiKey);
@@ -71,6 +210,24 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
     saveOpenAiApiKey(nextApiKey);
     setHasSavedKey(nextApiKey.trim().length > 0);
     void checkVoiceServices(nextApiKey);
+  }
+
+  /**
+   * Flip between using the server's local .env key and the user's pasted
+   * key. Switching TO 'local' clears any stored user key so no override
+   * header is sent on the next Realtime request (the server then falls
+   * back to its env key). Switching TO 'custom' just shows the input —
+   * the key isn't restored, since we cleared it on the previous flip;
+   * the user types a new one (or leaves it blank to disable Realtime).
+   */
+  function updateKeySource(nextSource: KeySource) {
+    setKeySource(nextSource);
+    if (nextSource === 'local') {
+      clearOpenAiApiKey();
+      setApiKey('');
+      setHasSavedKey(false);
+      void checkVoiceServices('');
+    }
   }
 
   function updateVoiceJudgeMode(nextMode: VoiceJudgeMode) {
@@ -100,19 +257,24 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
       if (apiKeyForHealth.trim()) {
         headers['X-OpenAI-API-Key'] = apiKeyForHealth.trim();
       }
-
       const response = await fetch(url, { headers });
       const payload = await response.json().catch(async () => ({ error: await response.text() }));
-      if (!response.ok) {
-        return `${serviceName} error: HTTP ${response.status}.`;
-      }
-
-      if (payload.requiresApiKey) {
-        return `${serviceName} is running, but needs an API key.`;
-      }
-
+      if (!response.ok) return `${serviceName} error: HTTP ${response.status}.`;
+      if (payload.requiresApiKey) return `${serviceName} is running, but needs an API key.`;
       const model = typeof payload.model === 'string' ? ` (${payload.model})` : '';
-      return `${serviceName} is ready${model}.`;
+      // Disambiguate the "ready" message so devs can tell whether their own
+      // pasted key is in use or the server is falling back to its .env key.
+      // payload.serverEnvKeyAvailable is set on /api/realtime/health and is
+      // intentionally absent on the Whisper health endpoint (Whisper is
+      // fully local and doesn't need an OpenAI key at all).
+      const userKey = apiKeyForHealth.trim();
+      let keyHint = '';
+      if (payload.serverEnvKeyAvailable === true) {
+        keyHint = userKey ? ' (overriding local .env key)' : ' (using local .env key)';
+      } else if (userKey) {
+        keyHint = ' (using your saved key)';
+      }
+      return `${serviceName} is ready${model}${keyHint}.`;
     } catch {
       return `${serviceName} is not running.`;
     }
@@ -126,215 +288,218 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
       readServiceStatus('/api/realtime/health', 'Realtime API', nextApiKey),
       readServiceStatus('/api/whisper/health', 'Whisper'),
     ]);
-
     if (checkId !== voiceServiceCheckId.current) return;
-    setVoiceServiceStatus({
-      realtime,
-      whisper,
-      isChecking: false,
-    });
+    setVoiceServiceStatus({ realtime, whisper, isChecking: false });
   }
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/72 px-4 backdrop-blur-sm">
-      <section className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-3xl border-4 border-cyan-950 bg-cyan-50 p-5 text-slate-950 shadow-rpg">
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <p className="font-display text-xs font-black uppercase tracking-[0.18em] text-cyan-800">Game Settings</p>
-            <h2 className="text-2xl font-black">Audio and Voice Coach</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border-2 border-slate-950 bg-white px-3 py-1 text-sm font-black text-slate-950 active:translate-y-1"
-          >
-            Close
-          </button>
-        </div>
-
-        <div className="rounded-2xl border-2 border-slate-950 bg-white/90 p-4">
-          <p className="font-display text-xs font-black uppercase tracking-[0.16em] text-slate-600">Sound</p>
-          <div className="mt-3 grid gap-4">
-            <label className="flex items-center justify-between gap-4">
-              <span className="text-sm font-black uppercase tracking-[0.12em] text-slate-700">Background Music</span>
-              <input
-                type="checkbox"
-                checked={soundSettings.musicEnabled}
-                onChange={(event) => updateSoundSettings({ musicEnabled: event.target.checked })}
-                className="h-6 w-6 accent-cyan-600"
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <span className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-[0.12em] text-slate-700">
-                <span>Music Volume</span>
-                <span>{Math.round(soundSettings.musicVolume * 100)}%</span>
-              </span>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={soundSettings.musicVolume}
-                onChange={(event) => updateSoundSettings({ musicVolume: Number(event.target.value) })}
-                className="w-full accent-cyan-600"
-              />
-            </label>
-
-            <label className="flex items-center justify-between gap-4">
-              <span className="text-sm font-black uppercase tracking-[0.12em] text-slate-700">Guide Audio</span>
-              <input
-                type="checkbox"
-                checked={soundSettings.guideAudioEnabled}
-                onChange={(event) => updateSoundSettings({ guideAudioEnabled: event.target.checked })}
-                className="h-6 w-6 accent-fuchsia-600"
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <span className="flex items-center justify-between gap-3 text-sm font-black uppercase tracking-[0.12em] text-slate-700">
-                <span>Guide Volume</span>
-                <span>{Math.round(soundSettings.guideAudioVolume * 100)}%</span>
-              </span>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={soundSettings.guideAudioVolume}
-                onChange={(event) => updateSoundSettings({ guideAudioVolume: Number(event.target.value) })}
-                className="w-full accent-fuchsia-600"
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-2xl border-2 border-slate-950 bg-white/90 p-4">
-          <p className="font-display text-xs font-black uppercase tracking-[0.16em] text-slate-600">Voice Coach</p>
-
-          <label className="mt-3 grid gap-2">
-            <span className="text-sm font-black uppercase tracking-[0.12em] text-slate-700">API Key for Realtime</span>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      eyebrow="Game Settings"
+      title="Audio & Voice Coach"
+      footer={
+        <>
+          <Button variant="destructive" onClick={clearSettings}>
+            Clear key
+          </Button>
+          <Button variant="primary" onClick={saveSettings}>
+            Save settings
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-4">
+        <Section eyebrow="Sound">
+          <label className="flex items-center justify-between gap-4">
+            <span className="text-sm font-medium text-paper">Background music</span>
             <input
-              type="password"
-              value={apiKey}
-              onChange={(event) => updateApiKey(event.target.value)}
-              placeholder="Only needed for Realtime mode"
-              className="w-full rounded-2xl border-4 border-slate-950 bg-white px-4 py-3 font-mono text-sm font-bold outline-none focus:border-cyan-700"
-              autoComplete="off"
-              spellCheck={false}
+              type="checkbox"
+              checked={soundSettings.musicEnabled}
+              onChange={(event) => updateSoundSettings({ musicEnabled: event.target.checked })}
+              className="h-5 w-5 accent-accent"
             />
           </label>
+          <Field label={`Music volume — ${Math.round(soundSettings.musicVolume * 100)}%`}>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={soundSettings.musicVolume}
+              onChange={(event) => updateSoundSettings({ musicVolume: Number(event.target.value) })}
+              className="w-full accent-accent"
+            />
+          </Field>
+          <label className="flex items-center justify-between gap-4">
+            <span className="text-sm font-medium text-paper">Guide audio</span>
+            <input
+              type="checkbox"
+              checked={soundSettings.guideAudioEnabled}
+              onChange={(event) => updateSoundSettings({ guideAudioEnabled: event.target.checked })}
+              className="h-5 w-5 accent-accent"
+            />
+          </label>
+          <Field label={`Guide volume — ${Math.round(soundSettings.guideAudioVolume * 100)}%`}>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={soundSettings.guideAudioVolume}
+              onChange={(event) => updateSoundSettings({ guideAudioVolume: Number(event.target.value) })}
+              className="w-full accent-accent"
+            />
+          </Field>
+        </Section>
 
-          <div className="mt-4 grid gap-2">
-            <p className="text-sm font-black uppercase tracking-[0.12em] text-slate-700">Voice Judge Mode</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => updateVoiceJudgeMode('realtime')}
-                className={`rounded-2xl border-4 px-3 py-3 text-sm font-black uppercase tracking-[0.1em] active:translate-y-1 ${
-                  voiceJudgeMode === 'realtime'
-                    ? 'border-cyan-950 bg-cyan-300 text-cyan-950'
-                    : 'border-slate-950 bg-white text-slate-800'
-                }`}
-              >
-                Realtime
-              </button>
-              <button
-                type="button"
-                onClick={() => updateVoiceJudgeMode('whisper')}
-                className={`rounded-2xl border-4 px-3 py-3 text-sm font-black uppercase tracking-[0.1em] active:translate-y-1 ${
-                  voiceJudgeMode === 'whisper'
-                    ? 'border-amber-950 bg-amber-300 text-amber-950'
-                    : 'border-slate-950 bg-white text-slate-800'
-                }`}
-              >
-                Whisper
-              </button>
+        <Section eyebrow="Voice Coach">
+          {serverEnvKeyAvailable ? (
+            <div className="grid gap-2">
+              <p className="font-display text-[0.65rem] font-bold uppercase tracking-[0.22em] text-paper-muted">
+                OpenAI key source
+              </p>
+              <SegmentedControl
+                ariaLabel="OpenAI key source"
+                options={KEY_SOURCES}
+                value={keySource}
+                onChange={updateKeySource}
+              />
+              <p className="text-xs font-medium leading-relaxed text-jade">
+                A local <code className="font-mono">.env</code> key is loaded on the server. Pick &quot;Local
+                .env key&quot; to use it as-is, or &quot;My own key&quot; to override with a personal key for
+                this browser.
+              </p>
             </div>
+          ) : null}
+
+          {keySource === 'custom' || !serverEnvKeyAvailable ? (
+            <Field label="OpenAI API key (Realtime mode only)">
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(event) => updateApiKey(event.target.value)}
+                placeholder={
+                  serverEnvKeyAvailable
+                    ? 'Paste a key to override the local .env key'
+                    : 'Only needed for Realtime mode'
+                }
+                className="w-full rounded-md border border-hairline bg-ink-elevated px-3 py-2 font-mono text-sm text-paper outline-none focus:border-accent"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+          ) : null}
+
+          <div className="grid gap-2">
+            <p className="font-display text-[0.65rem] font-bold uppercase tracking-[0.22em] text-paper-muted">
+              Voice judge mode
+            </p>
+            <SegmentedControl
+              ariaLabel="Voice judge mode"
+              options={VOICE_MODES}
+              value={voiceJudgeMode}
+              onChange={updateVoiceJudgeMode}
+            />
+            <p className="text-xs font-medium leading-relaxed text-paper-muted">
+              Whisper runs locally and is free. Realtime sends your key to the local Realtime service on this
+              machine.
+            </p>
           </div>
 
-          <p className="mt-3 text-sm font-bold leading-snug text-slate-700">
-            Free local Whisper does not use a key. Realtime sends this key only to the local Realtime service on this machine.
-          </p>
-
-          <div className="mt-4 grid gap-2">
-            <p className="text-sm font-black uppercase tracking-[0.12em] text-slate-700">Tutor Level</p>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {[
-                ['easy', 'Easy', 'Friendly. Passes if a native speaker would understand.'],
-                ['medium', 'Medium', 'Balanced beginner coaching.'],
-                ['hard', 'Hard', 'Strict pronunciation, tone, and rhythm checks.'],
-              ].map(([level, label, description]) => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => updateTutoringLevel(level as TutoringLevel)}
-                  className={`min-h-24 rounded-2xl border-4 px-3 py-3 text-left active:translate-y-1 ${
-                    tutoringLevel === level
-                      ? 'border-fuchsia-950 bg-fuchsia-200 text-fuchsia-950'
-                      : 'border-slate-950 bg-white text-slate-800'
-                  }`}
-                >
-                  <span className="block text-sm font-black uppercase tracking-[0.1em]">{label}</span>
-                  <span className="mt-2 block text-xs font-bold leading-snug">{description}</span>
-                </button>
-              ))}
-            </div>
+          <div className="grid gap-2">
+            <p className="font-display text-[0.65rem] font-bold uppercase tracking-[0.22em] text-paper-muted">
+              Tutor level
+            </p>
+            <SegmentedControl
+              ariaLabel="Tutor level"
+              options={TUTORING_LEVELS}
+              value={tutoringLevel}
+              onChange={updateTutoringLevel}
+            />
           </div>
 
-          <div className="mt-4 rounded-2xl border-2 border-slate-950 bg-white px-3 py-2 text-sm font-black text-slate-800">
-            {hasSavedKey ? 'A key is saved on this browser.' : 'No key saved yet.'}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Active-source chip — answers "which key is the next Realtime
+                request actually going to use?" at a glance. */}
+            {keySource === 'local' && serverEnvKeyAvailable ? (
+              <Chip tone="jade">Using local .env key</Chip>
+            ) : hasSavedKey ? (
+              <Chip tone="jade">Using your saved key</Chip>
+            ) : (
+              <Chip tone="default">No key set</Chip>
+            )}
+            {serverEnvKeyAvailable && keySource !== 'local' ? (
+              <Chip tone="default">Local .env key available</Chip>
+            ) : null}
           </div>
 
-          <div className="mt-4 rounded-2xl border-2 border-slate-950 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800">
+          <Card className="p-3" tone="none">
             <div className="flex items-center justify-between gap-3">
-              <p className="font-display text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">Service Status</p>
-              <button
-                type="button"
+              <p className="font-display text-[0.65rem] font-bold uppercase tracking-[0.22em] text-paper-muted">
+                Service status
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => void checkVoiceServices()}
-                className="rounded-xl border-2 border-slate-950 bg-white px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-slate-950 active:translate-y-1"
+                disabled={voiceServiceStatus.isChecking}
               >
-                {voiceServiceStatus.isChecking ? 'Checking' : 'Refresh'}
-              </button>
+                {voiceServiceStatus.isChecking ? 'Checking…' : 'Refresh'}
+              </Button>
             </div>
-            <p className="mt-2">{voiceServiceStatus.realtime}</p>
-            <p className="mt-1">{voiceServiceStatus.whisper}</p>
-          </div>
-        </div>
+            <ul className="mt-2 grid gap-1 text-xs font-medium text-paper-muted">
+              <li>{voiceServiceStatus.realtime}</li>
+              <li>{voiceServiceStatus.whisper}</li>
+            </ul>
+          </Card>
+        </Section>
 
-        <div className="mt-4 rounded-2xl border-2 border-slate-950 bg-white/90 p-4">
-          <p className="font-display text-xs font-black uppercase tracking-[0.16em] text-slate-600">Progress</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-            <p className="text-sm font-bold leading-snug text-slate-700">
+        <Section eyebrow="Progress">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+            <p className="text-sm font-medium leading-relaxed text-paper-muted">
               View the full Thai Quest lesson route, phrase chunks, and rewards.
             </p>
-            <button
-              type="button"
-              onClick={openRoadmap}
-              className="rounded-2xl border-4 border-cyan-950 bg-cyan-300 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-cyan-950 shadow-md active:translate-y-1"
-            >
-              Open Roadmap
-            </button>
+            <Button variant="ghost" onClick={openRoadmap}>
+              Open roadmap
+            </Button>
           </div>
-        </div>
+        </Section>
 
-        <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto]">
-          <button
-            type="button"
-            onClick={saveSettings}
-            className="rounded-2xl border-4 border-emerald-950 bg-emerald-400 px-4 py-3 text-base font-black uppercase tracking-[0.12em] text-emerald-950 shadow-md active:translate-y-1"
+        {/* Danger zone — only render the actions that make sense in context.
+            Return to title is hidden when already on the title screen; Reset
+            progress requires a save to be worth offering. */}
+        {!isOnTitle || hasSavedGame ? (
+          <Section
+            eyebrow="Danger zone"
+            description="These actions can't be undone. Sound and voice-coach settings are kept."
+            tone="ember"
           >
-            Save Settings
-          </button>
-          <button
-            type="button"
-            onClick={clearSettings}
-            className="rounded-2xl border-4 border-red-950 bg-white px-4 py-3 text-base font-black uppercase tracking-[0.12em] text-red-800 shadow-md active:translate-y-1"
-          >
-            Clear Key
-          </button>
-        </div>
-      </section>
-    </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {!isOnTitle ? (
+                <ConfirmDestructiveButton
+                  label="Return to title"
+                  confirmLabel="Tap again — leaves current stage"
+                  onConfirm={() => {
+                    returnToTitle();
+                    onClose();
+                  }}
+                />
+              ) : null}
+              {hasSavedGame ? (
+                <ConfirmDestructiveButton
+                  label="Reset progress"
+                  confirmLabel="Tap again — wipes save"
+                  onConfirm={() => {
+                    clearAllProgress();
+                    onClose();
+                  }}
+                />
+              ) : null}
+            </div>
+          </Section>
+        ) : null}
+      </div>
+    </Modal>
   );
 }

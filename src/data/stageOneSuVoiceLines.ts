@@ -18,7 +18,12 @@ export type StageOneSuVoiceLine = {
 const stageOneSuVoice = 'sage' as const;
 const stageOneSuModel = 'gpt-realtime-2' as const;
 
-function suLine(id: string, category: StageOneSuVoiceLine['category'], note: string, text: string): StageOneSuVoiceLine {
+function suLine(
+  id: string,
+  category: StageOneSuVoiceLine['category'],
+  note: string,
+  text: string,
+): StageOneSuVoiceLine {
   return {
     id,
     category,
@@ -32,70 +37,80 @@ function suLine(id: string, category: StageOneSuVoiceLine['category'], note: str
 export const stageOneConversationDeck: Record<string, StageOneConversationLine> = {
   hello: {
     suLine: 'สวัสดี (hello - sawatdee), Patrick. Look at me first. Start with a polite hello.',
-    coachingLine: 'Say it slowly: sawatdee... khrap. สวัสดี (hello - sawatdee) means hello. ครับ (polite ending - khrap) makes it polite.',
+    coachingLine:
+      'Say it slowly: sawatdee... khrap. สวัสดี (hello - sawatdee) means hello. ครับ (polite ending - khrap) makes it polite.',
     playerIntent: 'Answer Su with a clear greeting.',
     suAudioId: 'stage-01-hello-su',
     coachingAudioId: 'stage-01-hello-coach',
   },
   'my-name-is-patrick': {
     suLine: 'ดีมาก (very good - dee mak). Now tell me who you are before the lobby asks questions.',
-    coachingLine: 'Break it down: ผม (I - phom), ชื่อ (named - chue), Patrick, and ครับ (polite ending - khrap). Repeat: phom chue Patrick khrap.',
+    coachingLine:
+      'Break it down: ผม (I - phom), ชื่อ (named - chue), Patrick, and ครับ (polite ending - khrap). Repeat: phom chue Patrick khrap.',
     playerIntent: 'Introduce yourself to Su.',
     suAudioId: 'stage-01-my-name-is-patrick-su',
     coachingAudioId: 'stage-01-my-name-is-patrick-coach',
   },
   'nice-to-meet-you': {
     suLine: 'I am Su. ยินดี (pleased - yin dee), Patrick. When someone gives you their name, respond warmly.',
-    coachingLine: 'ยินดี (pleased - yin dee) starts the phrase. รู้จัก (meet or know - roo jak) is the connection. Repeat: yin dee tee dai roo jak khrap.',
+    coachingLine:
+      'ยินดี (pleased - yin dee) starts the phrase. รู้จัก (meet or know - roo jak) is the connection. Repeat: yin dee tee dai roo jak khrap.',
     playerIntent: 'Tell Su it is nice to meet her.',
     suAudioId: 'stage-01-nice-to-meet-you-su',
     coachingAudioId: 'stage-01-nice-to-meet-you-coach',
   },
   'thank-you': {
     suLine: 'I am helping you through this. ขอบคุณ (thank you - khop khun) is what you need here.',
-    coachingLine: 'ขอบคุณ (thank you - khop khun) means thank you. Add ครับ (polite ending - khrap) to sound respectful. Repeat: khop khun khrap.',
+    coachingLine:
+      'ขอบคุณ (thank you - khop khun) means thank you. Add ครับ (polite ending - khrap) to sound respectful. Repeat: khop khun khrap.',
     playerIntent: 'Thank Su politely.',
     suAudioId: 'stage-01-thank-you-su',
     coachingAudioId: 'stage-01-thank-you-coach',
   },
   sorry: {
     suLine: 'Oops. You bumped the suitcase. ขอโทษ (sorry - kho thot), say sorry before it gets awkward.',
-    coachingLine: 'ขอโทษ (sorry or excuse me - kho thot) repairs the moment. ครับ (polite ending - khrap) makes it polite. Repeat: kho thot khrap.',
+    coachingLine:
+      'ขอโทษ (sorry or excuse me - kho thot) repairs the moment. ครับ (polite ending - khrap) makes it polite. Repeat: kho thot khrap.',
     playerIntent: 'Apologize or excuse yourself.',
     suAudioId: 'stage-01-sorry-su',
     coachingAudioId: 'stage-01-sorry-coach',
   },
   yes: {
     suLine: 'พร้อมไหม (are you ready? - phrom mai), are you ready to keep practicing?',
-    coachingLine: 'ใช่ (yes or correct - chai) answers yes. Add ครับ (polite ending - khrap). Repeat: chai khrap.',
+    coachingLine:
+      'ใช่ (yes or correct - chai) answers yes. Add ครับ (polite ending - khrap). Repeat: chai khrap.',
     playerIntent: 'Say yes clearly.',
     suAudioId: 'stage-01-yes-su',
     coachingAudioId: 'stage-01-yes-coach',
   },
   no: {
     suLine: 'If something is wrong, say ไม่ใช่ (not correct - mai chai). Do not freeze.',
-    coachingLine: 'ไม่ (not - mai) changes the meaning. ใช่ (yes or correct - chai) becomes ไม่ใช่ (not correct - mai chai). Repeat: mai chai khrap.',
+    coachingLine:
+      'ไม่ (not - mai) changes the meaning. ใช่ (yes or correct - chai) becomes ไม่ใช่ (not correct - mai chai). Repeat: mai chai khrap.',
     playerIntent: 'Say no or not correct.',
     suAudioId: 'stage-01-no-su',
     coachingAudioId: 'stage-01-no-coach',
   },
   'how-much': {
     suLine: 'Before you buy water or a charm, ask ราคา (price - raa khaa).',
-    coachingLine: 'ราคา (price - raa khaa) sets the topic. เท่าไหร่ (how much - tao rai) asks the amount. Repeat: raa khaa tao rai khrap.',
+    coachingLine:
+      'ราคา (price - raa khaa) sets the topic. เท่าไหร่ (how much - tao rai) asks the amount. Repeat: raa khaa tao rai khrap.',
     playerIntent: 'Ask how much it costs.',
     suAudioId: 'stage-01-how-much-su',
     coachingAudioId: 'stage-01-how-much-coach',
   },
   'bathroom-where': {
     suLine: 'The lobby is huge. Ask for ห้องน้ำ (bathroom - hong nam).',
-    coachingLine: 'ห้องน้ำ (bathroom - hong nam) is what you need. อยู่ที่ไหน (where is it - yoo tee nai) asks the location. Repeat: hong nam yoo tee nai khrap.',
+    coachingLine:
+      'ห้องน้ำ (bathroom - hong nam) is what you need. อยู่ที่ไหน (where is it - yoo tee nai) asks the location. Repeat: hong nam yoo tee nai khrap.',
     playerIntent: 'Ask for the bathroom location.',
     suAudioId: 'stage-01-bathroom-where-su',
     coachingAudioId: 'stage-01-bathroom-where-coach',
   },
   'i-am-thirsty': {
     suLine: 'Your Courage is dipping. Tell me, หิวน้ำ (thirsty - hiw naam), you are thirsty.',
-    coachingLine: 'ผม (I - phom) starts it. หิวน้ำ (thirsty for water - hiw naam) says what you need. Repeat: phom hiw naam khrap.',
+    coachingLine:
+      'ผม (I - phom) starts it. หิวน้ำ (thirsty for water - hiw naam) says what you need. Repeat: phom hiw naam khrap.',
     playerIntent: 'Say you are thirsty to recover.',
     suAudioId: 'stage-01-i-am-thirsty-su',
     coachingAudioId: 'stage-01-i-am-thirsty-coach',

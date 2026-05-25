@@ -22,10 +22,13 @@ function clampVolume(value: unknown, fallback: number): number {
 
 function normalizeSoundSettings(settings: Partial<SoundSettings>): SoundSettings {
   return {
-    musicEnabled: typeof settings.musicEnabled === 'boolean' ? settings.musicEnabled : defaultSoundSettings.musicEnabled,
+    musicEnabled:
+      typeof settings.musicEnabled === 'boolean' ? settings.musicEnabled : defaultSoundSettings.musicEnabled,
     musicVolume: clampVolume(settings.musicVolume, defaultSoundSettings.musicVolume),
     guideAudioEnabled:
-      typeof settings.guideAudioEnabled === 'boolean' ? settings.guideAudioEnabled : defaultSoundSettings.guideAudioEnabled,
+      typeof settings.guideAudioEnabled === 'boolean'
+        ? settings.guideAudioEnabled
+        : defaultSoundSettings.guideAudioEnabled,
     guideAudioVolume: clampVolume(settings.guideAudioVolume, defaultSoundSettings.guideAudioVolume),
   };
 }

@@ -40,6 +40,10 @@ const response = await fetch(`${serviceUrl.replace(/\/$/, '')}/judge-audio`, {
 const payload = await response.json().catch(async () => ({ error: await response.text() }));
 console.log(JSON.stringify(payload, null, 2));
 
+if (useSilence && response.status === 422 && /No clear microphone audio/i.test(String(payload.error ?? ''))) {
+  process.exit(0);
+}
+
 if (!response.ok) {
   process.exit(1);
 }

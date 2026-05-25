@@ -1,27 +1,35 @@
 import { getStoredOpenAiApiKey, getTutoringLevel, type TutoringLevel } from './openAiSettings';
 
-const TUTORING_LEVEL_SETTINGS: Record<TutoringLevel, {
-  passScore: number;
-  judgeTone: string;
-  passRule: string;
-  feedbackRule: string;
-}> = {
+const TUTORING_LEVEL_SETTINGS: Record<
+  TutoringLevel,
+  {
+    passScore: number;
+    judgeTone: string;
+    passRule: string;
+    feedbackRule: string;
+  }
+> = {
   easy: {
     passScore: 50,
     judgeTone: 'You are Su, a friendly Thai language tutor for beginner learners.',
-    passRule: 'Mark pass true if a native Thai speaker would understand the intended phrase, even with accent, tone, or rhythm mistakes.',
-    feedbackRule: 'The feedback must name what was understandable if they passed, or the one biggest clarity issue if they failed.',
+    passRule:
+      'Mark pass true if a native Thai speaker would understand the intended phrase, even with accent, tone, or rhythm mistakes.',
+    feedbackRule:
+      'The feedback must name what was understandable if they passed, or the one biggest clarity issue if they failed.',
   },
   medium: {
     passScore: 60,
     judgeTone: 'You are Su, a patient Thai language tutor for beginner learners.',
-    passRule: 'Mark pass true when the learner is understandable enough for a beginner, even if pronunciation is not perfect.',
-    feedbackRule: 'The feedback must explain what was understandable if they passed, or what needs work if they failed.',
+    passRule:
+      'Mark pass true when the learner is understandable enough for a beginner, even if pronunciation is not perfect.',
+    feedbackRule:
+      'The feedback must explain what was understandable if they passed, or what needs work if they failed.',
   },
   hard: {
     passScore: 70,
     judgeTone: 'You are Su, a strict but encouraging Thai pronunciation coach.',
-    passRule: 'Mark pass true only when the words match the target and pronunciation, tone, and rhythm are solid.',
+    passRule:
+      'Mark pass true only when the words match the target and pronunciation, tone, and rhythm are solid.',
     feedbackRule: 'The feedback must explain exactly what sounded wrong, or what was correct if they passed.',
   },
 };
@@ -151,7 +159,9 @@ function createResponseInstructions(prompt: PronunciationPrompt) {
     'The tip must include the correct pronunciation using romanization or phonetic spelling and a slow syllable-by-syllable repeat.',
     'Return only JSON: {"score":0,"pass":false,"heard":"","feedback":"","tip":""}',
     'feedback and tip must be one short English sentence each.',
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function createSuAudioInstructions(prompt: PronunciationPrompt, verdict: PronunciationVerdict) {
@@ -172,7 +182,9 @@ function createSuAudioInstructions(prompt: PronunciationPrompt, verdict: Pronunc
     'Response structure: explain the exact pronunciation issue in English, give one corrective action in English, then say the target Thai phrase slowly with clear syllable spacing.',
     'Do not say whether it passed, because this response is only for failed attempts.',
     'Do not speak JSON, markdown, labels, scores, or long teaching notes.',
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 export async function createPronunciationSession({
@@ -202,13 +214,31 @@ export async function createPronunciationSession({
   remoteAudio.controls = false;
   remoteAudio.style.display = 'none';
   document.body.appendChild(remoteAudio);
+  // Capture the remote audio track so we can silence buffered jitter-buffer
+  // audio the instant the player wants to speak — pausing the <audio>
+  // element alone isn't enough because frames already in the WebRTC pipeline
+  // would otherwise keep playing for a few hundred ms.
+  let remoteAudioTrack: MediaStreamTrack | null = null;
   peerConnection.ontrack = (event) => {
     remoteAudio.srcObject = event.streams[0];
+    remoteAudioTrack = event.track;
     void remoteAudio.play().catch(() => {
       onError('Browser blocked Su audio playback. Click Connect AI Mic again, then retry the phrase.');
     });
   };
   peerConnection.addTrack(audioTrack, stream);
+
+  function silenceRemoteAudio() {
+    if (remoteAudioTrack) remoteAudioTrack.enabled = false;
+    remoteAudio.pause();
+  }
+
+  function unsilenceRemoteAudio() {
+    if (remoteAudioTrack) remoteAudioTrack.enabled = true;
+    void remoteAudio.play().catch(() => {
+      /* element may not yet have a stream; subsequent ontrack will autoplay */
+    });
+  }
 
   const dataChannel = peerConnection.createDataChannel('oai-events');
   let activePrompt = prompt;
@@ -236,7 +266,8 @@ export async function createPronunciationSession({
         suAudioTimeout = undefined;
       }
       responseKind = 'idle';
-      const errorMessage = event.error?.message ?? event.error?.code ?? 'Unknown Realtime data-channel error.';
+      const errorMessage =
+        event.error?.message ?? event.error?.code ?? 'Unknown Realtime data-channel error.';
       onError(`Realtime response failed: ${errorMessage}`);
       return;
     }
@@ -246,7 +277,10 @@ export async function createPronunciationSession({
       return;
     }
 
-    if (event.type === 'response.output_audio_transcript.delta' || event.type === 'response.audio_transcript.delta') {
+    if (
+      event.type === 'response.output_audio_transcript.delta' ||
+      event.type === 'response.audio_transcript.delta'
+    ) {
       return;
     }
 
@@ -286,7 +320,11 @@ export async function createPronunciationSession({
           suAudioTimeout = undefined;
         }
         const responseError = event.response?.status_details?.error;
-        const reason = responseError?.message ?? responseError?.code ?? event.response?.status_details?.reason ?? responseStatus;
+        const reason =
+          responseError?.message ??
+          responseError?.code ??
+          event.response?.status_details?.reason ??
+          responseStatus;
         onError(`Realtime ${completedKind === 'su-audio' ? 'audio response' : 'verdict'} failed: ${reason}`);
         return;
       }
@@ -349,12 +387,14 @@ export async function createPronunciationSession({
       const payload = JSON.parse(detail);
       const baseError = String(payload.error ?? detail);
       const detailMessage = typeof payload.detail?.message === 'string' ? payload.detail.message : '';
-      detail = detailMessage && !baseError.includes(detailMessage) ? `${baseError} ${detailMessage}` : baseError;
+      detail =
+        detailMessage && !baseError.includes(detailMessage) ? `${baseError} ${detailMessage}` : baseError;
     } catch {
       // The server returns JSON for errors and SDP for success.
     }
     if (!detail.trim() && sdpResponse.status === 502) {
-      detail = 'Local Realtime session server is not running. Start it with `npm run realtime:session`, then try Connect AI Mic again.';
+      detail =
+        'Local Realtime session server is not running. Start it with `npm run realtime:session`, then try Connect AI Mic again.';
     }
     if (!detail.trim()) {
       detail = `HTTP ${sdpResponse.status} from the local Realtime session endpoint.`;
@@ -426,6 +466,10 @@ export async function createPronunciationSession({
     cancelSuAudioTimeout();
     isCancellingSuAudio = false;
     responseKind = 'su-audio';
+    // Re-arm the remote audio path that startRecording silenced — the next
+    // frames the server sends are the coaching reply and should play out
+    // loud.
+    unsilenceRemoteAudio();
     onStatus('Su is giving a short correction...');
     sendEvent({
       type: 'response.create',
@@ -460,6 +504,10 @@ export async function createPronunciationSession({
       if (shouldCancelResponse) {
         abandonActiveResponse();
       }
+      // Cut Su's correction speech immediately — disabling the remote track
+      // silences any audio already buffered locally, and pausing the element
+      // stops new arrivals until the next coaching response asks for sound.
+      silenceRemoteAudio();
       sendEvent({ type: 'input_audio_buffer.clear' });
       audioTrack.enabled = true;
       isRecording = true;

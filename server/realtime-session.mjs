@@ -1,5 +1,11 @@
 import { createServer } from 'node:http';
-import { DEFAULT_REALTIME_MODEL, getRequestApiKey, hasUsableApiKey, loadLocalEnv } from './env.mjs';
+import {
+  DEFAULT_REALTIME_MODEL,
+  getRequestApiKey,
+  hasServerEnvApiKey,
+  hasUsableApiKey,
+  loadLocalEnv,
+} from './env.mjs';
 import { createCorsHeaders, readFormData, readText, sendJson } from './http-utils.mjs';
 
 loadLocalEnv();
@@ -60,7 +66,15 @@ function healthPayload(req) {
     ok: true,
     service: 'thai-quest-realtime',
     model,
+    // requiresApiKey is true only when neither the server's env nor the
+    // request supplied a usable key — i.e. when the user must enter one in
+    // Settings before Realtime mode will work.
     requiresApiKey: !hasUsableApiKey(req),
+    // serverEnvKeyAvailable lets the browser distinguish "you need to type a
+    // key" from "a local .env key is already in use as the default". The UI
+    // surfaces this so devs running with .env.local don't get nagged to
+    // paste a key they have already provided to the server.
+    serverEnvKeyAvailable: hasServerEnvApiKey(),
     endpoints: {
       health: '/api/realtime/health',
       session: '/api/realtime/session',
