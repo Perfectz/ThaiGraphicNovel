@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import introOneMovieUrl from '../../../humandropbox/intro1.mp4?url';
+import introOneMovieUrl from '../../assets/videos/intro1.mp4?url';
 import {
   addBox,
   addCeilingLights,

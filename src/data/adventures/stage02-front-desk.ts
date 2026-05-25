@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import introTwoMovieUrl from '../../../humandropbox/intro2.mp4?url';
+import introTwoMovieUrl from '../../assets/videos/intro2.mp4?url';
 import bathroomBackgroundUrl from '../../assets/adventure/level-02/bathroom-background.png';
 import frontDeskBackgroundUrl from '../../assets/adventure/level-02/front-desk-background.png';
 import keycardUrl from '../../assets/adventure/level-02/keycard.png';
