@@ -15,6 +15,11 @@ const REALTIME_HEALTH_URL = '/api/realtime/health';
  */
 let cachedServerEnvKeyAvailable = false;
 
+export function isStaticGitHubPagesHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.location.hostname.endsWith('github.io');
+}
+
 /**
  * Three modes for how a player completes pronunciation prompts:
  *
@@ -87,6 +92,7 @@ export function saveTutoringLevel(level: TutoringLevel): void {
  */
 export async function fetchServerEnvKeyStatus(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
+  if (isStaticGitHubPagesHost()) return false;
   try {
     const response = await fetch(REALTIME_HEALTH_URL);
     if (!response.ok) return cachedServerEnvKeyAvailable;

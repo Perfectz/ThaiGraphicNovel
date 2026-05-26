@@ -6,6 +6,7 @@ import {
   getTutoringLevel,
   getVoiceJudgeMode,
   hasStoredOpenAiApiKey,
+  isStaticGitHubPagesHost,
   saveOpenAiApiKey,
   saveTutoringLevel,
   saveVoiceJudgeMode,
@@ -299,6 +300,14 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
     const checkId = voiceServiceCheckId.current + 1;
     voiceServiceCheckId.current = checkId;
     setVoiceServiceStatus((currentStatus) => ({ ...currentStatus, isChecking: true }));
+    if (isStaticGitHubPagesHost()) {
+      setVoiceServiceStatus({
+        realtime: 'Realtime relay is not available on GitHub Pages.',
+        whisper: 'Whisper service is not available on GitHub Pages. Use No-mic mode for the static demo.',
+        isChecking: false,
+      });
+      return;
+    }
     const [realtime, whisper] = await Promise.all([
       readServiceStatus('/api/realtime/health', 'Realtime API', nextApiKey),
       readServiceStatus('/api/whisper/health', 'Whisper'),
