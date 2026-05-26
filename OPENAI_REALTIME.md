@@ -2,7 +2,7 @@
 
 This game supports two voice judging modes:
 
-- Whisper: standalone local service that records in the browser, sends one audio clip to `server/whisper-service.mjs`, transcribes for free with local `Xenova/whisper-tiny` through Transformers.js, and returns a pronunciation verdict. This is the default mode.
+- Whisper: standalone local service that records in the browser, sends one audio clip to `server/whisper-service.mjs`, transcribes for free with local `Xenova/whisper-base` through Transformers.js, and returns a pronunciation verdict. This is the default mode. (Override with `LOCAL_WHISPER_MODEL=Xenova/whisper-small` for better Thai accuracy at higher cost.)
 - Realtime: low-latency OpenAI Realtime judging with `gpt-realtime-2`; requires the Realtime session server.
 
 ## Local setup
@@ -34,7 +34,7 @@ In the game, open AI Settings:
 Optional `.env.local`:
 
 ```powershell
-LOCAL_WHISPER_MODEL=Xenova/whisper-tiny
+LOCAL_WHISPER_MODEL=Xenova/whisper-base
 LOCAL_WHISPER_LANGUAGE=thai
 WHISPER_SERVICE_PORT=8788
 OPENAI_API_KEY=YOUR_ROTATED_OPENAI_API_KEY

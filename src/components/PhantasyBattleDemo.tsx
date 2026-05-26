@@ -1,28 +1,37 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import '../styles/battle-demo.css';
 import {
+  conversationTurns,
   demoAlly,
-  demoConversationPrompts,
   demoEnemy,
   demoHero,
-  demoTechniques,
   type BattleElement,
-  type ConversationChoice,
-  type ConversationPrompt,
+  type ConversationTurn,
   type DemoTechnique,
 } from '../data/phantasyBattleDemo';
-import { Button, Chip, StatBar } from './ui';
+import {
+  getVoiceJudgeMode,
+  VOICE_JUDGE_MODE_CHANGED_EVENT,
+  type VoiceJudgeMode,
+} from '../services/openAiSettings';
+import {
+  createPronunciationSession,
+  type PronunciationPrompt,
+  type PronunciationSession,
+  type PronunciationVerdict,
+} from '../services/realtimePronunciation';
+import { createWhisperPronunciationSession } from '../services/whisperPronunciation';
+import { Button, Chip, MicButton, StatBar, VerdictBadge } from './ui';
 
 // Real visual assets — Bangkok-rift temple gate background plus character
 // sprites and the Rift Guardian boss in 4 emotional states.
 import battleBackgroundUrl from '../assets/backgrounds/rift-negotiation-temple-gate.png';
-import patrickBackSpriteUrl from '../assets/battle/patrick-back-sprite.png';
-import suBattleSpriteUrl from '../assets/battle/su-battle-sprite.png';
-import riftGuardianDefaultUrl from '../assets/characters/stage-10/rift-guardian/rift-guardian-determined.png';
-import riftGuardianCastUrl from '../assets/characters/stage-10/rift-guardian/rift-guardian-explaining.png';
-import riftGuardianHurtUrl from '../assets/characters/stage-10/rift-guardian/rift-guardian-surprised.png';
-import riftGuardianDefeatedUrl from '../assets/characters/stage-10/rift-guardian/rift-guardian-worried.png';
-import riftGuardianTauntUrl from '../assets/characters/stage-10/rift-guardian/rift-guardian-playful.png';
+import patrickSheetAUrl from '../assets/battle/spritesheets/patrick-isometric-a.png';
+import patrickSheetBUrl from '../assets/battle/spritesheets/patrick-isometric-b.png';
+import riftGuardianSheetAUrl from '../assets/battle/spritesheets/rift-guardian-isometric-a.png';
+import riftGuardianSheetBUrl from '../assets/battle/spritesheets/rift-guardian-isometric-b.png';
+import suSheetAUrl from '../assets/battle/spritesheets/su-isometric-a.png';
+import suSheetBUrl from '../assets/battle/spritesheets/su-isometric-b.png';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Type definitions
@@ -30,15 +39,11 @@ import riftGuardianTauntUrl from '../assets/characters/stage-10/rift-guardian/ri
 
 type BattlePhase =
   | 'intro' // Banner flash on entry
-  | 'commandSelect' // Hero picks Fight / Technique / Defend / Run
-  | 'techniqueMenu' // Hero browses the Technique grid
+  | 'commandSelect' // Hero picks a conversational move
   | 'heroAttack' // VFX animates on the enemy
-  | 'enemyAttack' // VFX animates on the hero
-  | 'conversation' // Dialogue choice prompt
+  | 'enemyChallenge' // Enemy forces a required response
   | 'victory'
   | 'defeat';
-
-type CommandKind = 'fight' | 'technique' | 'defend' | 'flee';
 
 type LogEntry = {
   id: number;
@@ -57,6 +62,7 @@ type ActiveVfx = {
   id: number;
   element: BattleElement;
   target: 'hero' | 'enemy';
+  techniqueId?: string;
 };
 
 type BattleState = {
@@ -66,6 +72,7 @@ type BattleState = {
     mp: number;
     maxMp: number;
     nextAttackMultiplier: number;
+    guard: number;
     isCasting: boolean;
     isHurt: boolean;
   };
@@ -82,7 +89,8 @@ type BattleState = {
   log: LogEntry[];
   damageNumbers: DamageNumber[];
   vfx: ActiveVfx[];
-  conversationPromptIndex: number;
+  turnIndex: number;
+  lastScore: number | null;
   hasShake: boolean;
 };
 
@@ -93,17 +101,10 @@ type BattleState = {
 type Action =
   | { kind: 'init' }
   | { kind: 'enterCommandSelect' }
-  | { kind: 'openTechniqueMenu' }
-  | { kind: 'closeTechniqueMenu' }
-  | { kind: 'heroCast'; technique: DemoTechnique }
-  | { kind: 'heroBasicAttack' }
-  | { kind: 'heroDefend' }
-  | { kind: 'applyHeroDamageToEnemy'; amount: number; element: BattleElement; cry: string }
-  | { kind: 'applyHealToHero'; amount: number }
-  | { kind: 'enemyAttack' }
-  | { kind: 'applyEnemyDamageToHero'; amount: number }
-  | { kind: 'startConversation' }
-  | { kind: 'resolveConversationChoice'; choice: ConversationChoice; prompt: ConversationPrompt }
+  | { kind: 'startHeroMove'; technique: DemoTechnique }
+  | { kind: 'startCounterResponse' }
+  | { kind: 'resolveHeroMove'; technique: DemoTechnique; verdict: PronunciationVerdict }
+  | { kind: 'resolveEnemyChallenge'; technique: DemoTechnique; verdict: PronunciationVerdict }
   | { kind: 'clearShake' }
   | { kind: 'clearVfx'; id: number }
   | { kind: 'clearDamage'; id: number }
@@ -111,8 +112,6 @@ type Action =
   | { kind: 'clearCast'; target: 'hero' | 'enemy' }
   | { kind: 'declareVictory' }
   | { kind: 'declareDefeat' }
-  | { kind: 'stunEnemy' }
-  | { kind: 'advanceToEnemyTurn' }
   | { kind: 'reset' };
 
 let idCounter = 0;
@@ -128,6 +127,7 @@ const initialState: BattleState = {
     mp: demoHero.mp,
     maxMp: demoHero.maxMp,
     nextAttackMultiplier: 1,
+    guard: 0,
     isCasting: false,
     isHurt: false,
   },
@@ -142,12 +142,17 @@ const initialState: BattleState = {
   phase: 'intro',
   turnCount: 1,
   log: [
-    { id: nextId(), speaker: 'narrator', text: `A ${demoEnemy.name} blocks your path…` },
-    { id: nextId(), speaker: 'enemy', text: '"Your tongue stumbles. You will fall here."' },
+    { id: nextId(), speaker: 'narrator', text: `A ${demoEnemy.name} blocks the Bangkok Rift.` },
+    {
+      id: nextId(),
+      speaker: 'enemy',
+      text: conversationTurns[0]?.enemyLine ?? '"Introduce yourselves."',
+    },
   ],
   damageNumbers: [],
   vfx: [],
-  conversationPromptIndex: 0,
+  turnIndex: 0,
+  lastScore: null,
   hasShake: false,
 };
 
@@ -169,6 +174,38 @@ function appendLog(state: BattleState, entry: Omit<LogEntry, 'id'>): BattleState
   };
 }
 
+function clampScore(score: number) {
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function scoreRatio(verdict: PronunciationVerdict) {
+  return clampScore(verdict.score) / 100;
+}
+
+function scoredDamage(technique: DemoTechnique, verdict: PronunciationVerdict) {
+  const ratio = scoreRatio(verdict);
+  const floor = technique.kind === 'super' ? 12 : 5;
+  return Math.max(0, Math.round(floor + technique.power * ratio));
+}
+
+function scoredHeal(technique: DemoTechnique, verdict: PronunciationVerdict) {
+  return Math.max(8, Math.round(10 + technique.power * scoreRatio(verdict)));
+}
+
+function scoredGuard(verdict: PronunciationVerdict) {
+  return Math.round(10 + clampScore(verdict.score) * 0.45);
+}
+
+function incomingDamage(basePower: number, guard: number, verdict: PronunciationVerdict) {
+  const score = clampScore(verdict.score);
+  if (score >= 65 || verdict.pass) return 0;
+  return Math.max(4, Math.round(basePower + (65 - score) * 0.45 - guard));
+}
+
+function currentTurnFor(state: BattleState) {
+  return conversationTurns[Math.min(state.turnIndex, conversationTurns.length - 1)] ?? conversationTurns[0];
+}
+
 function reduce(state: BattleState, action: Action): BattleState {
   switch (action.kind) {
     case 'init':
@@ -177,213 +214,152 @@ function reduce(state: BattleState, action: Action): BattleState {
     case 'enterCommandSelect':
       return { ...state, phase: 'commandSelect' };
 
-    case 'openTechniqueMenu':
-      return { ...state, phase: 'techniqueMenu' };
-
-    case 'closeTechniqueMenu':
-      return { ...state, phase: 'commandSelect' };
-
-    case 'heroCast': {
+    case 'startHeroMove': {
       const t = action.technique;
-      if (state.hero.mp < t.mpCost) {
-        return appendLog(state, { speaker: 'system', text: 'Not enough MP.' });
-      }
-      const next: BattleState = {
+      if (state.hero.mp < t.mpCost) return appendLog(state, { speaker: 'system', text: 'Not enough MP.' });
+      return {
         ...state,
         hero: {
           ...state.hero,
-          mp: state.hero.mp - t.mpCost,
+          mp: Math.max(0, state.hero.mp - t.mpCost),
           isCasting: true,
         },
         phase: 'heroAttack',
       };
-      return appendLog(next, { speaker: 'hero', text: `${t.battleCry} — ${t.name}!` });
     }
 
-    case 'heroBasicAttack': {
+    case 'startCounterResponse':
       return {
         ...state,
         hero: { ...state.hero, isCasting: true },
+        enemy: { ...state.enemy, isCasting: false },
         phase: 'heroAttack',
-        log: [...state.log.slice(-20), { id: nextId(), speaker: 'hero', text: 'A basic blow!' }],
       };
-    }
 
-    case 'heroDefend': {
-      return appendLog(
-        {
-          ...state,
-          hero: { ...state.hero, nextAttackMultiplier: state.hero.nextAttackMultiplier * 1.3 },
-          enemy: { ...state.enemy, isCasting: true },
-          phase: 'enemyAttack',
-        },
-        { speaker: 'system', text: 'You brace yourself. Next strike strengthened.' },
-      );
-    }
-
-    case 'applyHeroDamageToEnemy': {
-      const variance = 0.85 + Math.random() * 0.3;
-      const rawDamage = Math.round(action.amount * state.hero.nextAttackMultiplier * variance);
-      const newHp = Math.max(0, state.enemy.hp - rawDamage);
-      const defeated = newHp <= 0;
-      const next: BattleState = {
+    case 'resolveHeroMove': {
+      const { technique, verdict } = action;
+      const score = clampScore(verdict.score);
+      let next: BattleState = {
         ...state,
-        hero: { ...state.hero, isCasting: false, nextAttackMultiplier: 1 },
-        enemy: {
-          ...state.enemy,
-          hp: newHp,
-          isHurt: true,
-          isDefeated: defeated,
-        },
-        damageNumbers: [
-          ...state.damageNumbers,
-          {
-            id: nextId(),
-            target: 'enemy',
-            amount: rawDamage,
-            variant: elementToDamageVariant(action.element),
-          },
-        ],
-        vfx: [...state.vfx, { id: nextId(), element: action.element, target: 'enemy' }],
-        hasShake: true,
+        lastScore: score,
+        hero: { ...state.hero, isCasting: false },
       };
-      return appendLog(next, {
-        speaker: 'narrator',
-        text: `${demoEnemy.name} takes ${rawDamage} damage!`,
-      });
-    }
 
-    case 'applyHealToHero': {
-      const newHp = Math.min(state.hero.maxHp, state.hero.hp + action.amount);
-      const restored = newHp - state.hero.hp;
-      return appendLog(
-        {
-          ...state,
-          hero: { ...state.hero, hp: newHp, isCasting: false, nextAttackMultiplier: 1 },
+      if (technique.kind === 'heal') {
+        const amount = scoredHeal(technique, verdict);
+        const newHp = Math.min(next.hero.maxHp, next.hero.hp + amount);
+        const restored = newHp - next.hero.hp;
+        next = {
+          ...next,
+          hero: { ...next.hero, hp: newHp },
           damageNumbers: [
-            ...state.damageNumbers,
+            ...next.damageNumbers,
             { id: nextId(), target: 'hero', amount: restored, variant: 'heal' },
           ],
-          vfx: [...state.vfx, { id: nextId(), element: 'holy', target: 'hero' }],
-        },
-        { speaker: 'narrator', text: `You restore ${restored} HP.` },
-      );
-    }
-
-    case 'enemyAttack': {
-      // Stunned enemies skip their turn.
-      if (state.enemy.stunnedTurns > 0) {
-        return appendLog(
-          {
-            ...state,
-            enemy: { ...state.enemy, stunnedTurns: state.enemy.stunnedTurns - 1 },
-            phase: 'commandSelect',
-            turnCount: state.turnCount + 1,
-          },
-          { speaker: 'narrator', text: `${demoEnemy.name} is stunned and cannot act!` },
-        );
+          vfx: [...next.vfx, { id: nextId(), element: 'holy', target: 'hero', techniqueId: technique.id }],
+        };
+        next = appendLog(next, {
+          speaker: 'narrator',
+          text: `Su coaches the phrase. Score ${score}/100 restores ${restored} HP.`,
+        });
+      } else if (technique.kind === 'defend') {
+        const guard = scoredGuard(verdict);
+        next = {
+          ...next,
+          hero: { ...next.hero, guard: Math.max(next.hero.guard, guard) },
+          vfx: [...next.vfx, { id: nextId(), element: 'wind', target: 'hero', techniqueId: technique.id }],
+        };
+        next = appendLog(next, {
+          speaker: 'narrator',
+          text: `Su explains Patrick is still learning. Score ${score}/100 raises Guard by ${guard}.`,
+        });
+      } else {
+        const damage = scoredDamage(technique, verdict);
+        const newHp = Math.max(0, next.enemy.hp - damage);
+        next = {
+          ...next,
+          enemy: { ...next.enemy, hp: newHp, isHurt: true, isDefeated: newHp <= 0 },
+          damageNumbers: [
+            ...next.damageNumbers,
+            {
+              id: nextId(),
+              target: 'enemy',
+              amount: damage,
+              variant: elementToDamageVariant(technique.element),
+            },
+          ],
+          vfx: [
+            ...next.vfx,
+            { id: nextId(), element: technique.element, target: 'enemy', techniqueId: technique.id },
+          ],
+          hasShake: damage > 0,
+        };
+        next = appendLog(next, {
+          speaker: 'narrator',
+          text: `Patrick's phrasing scored ${score}/100. ${demoEnemy.name} takes ${damage} resolve damage.`,
+        });
       }
-      return {
-        ...state,
-        enemy: { ...state.enemy, isCasting: true },
-        phase: 'enemyAttack',
-      };
+
+      next = appendLog(next, { speaker: 'hero', text: `${technique.thai} — ${technique.translation}` });
+      if (next.enemy.hp <= 0 || next.enemy.isDefeated) return { ...next, phase: 'victory' };
+      return { ...next, phase: 'enemyChallenge', enemy: { ...next.enemy, isCasting: true } };
     }
 
-    case 'applyEnemyDamageToHero': {
-      const newHp = Math.max(0, state.hero.hp - action.amount);
-      const defeated = newHp <= 0;
-      const next: BattleState = {
+    case 'resolveEnemyChallenge': {
+      const { technique, verdict } = action;
+      const score = clampScore(verdict.score);
+      const damage = incomingDamage(demoEnemy.attackPower, state.hero.guard, verdict);
+      const newHp = Math.max(0, state.hero.hp - damage);
+      const nextTurnIndex = state.turnIndex + 1;
+      const completedScript = nextTurnIndex >= conversationTurns.length;
+      let next: BattleState = {
         ...state,
+        turnIndex: Math.min(nextTurnIndex, conversationTurns.length - 1),
+        turnCount: Math.min(nextTurnIndex + 1, conversationTurns.length),
+        lastScore: score,
         enemy: { ...state.enemy, isCasting: false },
-        hero: { ...state.hero, hp: newHp, isHurt: true },
-        damageNumbers: [
-          ...state.damageNumbers,
-          { id: nextId(), target: 'hero', amount: action.amount, variant: 'shadow' },
-        ],
-        vfx: [...state.vfx, { id: nextId(), element: demoEnemy.attackElement, target: 'hero' }],
-        hasShake: true,
-        phase: defeated ? 'defeat' : state.turnCount % 2 === 0 ? 'conversation' : 'commandSelect',
-        turnCount: state.turnCount + 1,
-      };
-      return appendLog(next, {
-        speaker: 'enemy',
-        text: `${demoEnemy.attackName}! ${demoEnemy.attackFlavor}`,
-      });
-    }
-
-    case 'startConversation':
-      return { ...state, phase: 'conversation' };
-
-    case 'resolveConversationChoice': {
-      const { choice, prompt } = action;
-      let next = appendLog(state, { speaker: 'hero', text: choice.label });
-      next = appendLog(next, { speaker: 'narrator', text: choice.outcome });
-
-      switch (choice.effect.kind) {
-        case 'damage': {
-          const newHp = Math.max(0, next.enemy.hp - choice.effect.amount);
-          next = {
-            ...next,
-            enemy: { ...next.enemy, hp: newHp, isHurt: true, isDefeated: newHp <= 0 },
-            damageNumbers: [
-              ...next.damageNumbers,
-              { id: nextId(), target: 'enemy', amount: choice.effect.amount, variant: 'phys' },
-            ],
-          };
-          break;
-        }
-        case 'heal': {
-          const delta = choice.effect.amount;
-          const newHp = Math.max(0, Math.min(next.hero.maxHp, next.hero.hp + delta));
-          next = {
-            ...next,
-            hero: { ...next.hero, hp: newHp, isHurt: delta < 0 },
-            damageNumbers: [
-              ...next.damageNumbers,
-              {
-                id: nextId(),
-                target: 'hero',
-                amount: Math.abs(delta),
-                variant: delta >= 0 ? 'heal' : 'shadow',
-              },
-            ],
-          };
-          break;
-        }
-        case 'buff':
-          next = {
-            ...next,
-            hero: { ...next.hero, nextAttackMultiplier: choice.effect.nextAttackMultiplier },
-          };
-          break;
-        case 'mp': {
-          const newMp = Math.max(0, Math.min(next.hero.maxMp, next.hero.mp + choice.effect.amount));
-          next = { ...next, hero: { ...next.hero, mp: newMp } };
-          break;
-        }
-        case 'stun':
-          next = { ...next, enemy: { ...next.enemy, stunnedTurns: 1 } };
-          break;
-      }
-
-      // Advance prompt pointer so the next conversation pulls a fresh prompt.
-      next = {
-        ...next,
-        conversationPromptIndex: (next.conversationPromptIndex + 1) % demoConversationPrompts.length,
+        hero: { ...state.hero, hp: newHp, guard: 0, isCasting: false, isHurt: damage > 0 },
+        phase: damage > 0 && newHp <= 0 ? 'defeat' : completedScript ? 'victory' : 'commandSelect',
       };
 
-      if (next.enemy.hp <= 0) {
-        return { ...next, phase: 'victory' };
-      }
-      if (next.hero.hp <= 0) {
-        return { ...next, phase: 'defeat' };
+      if (damage > 0) {
+        next = {
+          ...next,
+          damageNumbers: [
+            ...next.damageNumbers,
+            { id: nextId(), target: 'hero', amount: damage, variant: 'shadow' },
+          ],
+          vfx: [...next.vfx, { id: nextId(), element: demoEnemy.attackElement, target: 'hero' }],
+          hasShake: true,
+        };
+        next = appendLog(next, {
+          speaker: 'enemy',
+          text: `${demoEnemy.attackName}: score ${score}/100. Patrick takes ${damage} damage.`,
+        });
+      } else {
+        const counterDamage = Math.round(8 + technique.power * scoreRatio(verdict));
+        const enemyHp = Math.max(0, next.enemy.hp - counterDamage);
+        next = {
+          ...next,
+          enemy: { ...next.enemy, hp: enemyHp, isHurt: true, isDefeated: enemyHp <= 0 },
+          damageNumbers: [
+            ...next.damageNumbers,
+            { id: nextId(), target: 'enemy', amount: counterDamage, variant: 'holy' },
+          ],
+          vfx: [...next.vfx, { id: nextId(), element: 'holy', target: 'enemy', techniqueId: technique.id }],
+        };
+        next = appendLog(next, {
+          speaker: 'narrator',
+          text: `The forced response holds. Score ${score}/100 prevents damage and counters for ${counterDamage}.`,
+        });
       }
 
-      // Unused param suppression — prompt id might be useful for analytics later.
-      void prompt;
-
-      return { ...next, phase: 'commandSelect' };
+      if (next.enemy.hp <= 0 || next.enemy.isDefeated) return { ...next, phase: 'victory' };
+      if (next.phase === 'commandSelect') {
+        const upcoming = conversationTurns[next.turnIndex];
+        if (upcoming) next = appendLog(next, { speaker: 'enemy', text: upcoming.enemyLine });
+      }
+      return next;
     }
 
     case 'clearShake':
@@ -413,31 +389,6 @@ function reduce(state: BattleState, action: Action): BattleState {
     case 'declareDefeat':
       return { ...state, phase: 'defeat' };
 
-    case 'stunEnemy':
-      return appendLog(
-        { ...state, enemy: { ...state.enemy, stunnedTurns: state.enemy.stunnedTurns + 1 } },
-        { speaker: 'narrator', text: `${demoEnemy.name} is reeling from the breeze!` },
-      );
-
-    case 'advanceToEnemyTurn': {
-      if (state.enemy.hp <= 0 || state.enemy.isDefeated) {
-        return { ...state, phase: 'victory' };
-      }
-      // Stunned enemies skip their turn and return command to the hero.
-      if (state.enemy.stunnedTurns > 0) {
-        return appendLog(
-          {
-            ...state,
-            enemy: { ...state.enemy, stunnedTurns: state.enemy.stunnedTurns - 1 },
-            phase: 'commandSelect',
-            turnCount: state.turnCount + 1,
-          },
-          { speaker: 'narrator', text: `${demoEnemy.name} is stunned and cannot act!` },
-        );
-      }
-      return { ...state, phase: 'enemyAttack', enemy: { ...state.enemy, isCasting: true } };
-    }
-
     case 'reset':
       idCounter = 0;
       return {
@@ -445,11 +396,11 @@ function reduce(state: BattleState, action: Action): BattleState {
         hero: { ...initialState.hero },
         enemy: { ...initialState.enemy },
         log: [
-          { id: nextId(), speaker: 'narrator', text: `The ${demoEnemy.name} bars the Bangkok Rift…` },
+          { id: nextId(), speaker: 'narrator', text: `The ${demoEnemy.name} bars the Bangkok Rift.` },
           {
             id: nextId(),
             speaker: 'enemy',
-            text: '"Your tongue stumbles, traveler. The Rift will swallow you."',
+            text: conversationTurns[0]?.enemyLine ?? '"Introduce yourselves."',
           },
         ],
       };
@@ -467,10 +418,46 @@ export type PhantasyBattleDemoProps = {
   onExit?: () => void;
 };
 
+function techniqueToPronunciationPrompt(technique: DemoTechnique): PronunciationPrompt {
+  return {
+    targetPhrase: technique.thai,
+    romanization: technique.romanization,
+    translation: technique.translation,
+  };
+}
+
 export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
   const [state, dispatch] = useReducer(reduce, initialState);
   const [bannerVisible, setBannerVisible] = useState(true);
+  const [pendingVoiceTechnique, setPendingVoiceTechnique] = useState<DemoTechnique | null>(null);
+  const [voiceMode, setVoiceMode] = useState<VoiceJudgeMode>(() => getVoiceJudgeMode());
+  const [voiceStatus, setVoiceStatus] = useState('Pick a response, then say the Thai phrase.');
+  const [voiceError, setVoiceError] = useState('');
+  const [verdict, setVerdict] = useState<PronunciationVerdict | null>(null);
+  const [isConnectingVoice, setIsConnectingVoice] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isAwaitingVoiceResult, setIsAwaitingVoiceResult] = useState(false);
   const timers = useRef<Set<number>>(new Set());
+  const pronunciationSession = useRef<PronunciationSession | null>(null);
+  const connectionPromise = useRef<Promise<PronunciationSession | null> | null>(null);
+  const pendingVoiceTechniqueRef = useRef<DemoTechnique | null>(null);
+  const heroMpRef = useRef(state.hero.mp);
+
+  const pronunciationPrompt = useMemo(
+    () => (pendingVoiceTechnique ? techniqueToPronunciationPrompt(pendingVoiceTechnique) : null),
+    [pendingVoiceTechnique],
+  );
+
+  useEffect(() => {
+    pendingVoiceTechniqueRef.current = pendingVoiceTechnique;
+    if (pendingVoiceTechnique && pronunciationPrompt) {
+      pronunciationSession.current?.updatePrompt(pronunciationPrompt);
+    }
+  }, [pendingVoiceTechnique, pronunciationPrompt]);
+
+  useEffect(() => {
+    heroMpRef.current = state.hero.mp;
+  }, [state.hero.mp]);
 
   // Helper to schedule a timeout and auto-cleanup on unmount.
   const schedule = useCallback((fn: () => void, delay: number) => {
@@ -487,6 +474,20 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
     return () => {
       captured.forEach((id) => window.clearTimeout(id));
       captured.clear();
+      pronunciationSession.current?.disconnect();
+      pronunciationSession.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleVoiceModeChange = () => {
+      setVoiceMode(getVoiceJudgeMode());
+    };
+    window.addEventListener(VOICE_JUDGE_MODE_CHANGED_EVENT, handleVoiceModeChange);
+    window.addEventListener('storage', handleVoiceModeChange);
+    return () => {
+      window.removeEventListener(VOICE_JUDGE_MODE_CHANGED_EVENT, handleVoiceModeChange);
+      window.removeEventListener('storage', handleVoiceModeChange);
     };
   }, []);
 
@@ -508,78 +509,140 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
     return () => window.clearTimeout(id);
   }, [state.hasShake, schedule]);
 
-  // ── Hero attack pipeline: when a hero technique starts casting, fire its
-  //    VFX/damage after the cast wind-up, then queue the enemy turn.
-  const pendingTechnique = useRef<DemoTechnique | null>(null);
-  const handleCommandFight = useCallback(() => {
-    dispatch({ kind: 'heroBasicAttack' });
-    pendingTechnique.current = null;
-    schedule(() => {
-      dispatch({
-        kind: 'applyHeroDamageToEnemy',
-        amount: 22,
-        element: 'slash',
-        cry: 'Basic strike',
-      });
-    }, 380);
-  }, [schedule]);
+  const prepareVoiceTechnique = useCallback((technique: DemoTechnique) => {
+    if (heroMpRef.current < technique.mpCost) {
+      setVoiceError('Not enough MP for that response.');
+      return;
+    }
+    setPendingVoiceTechnique(technique);
+    setVoiceError('');
+    setVerdict(null);
+    setIsAwaitingVoiceResult(false);
+    setVoiceStatus(`Say ${technique.thai} clearly to use ${technique.name}.`);
+  }, []);
 
-  const handleTechniquePicked = useCallback(
-    (technique: DemoTechnique) => {
-      if (state.hero.mp < technique.mpCost) return;
-      pendingTechnique.current = technique;
-      dispatch({ kind: 'heroCast', technique });
-      schedule(() => {
-        if (technique.isHeal) {
-          dispatch({ kind: 'applyHealToHero', amount: technique.power });
-        } else {
-          dispatch({
-            kind: 'applyHeroDamageToEnemy',
-            amount: technique.power,
-            element: technique.element,
-            cry: technique.battleCry,
-          });
-          if (technique.effect === 'stun') {
-            // Stun applies on the resolve phase below.
+  const connectVoiceCoach = useCallback(async (): Promise<PronunciationSession | null> => {
+    const selectedMode = getVoiceJudgeMode();
+    setVoiceMode(selectedMode);
+
+    if (selectedMode === 'no-mic') {
+      setVoiceError('Speaking requires Whisper or Realtime mode. Switch Voice Judge Mode in Game Settings.');
+      setVoiceStatus('Responses are locked until a mic judge is enabled.');
+      return null;
+    }
+
+    if (!pronunciationPrompt) {
+      setVoiceError('Pick a response before connecting the voice judge.');
+      return null;
+    }
+
+    if (pronunciationSession.current) return pronunciationSession.current;
+    if (connectionPromise.current) return connectionPromise.current;
+
+    setIsConnectingVoice(true);
+    setVoiceError('');
+    connectionPromise.current = (async () => {
+      const sessionOptions = {
+        prompt: pronunciationPrompt,
+        onStatus: setVoiceStatus,
+        onError: (message: string) => {
+          setVoiceError(message);
+          setVoiceStatus('Voice judge needs another try.');
+          setIsAwaitingVoiceResult(false);
+          setIsRecordingVoice(false);
+        },
+        onVerdict: (nextVerdict: PronunciationVerdict) => {
+          setIsAwaitingVoiceResult(false);
+          setIsRecordingVoice(false);
+          setVerdict(nextVerdict);
+          const technique = pendingVoiceTechniqueRef.current;
+          if (technique) {
+            setVoiceStatus(
+              `${technique.kind === 'counter' ? 'Response' : 'Phrase'} scored ${nextVerdict.score}/100.`,
+            );
+            if (technique.kind === 'counter') {
+              dispatch({ kind: 'startCounterResponse' });
+            } else {
+              dispatch({ kind: 'startHeroMove', technique });
+            }
+            schedule(() => {
+              dispatch(
+                technique.kind === 'counter'
+                  ? { kind: 'resolveEnemyChallenge', technique, verdict: nextVerdict }
+                  : { kind: 'resolveHeroMove', technique, verdict: nextVerdict },
+              );
+            }, 420);
+            setPendingVoiceTechnique(null);
+          } else {
+            setVoiceStatus('Pick a response before speaking.');
           }
-        }
-      }, 480);
+        },
+      };
+      const session =
+        selectedMode === 'whisper'
+          ? await createWhisperPronunciationSession(sessionOptions)
+          : await createPronunciationSession({
+              ...sessionOptions,
+              enableFailureCoachingAudio: false,
+            });
+      pronunciationSession.current = session;
+      return session;
+    })();
+
+    try {
+      return await connectionPromise.current;
+    } catch (error) {
+      setVoiceError(error instanceof Error ? error.message : String(error));
+      setVoiceStatus(
+        `${selectedMode === 'whisper' ? 'Local Whisper' : 'Realtime'} voice judge could not connect.`,
+      );
+      return null;
+    } finally {
+      setIsConnectingVoice(false);
+      connectionPromise.current = null;
+    }
+  }, [pronunciationPrompt, schedule]);
+
+  const startVoiceAttempt = useCallback(
+    (session: PronunciationSession) => {
+      if (!pronunciationPrompt || isRecordingVoice || isAwaitingVoiceResult) return;
+      setVoiceError('');
+      setVerdict(null);
+      setIsAwaitingVoiceResult(false);
+      session.updatePrompt(pronunciationPrompt);
+      session.startRecording();
+      setIsRecordingVoice(true);
     },
-    [schedule, state.hero.mp],
+    [isAwaitingVoiceResult, isRecordingVoice, pronunciationPrompt],
   );
 
-  // After hero attack resolves: clear hurt, apply technique side effects, queue enemy.
-  useEffect(() => {
-    if (state.phase !== 'heroAttack') return;
-    if (state.hero.isCasting) return; // still casting
+  const handleVoiceStart = useCallback(() => {
+    if (!pendingVoiceTechnique) {
+      setVoiceError('Pick a response before speaking.');
+      return;
+    }
+    if (pronunciationSession.current) {
+      startVoiceAttempt(pronunciationSession.current);
+      return;
+    }
+    void connectVoiceCoach().then((session) => {
+      if (session) startVoiceAttempt(session);
+    });
+  }, [connectVoiceCoach, pendingVoiceTechnique, startVoiceAttempt]);
 
-    // Once the damage has landed (isCasting false), schedule cleanup & enemy turn.
+  const handleVoiceStop = useCallback(() => {
+    if (!pronunciationSession.current || !isRecordingVoice) return;
+    pronunciationSession.current.stopRecording();
+    setIsAwaitingVoiceResult(true);
+    setIsRecordingVoice(false);
+  }, [isRecordingVoice]);
+
+  // After a scored hero move lands, clear the enemy reaction flash.
+  useEffect(() => {
+    if (!state.enemy.isHurt) return;
     const t1 = schedule(() => dispatch({ kind: 'clearHurt', target: 'enemy' }), 520);
-    const t2 = schedule(() => {
-      // If the technique had a stun side effect, apply it before the enemy attempts to act.
-      const tech = pendingTechnique.current;
-      if (tech?.effect === 'stun') {
-        dispatch({ kind: 'stunEnemy' });
-      }
-      pendingTechnique.current = null;
-      dispatch({ kind: 'advanceToEnemyTurn' });
-    }, 720);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.phase, state.hero.isCasting]);
-
-  // ── Enemy attack pipeline ──
-  useEffect(() => {
-    if (state.phase !== 'enemyAttack') return;
-    if (!state.enemy.isCasting) return;
-    const t = schedule(() => {
-      dispatch({ kind: 'applyEnemyDamageToHero', amount: demoEnemy.attackPower });
-    }, 460);
-    return () => window.clearTimeout(t);
-  }, [state.phase, state.enemy.isCasting, schedule]);
+    return () => window.clearTimeout(t1);
+  }, [state.enemy.isHurt, schedule]);
 
   // Clear hero hurt after enemy attack lands.
   useEffect(() => {
@@ -614,7 +677,17 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
     return () => window.clearTimeout(t);
   }, [state.phase]);
 
-  const currentPrompt = demoConversationPrompts[state.conversationPromptIndex] ?? demoConversationPrompts[0];
+  const currentTurn = currentTurnFor(state);
+
+  useEffect(() => {
+    if (state.phase !== 'enemyChallenge') return;
+    if (pendingVoiceTechnique?.kind === 'counter') return;
+    setPendingVoiceTechnique(currentTurn.counter);
+    setVoiceError('');
+    setVerdict(null);
+    setIsAwaitingVoiceResult(false);
+    setVoiceStatus(`The Guardian presses: say ${currentTurn.counter.thai} to prevent damage.`);
+  }, [currentTurn, pendingVoiceTechnique?.kind, state.phase]);
 
   // ─────────────────────────────────────────────────────────────────────
   // Render
@@ -632,7 +705,7 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
         <div className="flex items-center gap-2">
           <Chip tone="accent">Demo</Chip>
           <span className="font-display text-[0.7rem] font-bold uppercase tracking-[0.22em] text-paper-muted">
-            Rift Battle · Turn {state.turnCount}
+            Rift Conversation · Turn {state.turnCount}/10
           </span>
         </div>
         <Button variant="ghost" size="sm" onClick={onExit}>
@@ -646,7 +719,7 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
       ) : null}
       {bannerVisible && state.phase === 'victory' ? (
         <>
-          <BattleBanner name="Victory" subtitle="The Wraith dissolves into mist." accent="jade" />
+          <BattleBanner name="Victory" subtitle="The Rift Guardian opens the gate." accent="jade" />
           <div className="bd-victory" />
         </>
       ) : null}
@@ -669,19 +742,21 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
           <div className="relative flex items-end justify-center gap-6">
             <BattlerSprite
               variant="hero"
-              spriteUrl={patrickBackSpriteUrl}
+              sheetAUrl={patrickSheetAUrl}
+              sheetBUrl={patrickSheetBUrl}
               alt="Patrick from behind, facing the Rift Guardian"
               isHurt={state.hero.isHurt}
               isCasting={state.hero.isCasting}
               isDown={state.phase === 'defeat'}
-              isActive={state.phase === 'commandSelect' || state.phase === 'techniqueMenu'}
+              isActive={state.phase === 'commandSelect'}
             />
             <BattlerSprite
               variant="ally"
-              spriteUrl={suBattleSpriteUrl}
+              sheetAUrl={suSheetAUrl}
+              sheetBUrl={suSheetBUrl}
               alt="Su, gesturing in support"
               isHurt={false}
-              isCasting={state.phase === 'conversation'}
+              isCasting={pendingVoiceTechnique?.kind === 'heal' || pendingVoiceTechnique?.kind === 'defend'}
               isDown={state.phase === 'defeat'}
             />
             {/* Hero VFX layer (for heals / on-self buffs) */}
@@ -693,7 +768,8 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
           <div className="relative flex items-end justify-center">
             <BattlerSprite
               variant="enemy"
-              spriteUrl={getRiftGuardianSprite(state)}
+              sheetAUrl={riftGuardianSheetAUrl}
+              sheetBUrl={riftGuardianSheetBUrl}
               alt="The Rift Guardian, a regal opponent"
               isHurt={state.enemy.isHurt}
               isCasting={state.enemy.isCasting}
@@ -743,49 +819,43 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
           {/* Command / Technique / Conversation column */}
           <div className="min-w-0">
             {state.phase === 'commandSelect' ? (
-              <CommandMenu
-                onPick={(kind) => {
-                  if (kind === 'fight') return handleCommandFight();
-                  if (kind === 'technique') return dispatch({ kind: 'openTechniqueMenu' });
-                  if (kind === 'defend') return dispatch({ kind: 'heroDefend' });
-                  if (kind === 'flee') {
-                    dispatch({
-                      kind: 'resolveConversationChoice',
-                      choice: {
-                        id: 'flee',
-                        label: 'Attempt to flee.',
-                        outcome: 'The Wraith blocks your retreat.',
-                        effect: { kind: 'heal', amount: -8 },
-                        tone: 'ember',
-                      },
-                      prompt: demoConversationPrompts[0],
-                    });
-                  }
-                }}
+              <>
+                <CommandMenu currentTurn={currentTurn} onPick={(move) => prepareVoiceTechnique(move)} />
+                {pendingVoiceTechnique && pendingVoiceTechnique.kind !== 'counter' ? (
+                  <VoiceCastPanel
+                    technique={pendingVoiceTechnique}
+                    voiceMode={voiceMode}
+                    voiceStatus={voiceStatus}
+                    voiceError={voiceError}
+                    verdict={verdict}
+                    isConnectingVoice={isConnectingVoice}
+                    isRecordingVoice={isRecordingVoice}
+                    isAwaitingVoiceResult={isAwaitingVoiceResult}
+                    onVoiceStart={handleVoiceStart}
+                    onVoiceStop={handleVoiceStop}
+                    onCancel={() => setPendingVoiceTechnique(null)}
+                  />
+                ) : null}
+              </>
+            ) : null}
+
+            {state.phase === 'enemyChallenge' ? (
+              <EnemyChallengePanel
+                turn={currentTurn}
+                pendingTechnique={pendingVoiceTechnique}
+                voiceMode={voiceMode}
+                voiceStatus={voiceStatus}
+                voiceError={voiceError}
+                verdict={verdict}
+                isConnectingVoice={isConnectingVoice}
+                isRecordingVoice={isRecordingVoice}
+                isAwaitingVoiceResult={isAwaitingVoiceResult}
+                onVoiceStart={handleVoiceStart}
+                onVoiceStop={handleVoiceStop}
               />
             ) : null}
 
-            {state.phase === 'techniqueMenu' ? (
-              <TechniqueMenu
-                techniques={demoTechniques}
-                heroMp={state.hero.mp}
-                onPick={handleTechniquePicked}
-                onCancel={() => dispatch({ kind: 'closeTechniqueMenu' })}
-              />
-            ) : null}
-
-            {state.phase === 'conversation' ? (
-              <ConversationPanel
-                prompt={currentPrompt}
-                onChoose={(choice) =>
-                  dispatch({ kind: 'resolveConversationChoice', choice, prompt: currentPrompt })
-                }
-              />
-            ) : null}
-
-            {state.phase === 'heroAttack' || state.phase === 'enemyAttack' ? (
-              <ActionPlayingPanel attacker={state.phase === 'heroAttack' ? demoHero.name : demoEnemy.name} />
-            ) : null}
+            {state.phase === 'heroAttack' ? <ActionPlayingPanel attacker={demoHero.name} /> : null}
 
             {state.phase === 'victory' ? (
               <ResolutionPanel
@@ -801,7 +871,7 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
             {state.phase === 'defeat' ? (
               <ResolutionPanel
                 title="You Fell"
-                description="Doubt overwhelmed you. Try again with sharper Techniques."
+                description="Doubt overwhelmed Patrick. Try again with clearer Thai responses."
                 actionLabel="Retry"
                 onAction={() => dispatch({ kind: 'reset' })}
                 secondaryLabel="Exit"
@@ -813,8 +883,8 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
               <div className="rounded-md border border-hairline bg-ink-elevated p-4">
                 <p className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-accent">Encounter</p>
                 <p className="mt-1 text-sm font-medium text-paper">
-                  Each Thai phrase you have learned is a Technique. Spend MP. Watch the VFX. Pick the right
-                  conversational reply between turns.
+                  This is a 10-turn polite conversation. Patrick's Thai score drives damage, Su can coach or
+                  protect, and the Guardian forces specific replies between turns.
                 </p>
               </div>
             ) : null}
@@ -849,7 +919,8 @@ function BattleBanner({
 
 function BattlerSprite({
   variant,
-  spriteUrl,
+  sheetAUrl,
+  sheetBUrl,
   alt,
   isHurt,
   isCasting,
@@ -857,7 +928,8 @@ function BattlerSprite({
   isActive = false,
 }: {
   variant: 'hero' | 'ally' | 'enemy';
-  spriteUrl: string;
+  sheetAUrl: string;
+  sheetBUrl: string;
   alt: string;
   isHurt: boolean;
   isCasting: boolean;
@@ -879,40 +951,44 @@ function BattlerSprite({
   // composition like a PS4 boss. Heroes are full-bodies so they need less.
   const sizeStyle =
     variant === 'enemy'
-      ? { width: 'clamp(13rem, 32vw, 22rem)', height: 'clamp(13rem, 32vw, 22rem)' }
+      ? { width: 'clamp(8rem, 17vw, 13rem)', height: 'clamp(9rem, 19vw, 14.5rem)' }
       : variant === 'ally'
-        ? { width: 'clamp(7rem, 17vw, 11rem)', height: 'clamp(11rem, 26vw, 16rem)' }
-        : { width: 'clamp(9rem, 20vw, 13rem)', height: 'clamp(12rem, 28vw, 17rem)' };
+        ? { width: 'clamp(6rem, 13vw, 9rem)', height: 'clamp(6.75rem, 14.5vw, 10rem)' }
+        : { width: 'clamp(6rem, 13vw, 9rem)', height: 'clamp(8rem, 17vw, 12rem)' };
+  const activeSheetUrl = isCasting || isHurt || isDown ? sheetBUrl : sheetAUrl;
+  const sheetStateClass = isDown
+    ? 'bd-battler__sheet--down'
+    : isHurt
+      ? 'bd-battler__sheet--hurt'
+      : isCasting
+        ? 'bd-battler__sheet--cast'
+        : 'bd-battler__sheet--idle';
 
   return (
     <div className={classes} style={sizeStyle}>
       <div className="bd-battler__aura" aria-hidden="true" />
-      <img
-        src={spriteUrl}
-        alt={alt}
-        className="bd-battler__img"
-        draggable={false}
-        style={{ width: '100%', height: '100%' }}
+      <div
+        aria-label={alt}
+        role="img"
+        className={`bd-battler__sheet ${sheetStateClass}`}
+        style={{ backgroundImage: `url(${activeSheetUrl})` }}
       />
       <div className="bd-battler__shadow" aria-hidden="true" />
     </div>
   );
 }
 
-function getRiftGuardianSprite(state: BattleState): string {
-  if (state.phase === 'victory') return riftGuardianTauntUrl; // playful taunt after fight ends humorously
-  if (state.enemy.isDefeated) return riftGuardianDefeatedUrl;
-  if (state.enemy.hp < state.enemy.maxHp * 0.35) return riftGuardianDefeatedUrl; // low-HP worried
-  if (state.enemy.isHurt) return riftGuardianHurtUrl;
-  if (state.enemy.isCasting) return riftGuardianCastUrl;
-  return riftGuardianDefaultUrl;
-}
-
 function VfxOverlay({ vfx }: { vfx: ActiveVfx[] }) {
   return (
     <div className="bd-vfx-layer" aria-hidden="true">
       {vfx.map((v) => (
-        <div key={v.id} className={`bd-vfx-target bd-vfx-${v.element}`} />
+        <div
+          key={v.id}
+          className={`bd-vfx-target bd-vfx-${v.element} ${v.techniqueId ? `bd-vfx-tech-${v.techniqueId}` : ''}`}
+        >
+          <span className="bd-vfx-glyph" />
+          <span className="bd-vfx-burst" />
+        </div>
       ))}
     </div>
   );
@@ -1012,24 +1088,61 @@ function BattleLog({ log }: { log: LogEntry[] }) {
   );
 }
 
-function CommandMenu({ onPick }: { onPick: (kind: CommandKind) => void }) {
-  const commands: { kind: CommandKind; label: string; hint: string; variant: 'primary' | 'ghost' }[] = [
-    { kind: 'technique', label: 'Technique', hint: 'Cast a Thai-phrase Technique', variant: 'primary' },
-    { kind: 'fight', label: 'Fight', hint: 'Basic 22 damage strike', variant: 'ghost' },
-    { kind: 'defend', label: 'Defend', hint: 'Brace; next strike +30%', variant: 'ghost' },
-    { kind: 'flee', label: 'Flee', hint: 'Try to escape', variant: 'ghost' },
+function CommandMenu({
+  currentTurn,
+  onPick,
+}: {
+  currentTurn: ConversationTurn;
+  onPick: (move: DemoTechnique) => void;
+}) {
+  const commands: {
+    kind: DemoTechnique['kind'];
+    label: string;
+    hint: string;
+    move: DemoTechnique;
+  }[] = [
+    {
+      kind: 'standard',
+      label: 'Respond',
+      hint: `Simple: ${currentTurn.simple.romanization}`,
+      move: currentTurn.simple,
+    },
+    {
+      kind: 'super',
+      label: 'Long Reply',
+      hint: `Harder: ${currentTurn.super.romanization}`,
+      move: currentTurn.super,
+    },
+    {
+      kind: 'heal',
+      label: 'Su Coach',
+      hint: 'Heal by drilling the phrase',
+      move: currentTurn.heal,
+    },
+    {
+      kind: 'defend',
+      label: 'Su Cover',
+      hint: "Guard while Su explains Patrick's Thai",
+      move: currentTurn.defend,
+    },
   ];
   return (
     <div className="rounded-md border border-accent/30 bg-ink-elevated p-3">
-      <p className="text-[0.65rem] font-bold uppercase tracking-[0.22em] text-accent">
-        ▶ Your turn — choose a command
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-[0.65rem] font-bold uppercase tracking-[0.22em] text-accent">
+            ▶ Turn {currentTurn.turnNo} · {currentTurn.topic}
+          </p>
+          <p className="mt-1 text-sm font-medium text-paper">{currentTurn.enemyLine}</p>
+        </div>
+        <Chip tone="coach">10-turn talk</Chip>
+      </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
         {commands.map((c) => (
           <button
             key={c.kind}
             type="button"
-            onClick={() => onPick(c.kind)}
+            onClick={() => onPick(c.move)}
             className="bd-choice-card rounded-md border border-hairline bg-ink-raised px-3 py-2 text-left transition hover:border-accent"
           >
             <div className="font-display text-xs font-black uppercase tracking-[0.18em] text-paper">
@@ -1043,147 +1156,138 @@ function CommandMenu({ onPick }: { onPick: (kind: CommandKind) => void }) {
   );
 }
 
-function TechniqueMenu({
-  techniques,
-  heroMp,
-  onPick,
-  onCancel,
+function EnemyChallengePanel({
+  turn,
+  pendingTechnique,
+  voiceMode,
+  voiceStatus,
+  voiceError,
+  verdict,
+  isConnectingVoice,
+  isRecordingVoice,
+  isAwaitingVoiceResult,
+  onVoiceStart,
+  onVoiceStop,
 }: {
-  techniques: DemoTechnique[];
-  heroMp: number;
-  onPick: (t: DemoTechnique) => void;
-  onCancel: () => void;
+  turn: ConversationTurn;
+  pendingTechnique: DemoTechnique | null;
+  voiceMode: VoiceJudgeMode;
+  voiceStatus: string;
+  voiceError: string;
+  verdict: PronunciationVerdict | null;
+  isConnectingVoice: boolean;
+  isRecordingVoice: boolean;
+  isAwaitingVoiceResult: boolean;
+  onVoiceStart: () => void;
+  onVoiceStop: () => void;
 }) {
-  const [hover, setHover] = useState<DemoTechnique | null>(techniques[0] ?? null);
-  const elementChipTone = useMemo(
-    () => ({
-      slash: 'default' as const,
-      fire: 'ember' as const,
-      ice: 'accent' as const,
-      lightning: 'accent' as const,
-      holy: 'coach' as const,
-      wind: 'jade' as const,
-      shadow: 'default' as const,
-    }),
-    [],
-  );
-
   return (
-    <div className="rounded-md border border-accent/40 bg-ink-elevated p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[0.65rem] font-bold uppercase tracking-[0.22em] text-accent">▶ Choose Technique</p>
-        <Button variant="quiet" size="sm" onClick={onCancel}>
-          ← Back
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <ul className="max-h-44 overflow-y-auto rounded-md border border-hairline bg-ink-raised">
-          {techniques.map((t) => {
-            const disabled = heroMp < t.mpCost;
-            const active = hover?.id === t.id;
-            return (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onMouseEnter={() => setHover(t)}
-                  onFocus={() => setHover(t)}
-                  onClick={() => onPick(t)}
-                  className={`bd-choice-card flex w-full items-center justify-between gap-3 border-b border-hairline px-3 py-2 text-left last:border-b-0 ${
-                    disabled ? 'opacity-40' : 'hover:bg-ink-elevated'
-                  } ${active ? 'bg-ink-elevated' : ''}`}
-                >
-                  <span className="flex flex-col">
-                    <span className="font-display text-xs font-black uppercase tracking-[0.18em] text-paper">
-                      {active ? <span className="bd-cursor-pulse mr-1 text-accent">▶</span> : null}
-                      {t.name}
-                    </span>
-                    <span className="font-display text-[0.7rem] text-accent">
-                      {t.thai} · {t.romanization}
-                    </span>
-                  </span>
-                  <span className="flex items-center gap-2 text-[0.65rem]">
-                    <Chip tone={elementChipTone[t.element]}>{t.element}</Chip>
-                    <span className="font-bold uppercase tracking-[0.18em] text-paper-muted">
-                      {t.mpCost} MP
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-        {/* Selected detail card */}
-        <div className="rounded-md border border-hairline bg-ink-raised p-3">
-          {hover ? (
-            <>
-              <p className="font-display text-xs font-black uppercase tracking-[0.18em] text-paper">
-                {hover.name}
-              </p>
-              <p className="font-display text-base text-accent">
-                {hover.thai}
-                <span className="ml-2 text-sm text-paper-muted">{hover.romanization}</span>
-              </p>
-              <p className="mt-1 text-[0.7rem] font-medium text-paper-muted">{hover.translation}</p>
-              <p className="mt-2 text-xs font-medium leading-relaxed text-paper">{hover.description}</p>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-[0.65rem] font-bold uppercase tracking-[0.18em]">
-                <div className="rounded-md border border-hairline bg-ink-elevated px-2 py-1.5 text-paper-muted">
-                  <span className="block text-paper">{hover.isHeal ? `+${hover.power}` : hover.power}</span>
-                  <span>{hover.isHeal ? 'Restore' : 'Power'}</span>
-                </div>
-                <div className="rounded-md border border-hairline bg-ink-elevated px-2 py-1.5 text-paper-muted">
-                  <span className="block text-paper">{hover.mpCost}</span>
-                  <span>MP Cost</span>
-                </div>
-              </div>
-              {hover.effect ? (
-                <p className="mt-2 text-[0.65rem] font-bold uppercase tracking-[0.22em] text-coach">
-                  Effect · {hover.effect}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-xs text-paper-muted">Hover a Technique to preview.</p>
-          )}
+    <div className="rounded-md border border-ember/50 bg-ink-elevated p-3">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-[0.65rem] font-bold uppercase tracking-[0.22em] text-ember">Enemy Pressure</p>
+          <p className="mt-1 text-sm font-medium text-paper">{turn.counter.prompt}</p>
+          <p className="mt-1 text-xs font-medium text-paper-muted">{turn.enemyLine}</p>
         </div>
+        <Chip tone="ember">Block damage</Chip>
       </div>
+      {pendingTechnique ? (
+        <VoiceCastPanel
+          technique={pendingTechnique}
+          heading="Forced Response"
+          micIdleLabel="Hold To Answer"
+          micHint="Say this Thai response"
+          voiceMode={voiceMode}
+          voiceStatus={voiceStatus}
+          voiceError={voiceError}
+          verdict={verdict}
+          isConnectingVoice={isConnectingVoice}
+          isRecordingVoice={isRecordingVoice}
+          isAwaitingVoiceResult={isAwaitingVoiceResult}
+          onVoiceStart={onVoiceStart}
+          onVoiceStop={onVoiceStop}
+        />
+      ) : null}
     </div>
   );
 }
-
-function ConversationPanel({
-  prompt,
-  onChoose,
+function VoiceCastPanel({
+  technique,
+  heading = 'Response Armed',
+  micIdleLabel = 'Hold To Speak',
+  micHint = 'Say the Thai response',
+  voiceMode,
+  voiceStatus,
+  voiceError,
+  verdict,
+  isConnectingVoice,
+  isRecordingVoice,
+  isAwaitingVoiceResult,
+  onVoiceStart,
+  onVoiceStop,
+  onCancel,
 }: {
-  prompt: ConversationPrompt;
-  onChoose: (choice: ConversationChoice) => void;
+  technique: DemoTechnique;
+  heading?: string;
+  micIdleLabel?: string;
+  micHint?: string;
+  voiceMode: VoiceJudgeMode;
+  voiceStatus: string;
+  voiceError: string;
+  verdict: PronunciationVerdict | null;
+  isConnectingVoice: boolean;
+  isRecordingVoice: boolean;
+  isAwaitingVoiceResult: boolean;
+  onVoiceStart: () => void;
+  onVoiceStop: () => void;
+  onCancel?: () => void;
 }) {
+  const disabled = isConnectingVoice || isAwaitingVoiceResult || voiceMode === 'no-mic';
+  const verdictTone =
+    verdict?.pass === true ? 'jade' : verdict && verdict.score >= 45 ? 'coach' : verdict ? 'ember' : null;
+
   return (
-    <div className="rounded-md border border-coach/40 bg-ink-elevated p-3">
-      <p className="text-[0.65rem] font-bold uppercase tracking-[0.22em] text-coach">✦ Conversation Beat</p>
-      <p className="mt-1 text-sm font-medium text-paper">{prompt.enemyLine}</p>
-      <p className="mt-1 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-paper-muted">
-        {prompt.promptLabel}
-      </p>
-      <div className="mt-2 grid grid-cols-1 gap-2">
-        {prompt.choices.map((choice) => {
-          const toneClass =
-            choice.tone === 'jade'
-              ? 'border-jade/50 hover:border-jade text-paper'
-              : choice.tone === 'ember'
-                ? 'border-ember/50 hover:border-ember text-paper'
-                : 'border-accent/50 hover:border-accent text-paper';
-          return (
-            <button
-              key={choice.id}
-              type="button"
-              onClick={() => onChoose(choice)}
-              className={`bd-choice-card rounded-md border bg-ink-raised px-3 py-2 text-left transition ${toneClass}`}
-            >
-              <span className="block font-display text-xs font-bold leading-snug">{choice.label}</span>
-            </button>
-          );
-        })}
+    <div className="bd-voice-cast mb-3 grid gap-3 rounded-md border border-accent/40 bg-ink-raised p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="min-w-0">
+        <p className="text-[0.65rem] font-bold uppercase tracking-[0.22em] text-accent">{heading}</p>
+        <p className="mt-1 font-display text-lg text-paper">
+          {technique.thai}
+          <span className="ml-2 text-sm text-paper-muted">{technique.romanization}</span>
+        </p>
+        <p className="mt-1 text-xs font-medium leading-relaxed text-paper-muted">{voiceStatus}</p>
+        {voiceError ? <p className="mt-1 text-xs font-bold text-ember">{voiceError}</p> : null}
+        {verdict && verdictTone ? (
+          <VerdictBadge
+            className="mt-2"
+            tone={verdictTone}
+            label={verdict.pass ? 'Accepted' : 'Try Again'}
+            detail={`${verdict.score}/100${verdict.heard ? ` · Heard: ${verdict.heard}` : ''}`}
+          />
+        ) : null}
+      </div>
+      <div className="flex items-center gap-2">
+        <MicButton
+          isRecording={isRecordingVoice}
+          onStart={onVoiceStart}
+          onStop={onVoiceStop}
+          disabled={disabled}
+          label={
+            isConnectingVoice
+              ? 'Connecting'
+              : isAwaitingVoiceResult
+                ? 'Judging'
+                : isRecordingVoice
+                  ? 'Listening'
+                  : micIdleLabel
+          }
+          hint={voiceMode === 'no-mic' ? 'Enable mic judging' : micHint}
+          className="min-w-[9.5rem]"
+        />
+        {onCancel ? (
+          <Button variant="quiet" size="sm" onClick={onCancel}>
+            Cancel
+          </Button>
+        ) : null}
       </div>
     </div>
   );
@@ -1193,7 +1297,7 @@ function ActionPlayingPanel({ attacker }: { attacker: string }) {
   return (
     <div className="grid h-full place-items-center rounded-md border border-hairline bg-ink-elevated p-4">
       <p className="font-display text-[0.7rem] font-bold uppercase tracking-[0.32em] text-accent">
-        {attacker} is acting…
+        {attacker} is speaking...
       </p>
     </div>
   );

@@ -1,0 +1,55 @@
+# Netlify deploy config — zero-config alternative to vercel.json.
+# Drop the repo into a new Netlify site and this file is picked up
+# automatically; no further dashboard config needed.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback — every URL serves index.html so the React router (which
+# only reads window.location.pathname for /character-debug-style debug
+# routes anyway) can match without 404s.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Long-lived caching for hashed assets. Vite emits content-hashed
+# filenames under /assets/, so these can safely cache forever — a new
+# deploy means a new hash, so cache busts on its own.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Heavy game assets (rigs, audio, video) are also content-hashed by
+# Vite's asset pipeline and can be cached aggressively.
+[[headers]]
+  for = "/*.glb"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.wav"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.mp3"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.mp4"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Always serve a fresh index.html so deploys roll out immediately even
+# while assets are cached forever.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

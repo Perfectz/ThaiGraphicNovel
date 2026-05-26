@@ -1,0 +1,65 @@
+name: Deploy to GitHub Pages
+
+# Third deploy path — for when you want a free permanent URL on
+# <username>.github.io/<repo>/ without going through Vercel or Netlify.
+# Triggered on every push to main; protected by the existing CI workflow
+# so a broken build can't deploy.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Pages deploys want write access to the deploy environment.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Pages can only have one in-flight deploy at a time. Cancel older runs
+# rather than queue them so a fast follow-up push doesn't have to wait.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build for GitHub Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        # build:pages sets the repo subpath, adds a SPA 404 fallback, and
+        # writes .nojekyll so GitHub Pages serves hashed Vite assets as-is.
+        run: PAGES_BASE_PATH="/${{ github.event.repository.name }}/" npm run build:pages
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

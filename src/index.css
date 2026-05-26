@@ -795,6 +795,156 @@ canvas {
     --adv-accent-glow: rgba(103, 232, 249, 0.42);
   }
 
+  /* Trailer-capture no-HUD mode (?no-hud=1). Hides every UI chrome layer so
+   * the 3D canvas + intro video render clean for B-roll. Selectors are split
+   * across the adventure shell (in-component HUD) and body data-attr (UI
+   * rendered OUTSIDE the shell, e.g. MusicToggle in App, DialoguePanel intros).
+   * The mountRef div with the canvas stays visible because no selector
+   * targets it. Used by scripts/record-promo.mjs HUD-off takes. */
+  .adventure-3d-shell--no-hud .adventure-3d-topbar,
+  .adventure-3d-shell--no-hud .adventure-3d-objective-wrap,
+  .adventure-3d-shell--no-hud .adventure-3d-panel,
+  .adventure-3d-shell--no-hud .adventure-3d-mobile-dock,
+  .adventure-3d-shell--no-hud .adventure-3d-load-overlay,
+  .adventure-3d-shell--no-hud .pronunciation-score-flash,
+  body[data-trailer-capture-no-hud] .dialogue-panel,
+  body[data-trailer-capture-no-hud] [aria-label='Mute music'],
+  body[data-trailer-capture-no-hud] [aria-label='Unmute music'],
+  body[data-trailer-capture-no-hud] [aria-label='Open game settings'] {
+    display: none !important;
+  }
+
+  .adventure-3d-shell--location-view .adventure-3d-topbar,
+  .adventure-3d-shell--location-view .adventure-3d-objective-wrap,
+  .adventure-3d-shell--location-view .adventure-3d-panel,
+  .adventure-3d-shell--location-view .adventure-3d-mobile-dock,
+  .adventure-3d-shell--location-view .adventure-3d-load-overlay,
+  .adventure-3d-shell--location-view .adventure-3d-hint-strip,
+  .adventure-3d-shell--location-view .pronunciation-score-flash,
+  body[data-adventure-location-view] .dialogue-panel,
+  body[data-adventure-location-view] [aria-label='Mute music'],
+  body[data-adventure-location-view] [aria-label='Unmute music'],
+  body[data-adventure-location-view] [aria-label='Open game settings'] {
+    display: none !important;
+  }
+
+  .adventure-3d-restore-hud {
+    position: absolute;
+    top: max(0.65rem, env(safe-area-inset-top, 0px) + 0.45rem);
+    left: max(0.65rem, env(safe-area-inset-left, 0px) + 0.45rem);
+    z-index: 70;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.55rem;
+    padding: 0.38rem 0.62rem;
+    color: rgba(236, 254, 255, 0.86);
+    background: rgba(2, 6, 23, 0.38);
+    backdrop-filter: blur(8px);
+    font-size: 0.58rem;
+    font-weight: 1000;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    box-shadow: 0 8px 22px rgba(2, 6, 23, 0.28);
+    transition:
+      background 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease;
+  }
+
+  .adventure-3d-restore-hud:hover,
+  .adventure-3d-restore-hud:focus-visible {
+    color: #ffffff;
+    background: rgba(2, 6, 23, 0.68);
+    border-color: color-mix(in srgb, var(--adv-accent) 48%, rgba(255, 255, 255, 0.22));
+  }
+
+  .adventure-3d-mobile-dock {
+    position: absolute;
+    right: auto;
+    bottom: max(0.75rem, env(safe-area-inset-bottom, 0px) + 0.55rem);
+    left: 50%;
+    z-index: 54;
+    display: grid;
+    width: min(34rem, calc(100vw - 2rem));
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    transform: translateX(-50%);
+  }
+
+  .adventure-3d-mobile-dock button {
+    min-height: 46px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.72rem;
+    color: #ecfeff;
+    background:
+      linear-gradient(135deg, rgba(7, 11, 22, 0.84), rgba(15, 23, 42, 0.74)),
+      radial-gradient(circle at 14% 0%, var(--adv-accent-soft), transparent 56%);
+    backdrop-filter: blur(12px) saturate(1.15);
+    box-shadow:
+      0 12px 28px rgba(2, 6, 23, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  }
+
+  .adventure-3d-mobile-dock__primary {
+    display: grid;
+    align-content: center;
+    justify-items: start;
+    min-width: 0;
+    padding: 0.5rem 0.82rem;
+    text-align: left;
+    font-size: 0.68rem;
+    font-weight: 1000;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+
+  .adventure-3d-mobile-dock__hint {
+    margin-top: 0.08rem;
+    max-width: 100%;
+    overflow: hidden;
+    color: rgba(207, 250, 254, 0.66);
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-overflow: ellipsis;
+    text-transform: none;
+    white-space: nowrap;
+  }
+
+  .adventure-3d-mobile-dock__view {
+    min-width: 4.4rem;
+    padding: 0 0.82rem;
+    color: #071217;
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--adv-accent) 86%, white 8%),
+      var(--adv-accent)
+    );
+    font-size: 0.64rem;
+    font-weight: 1000;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .adventure-3d-panel {
+    top: auto !important;
+    bottom: calc(max(5.1rem, env(safe-area-inset-bottom, 0px) + 4.65rem)) !important;
+    max-height: min(21rem, 48dvh);
+    opacity: 0;
+    overscroll-behavior: contain;
+    pointer-events: none !important;
+    transform: translateY(calc(100% + 5.5rem));
+    transition:
+      opacity 160ms ease,
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .adventure-3d-panel--hud-open {
+    opacity: 1;
+    pointer-events: auto !important;
+    transform: translateY(0);
+  }
+
   .adventure-3d-header,
   .adventure-3d-panel,
   .adventure-3d-objective,
@@ -1112,13 +1262,80 @@ canvas {
       rgba(2, 6, 23, 0.78);
     backdrop-filter: blur(8px);
     pointer-events: none;
-    transition: opacity 320ms ease;
+    /* Slower fade-out + a subtle scale gives a cinematic "the scene rises
+       to meet you" feel instead of an instant pop. */
+    transition:
+      opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 620ms cubic-bezier(0.22, 1, 0.36, 1),
+      backdrop-filter 620ms ease;
     opacity: 1;
+    transform: scale(1);
+    transform-origin: center 45%;
   }
 
   .adventure-3d-load-overlay--hidden {
     opacity: 0;
+    transform: scale(1.04);
+    backdrop-filter: blur(0px);
     visibility: hidden;
+  }
+
+  .adventure-3d-load-tagline {
+    margin-top: 0.4rem;
+    max-width: 22rem;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.78rem;
+    font-weight: 500;
+    font-style: italic;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+  }
+
+  .adventure-3d-load-checklist {
+    margin-top: 0.6rem;
+    display: grid;
+    gap: 0.25rem;
+    list-style: none;
+    padding: 0;
+    text-align: left;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .adventure-3d-load-checklist li {
+    display: grid;
+    grid-template-columns: 1.1rem 1fr;
+    align-items: center;
+    gap: 0.55rem;
+    color: rgba(226, 232, 240, 0.55);
+    transition: color 320ms ease;
+  }
+
+  .adventure-3d-load-checklist li > span:first-child {
+    display: inline-grid;
+    place-items: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    font-size: 0.7rem;
+    transition:
+      color 320ms ease,
+      border-color 320ms ease,
+      background 320ms ease;
+  }
+
+  .adventure-3d-load-checklist li.is-done {
+    color: var(--adv-accent);
+  }
+
+  .adventure-3d-load-checklist li.is-done > span:first-child {
+    color: var(--adv-accent);
+    border-color: color-mix(in srgb, var(--adv-accent) 70%, transparent);
+    background: color-mix(in srgb, var(--adv-accent) 18%, transparent);
   }
 
   .adventure-3d-load-spinner {
@@ -1429,14 +1646,95 @@ canvas {
     .adventure-3d-panel {
       left: 0.5rem;
       right: 0.5rem;
-      bottom: max(0.55rem, env(safe-area-inset-bottom, 0px) + 0.35rem);
+      top: auto !important;
+      bottom: calc(max(4.15rem, env(safe-area-inset-bottom, 0px) + 3.8rem)) !important;
       grid-template-columns: minmax(0, 1fr);
-      max-height: min(17rem, 38dvh);
+      max-height: min(18rem, 54dvh);
       gap: 0.55rem;
       border-radius: 0.95rem;
       padding: 0.55rem;
+      opacity: 0;
       overscroll-behavior: contain;
+      pointer-events: none !important;
+      transform: translateY(calc(100% + 5rem));
+      transition:
+        opacity 160ms ease,
+        transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
       -webkit-overflow-scrolling: touch;
+    }
+
+    .adventure-3d-panel--hud-open {
+      opacity: 1;
+      pointer-events: auto !important;
+      transform: translateY(0);
+    }
+
+    .adventure-3d-mobile-dock {
+      position: absolute;
+      right: max(0.5rem, env(safe-area-inset-right, 0px) + 0.35rem);
+      bottom: max(0.55rem, env(safe-area-inset-bottom, 0px) + 0.35rem);
+      left: max(0.5rem, env(safe-area-inset-left, 0px) + 0.35rem);
+      z-index: 54;
+      display: grid;
+      width: auto;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.45rem;
+      transform: none;
+    }
+
+    .adventure-3d-mobile-dock button {
+      min-height: 44px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 0.72rem;
+      color: #ecfeff;
+      background:
+        linear-gradient(135deg, rgba(7, 11, 22, 0.84), rgba(15, 23, 42, 0.74)),
+        radial-gradient(circle at 14% 0%, var(--adv-accent-soft), transparent 56%);
+      backdrop-filter: blur(12px) saturate(1.15);
+      box-shadow:
+        0 12px 28px rgba(2, 6, 23, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.13);
+    }
+
+    .adventure-3d-mobile-dock__primary {
+      display: grid;
+      align-content: center;
+      justify-items: start;
+      min-width: 0;
+      padding: 0.48rem 0.72rem;
+      text-align: left;
+      font-size: 0.66rem;
+      font-weight: 1000;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+
+    .adventure-3d-mobile-dock__hint {
+      margin-top: 0.08rem;
+      max-width: 100%;
+      overflow: hidden;
+      color: rgba(207, 250, 254, 0.66);
+      font-size: 0.54rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-overflow: ellipsis;
+      text-transform: none;
+      white-space: nowrap;
+    }
+
+    .adventure-3d-mobile-dock__view {
+      min-width: 4.2rem;
+      padding: 0 0.74rem;
+      color: #071217;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--adv-accent) 86%, white 8%),
+        var(--adv-accent)
+      );
+      font-size: 0.62rem;
+      font-weight: 1000;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
     }
 
     .adventure-3d-panel > * {
@@ -1587,6 +1885,7 @@ canvas {
     }
 
     .adventure-3d-panel {
+      bottom: calc(max(4.15rem, env(safe-area-inset-bottom, 0px) + 3.8rem)) !important;
       max-height: min(14rem, 34dvh);
     }
   }
@@ -1602,6 +1901,7 @@ canvas {
     }
 
     .adventure-3d-panel {
+      bottom: calc(max(4.05rem, env(safe-area-inset-bottom, 0px) + 3.65rem)) !important;
       grid-template-columns: minmax(0, 1.05fr) minmax(9rem, 0.95fr);
       max-height: min(12rem, 46dvh);
     }
@@ -1631,7 +1931,8 @@ canvas {
     }
 
     .adventure-3d-panel {
-      bottom: max(0.55rem, env(safe-area-inset-bottom, 0px) + 0.35rem);
+      top: auto !important;
+      bottom: calc(max(4rem, env(safe-area-inset-bottom, 0px) + 3.55rem)) !important;
       max-height: min(12rem, 44dvh);
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;

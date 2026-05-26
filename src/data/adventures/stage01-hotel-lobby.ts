@@ -504,6 +504,7 @@ export const stageOneAdventure: AdventureSceneConfig = {
   requiredInventory: [],
   ambiance,
   completionMessage: 'Stage 1 clear. Patrick can talk politely in Bangkok.',
+  loadingTagline: 'Tuning the Bangkok rift…',
   // Pre-roll rift-arrival cinematic. Originally bundled with the deleted
   // CharacterDebugPage; restored here so Stage 1 still opens with the
   // movie before handing off to the in-room VN dialogue and stand-up

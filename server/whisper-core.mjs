@@ -1,12 +1,36 @@
-export const DEFAULT_WHISPER_MODEL = 'Xenova/whisper-tiny';
+// whisper-base is ~2x the download of tiny (~150 MB vs ~75 MB) but
+// significantly better at Thai — tiny mistranscribes most prompted
+// phrases. Override with LOCAL_WHISPER_MODEL=Xenova/whisper-small for
+// even better accuracy at ~5x the compute cost.
+export const DEFAULT_WHISPER_MODEL = 'Xenova/whisper-base';
 export const DEFAULT_TRANSCRIBE_LANGUAGE = 'thai';
 const TRANSCRIBE_SAMPLE_RATE = 16000;
 const CHUNKED_TRANSCRIPTION_THRESHOLD_SECONDS = 8;
 const CHUNK_LENGTH_SECONDS = 15;
 const STRIDE_LENGTH_SECONDS = 3;
-const MIN_TRANSCRIBE_DURATION_SECONDS = 0.18;
+// Reject recordings shorter than ~300 ms outright — anything below this is
+// almost always a fumbled button press and Whisper will hallucinate a
+// generic Thai phrase rather than admit silence.
+const MIN_TRANSCRIBE_DURATION_SECONDS = 0.3;
 const SILENCE_RMS_THRESHOLD = 0.0025;
 const SILENCE_PEAK_THRESHOLD = 0.015;
+// Whisper's most common Thai hallucinations on near-silence or stray noise.
+// These show up so often on tiny/base that we treat any transcript that
+// reduces to one of them (and only one of them) as a non-attempt.
+const COMMON_WHISPER_HALLUCINATIONS = new Set([
+  'ขอบคุณครับ',
+  'ขอบคุณค่ะ',
+  'ขอบคุณมากครับ',
+  'ขอบคุณมากค่ะ',
+  'สวัสดีครับ',
+  'สวัสดีค่ะ',
+  'ครับ',
+  'ค่ะ',
+  'thankyouforwatching',
+  'thanksforwatching',
+  'subtitlesbytheamaraorgcommunity',
+]);
+const THAI_CHAR_PATTERN = /\p{Script=Thai}/u;
 export const TUTORING_LEVELS = {
   easy: {
     passScore: 50,
@@ -157,9 +181,21 @@ export function analyzeFloat32Audio(samples, sampleRate = TRANSCRIBE_SAMPLE_RATE
   };
 }
 
-export function isLikelyWhisperHallucination(transcript) {
+export function isLikelyWhisperHallucination(transcript, { targetPhrase = '' } = {}) {
   const text = String(transcript ?? '').trim();
   if (!text) return false;
+
+  // Catch the stock phrases Whisper falls back to when it hears noise — but
+  // only when the target wasn't that exact phrase, so we don't punish a
+  // legitimate "ขอบคุณครับ" prompt.
+  const compactTranscript = normalizeText(text);
+  const compactTarget = normalizeText(targetPhrase);
+  if (
+    COMMON_WHISPER_HALLUCINATIONS.has(compactTranscript) &&
+    compactTranscript !== compactTarget
+  ) {
+    return true;
+  }
 
   const words = text.split(/\s+/u).filter(Boolean);
   if (words.length >= 8) {
@@ -169,14 +205,13 @@ export function isLikelyWhisperHallucination(transcript) {
     if (counts.size <= 3 && topCount / words.length >= 0.7) return true;
   }
 
-  const compact = normalizeText(text);
-  if (compact.length < 24) return false;
+  if (compactTranscript.length < 24) return false;
 
   for (let unitLength = 1; unitLength <= 4; unitLength += 1) {
-    const unit = compact.slice(0, unitLength);
+    const unit = compactTranscript.slice(0, unitLength);
     if (!unit.trim()) continue;
-    const repeated = unit.repeat(Math.ceil(compact.length / unitLength)).slice(0, compact.length);
-    if (repeated === compact && compact.length / unitLength >= 8) return true;
+    const repeated = unit.repeat(Math.ceil(compactTranscript.length / unitLength)).slice(0, compactTranscript.length);
+    if (repeated === compactTranscript && compactTranscript.length / unitLength >= 8) return true;
   }
 
   return false;
@@ -192,7 +227,7 @@ export function getTranscriptionChunkOptions(sampleCount, sampleRate = TRANSCRIB
     : {};
 }
 
-export async function transcribeAudio({ audio, language }) {
+export async function transcribeAudio({ audio, language, targetPhrase = '' }) {
   const transcriber = await getLocalTranscriber();
   const samples = await readFloat32Audio(audio);
   const audioStats = analyzeFloat32Audio(samples);
@@ -206,12 +241,35 @@ export async function transcribeAudio({ audio, language }) {
   const output = await transcriber(samples, {
     language: language || process.env.LOCAL_WHISPER_LANGUAGE || DEFAULT_TRANSCRIBE_LANGUAGE,
     task: 'transcribe',
+    // Deterministic greedy decoding — sampling at higher temperature is
+    // what causes Whisper to invent words from rough audio.
+    do_sample: false,
+    temperature: 0,
+    num_beams: 1,
+    // Suppress Whisper's tendency to repeat the same syllable as a phrase
+    // when input is noisy.
+    no_repeat_ngram_size: 3,
+    // Timestamps add no value for one-shot pronunciation judging and only
+    // make the decoder more failure-prone.
+    return_timestamps: false,
     ...getTranscriptionChunkOptions(samples.length),
   });
 
-  const transcript = String(output.text ?? '');
-  if (isLikelyWhisperHallucination(transcript)) {
-    const error = new Error('Whisper heard repeated background noise instead of a clear phrase. Try again closer to the mic.');
+  const transcript = String(output.text ?? '').trim();
+
+  // If the target is Thai script but Whisper returned no Thai at all, it
+  // almost always means the model latched onto background noise and
+  // hallucinated English/Latin tokens. Treat as a non-attempt rather than
+  // judging it as a complete miss (which scores 0 and frustrates users).
+  if (targetPhrase && THAI_CHAR_PATTERN.test(targetPhrase) && !THAI_CHAR_PATTERN.test(transcript)) {
+    const error = new Error('Whisper could not hear a clear Thai phrase. Try again, closer to the mic, in a quieter spot.');
+    error.status = 422;
+    error.detail = { transcript, audioStats };
+    throw error;
+  }
+
+  if (isLikelyWhisperHallucination(transcript, { targetPhrase })) {
+    const error = new Error('Whisper heard background noise rather than your phrase. Try again closer to the mic.');
     error.status = 422;
     error.detail = { transcript, audioStats };
     throw error;

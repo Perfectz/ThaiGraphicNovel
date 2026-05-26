@@ -6,6 +6,14 @@ export type SoundSettings = {
   musicVolume: number;
   guideAudioEnabled: boolean;
   guideAudioVolume: number;
+  /**
+   * When true, Su's voice lines render an on-screen caption strip while
+   * they play. Helpful for accessibility (deaf/HoH players, public-transit
+   * playthroughs) and for learners who want to read the Thai inline as Su
+   * says it. Default on — captions don't compete with the audio so showing
+   * them by default is strictly additive.
+   */
+  captionsEnabled: boolean;
 };
 
 const defaultSoundSettings: SoundSettings = {
@@ -13,6 +21,7 @@ const defaultSoundSettings: SoundSettings = {
   musicVolume: 0.55,
   guideAudioEnabled: true,
   guideAudioVolume: 0.9,
+  captionsEnabled: true,
 };
 
 function clampVolume(value: unknown, fallback: number): number {
@@ -30,6 +39,10 @@ function normalizeSoundSettings(settings: Partial<SoundSettings>): SoundSettings
         ? settings.guideAudioEnabled
         : defaultSoundSettings.guideAudioEnabled,
     guideAudioVolume: clampVolume(settings.guideAudioVolume, defaultSoundSettings.guideAudioVolume),
+    captionsEnabled:
+      typeof settings.captionsEnabled === 'boolean'
+        ? settings.captionsEnabled
+        : defaultSoundSettings.captionsEnabled,
   };
 }
 

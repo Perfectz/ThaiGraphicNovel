@@ -251,6 +251,21 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
     saveSoundSettings(updatedSettings);
   }
 
+  // MVP 8 — Tester jump menu. Only visible when the URL has ?tester=1, so
+  // end users never see it. The query check happens on render so toggling
+  // it doesn't need a full reload. Useful for friends doing a quick demo
+  // sanity check, or for reproducing bugs that only show up on stage N.
+  const isTester =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tester') === '1';
+
+  function jumpToStage(stageIndex: number) {
+    // Reuse the existing debug-jump session storage handshake that App.tsx
+    // already listens for on mount — avoids duplicating the save/state
+    // setup logic in two places.
+    window.sessionStorage.setItem('isekai-debug-stage-3d-index', String(stageIndex));
+    window.location.reload();
+  }
+
   async function readServiceStatus(url: string, serviceName: string, apiKeyForHealth = ''): Promise<string> {
     try {
       const headers: HeadersInit = {};
@@ -351,6 +366,20 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
               className="w-full accent-accent"
             />
           </Field>
+          <label className="flex items-center justify-between gap-4">
+            <span className="text-sm font-medium text-paper">
+              Su captions
+              <span className="ml-2 text-[0.65rem] font-medium uppercase tracking-[0.16em] text-paper-quiet">
+                Show text while Su speaks
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={soundSettings.captionsEnabled}
+              onChange={(event) => updateSoundSettings({ captionsEnabled: event.target.checked })}
+              className="h-5 w-5 accent-accent"
+            />
+          </label>
         </Section>
 
         <Section eyebrow="Voice Coach">
@@ -465,6 +494,29 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
             </Button>
           </div>
         </Section>
+
+        {isTester ? (
+          <Section
+            eyebrow="Tester tools"
+            description="Available because the URL includes ?tester=1. Hidden from regular players."
+          >
+            <p className="text-xs font-medium leading-relaxed text-paper-muted">
+              Jump straight into any stage. Reloads the page with a debug save so the dispatcher mounts the
+              chosen scene fresh.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" onClick={() => jumpToStage(0)}>
+                → Stage 1 · Hotel Lobby
+              </Button>
+              <Button variant="ghost" onClick={() => jumpToStage(1)}>
+                → Stage 2 · Front Desk
+              </Button>
+              <Button variant="ghost" onClick={() => jumpToStage(2)}>
+                → Stage 3 · Night Market
+              </Button>
+            </div>
+          </Section>
+        ) : null}
 
         {/* Danger zone — only render the actions that make sense in context.
             Return to title is hidden when already on the title screen; Reset

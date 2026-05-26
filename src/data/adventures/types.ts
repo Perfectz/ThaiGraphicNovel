@@ -169,4 +169,12 @@ export type AdventureSceneConfig = {
    * that the original CharacterDebugPage shipped with.
    */
   introVideoUrl?: string;
+  /**
+   * Stage-themed one-liner shown on the load overlay between the stage
+   * badge and the spinner. Replaces the engineering-grade "Loading <Title>"
+   * with prose that matches the stage's mood ("Tuning the Bangkok rift…",
+   * "Setting up the night market…"). When omitted the overlay falls back
+   * to a generic "Bringing the scene online…".
+   */
+  loadingTagline?: string;
 };

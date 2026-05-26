@@ -356,6 +356,62 @@ function buildBathroomRoom(group: THREE.Group, palette: RoomPalette) {
   // Small plant for warmth
   addPottedPlant(group, -3.6, 0.6);
   addPottedPlant(group, 3.6, 0.6);
+
+  // ---- POLISH PASS (Tech-demo) -----------------------------------------
+  // The bathroom was the most utilitarian of the three rooms; these
+  // additions push it from "functional" to "hotel-quality" so it matches
+  // Stages 1 and 3's density without changing camera framing or
+  // movement bounds.
+
+  // Towel rack on the side wall — a chrome bar with a rolled towel.
+  addCylinder(group, 0.02, 0.6, [3.8, 1.6, -2.8], 0xcbd5e1, {
+    segments: 10,
+    metalness: 0.85,
+    roughness: 0.18,
+  });
+  addBox(group, [0.04, 0.12, 0.06], [3.8, 1.42, -2.78], 0xcbd5e1, {
+    metalness: 0.85,
+    roughness: 0.18,
+  });
+  addBox(group, [0.04, 0.12, 0.06], [3.8, 1.78, -2.78], 0xcbd5e1, {
+    metalness: 0.85,
+    roughness: 0.18,
+  });
+  // Folded towel hanging from the rack
+  addBox(group, [0.5, 0.32, 0.05], [3.55, 1.42, -2.78], 0xf8fafc);
+  addBox(group, [0.5, 0.04, 0.05], [3.55, 1.58, -2.78], 0x60a5fa, {
+    emissive: 0x60a5fa,
+    emissiveIntensity: 0.18,
+  });
+
+  // Toiletry shelf above the sink — slim glass shelf with two small bottles.
+  addBox(group, [1.4, 0.04, 0.22], [0, 1.62, -5.7], 0xe2e8f0, {
+    metalness: 0.4,
+    roughness: 0.18,
+  });
+  addCylinder(group, 0.06, 0.22, [-0.35, 1.74, -5.7], 0x10b981, { segments: 14 });
+  addCylinder(group, 0.06, 0.22, [-0.05, 1.74, -5.7], 0xf59e0b, { segments: 14 });
+  addCylinder(group, 0.06, 0.22, [0.3, 1.74, -5.7], 0xff7eb6, { segments: 14 });
+
+  // Ceiling vent slats — gives the eye something on the ceiling other than
+  // the flat lights.
+  for (let i = 0; i < 6; i += 1) {
+    addBox(group, [1.2, 0.04, 0.05], [-3.0 + i * 1.2, 4.78, -1.5], 0xcbd5e1);
+  }
+
+  // Soft floor accent rectangle near the counter — reads as "bath mat".
+  addBox(group, [2.2, 0.012, 0.9], [0, 0.012, -1.6], 0xa7f3d0, {
+    emissive: 0xa7f3d0,
+    emissiveIntensity: 0.12,
+  });
+  addBox(group, [2.2, 0.014, 0.04], [0, 0.014, -1.16], 0x10b981, {
+    emissive: 0x10b981,
+    emissiveIntensity: 0.32,
+  });
+  addBox(group, [2.2, 0.014, 0.04], [0, 0.014, -2.04], 0x10b981, {
+    emissive: 0x10b981,
+    emissiveIntensity: 0.32,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -847,4 +903,5 @@ export const stageTwoAdventure: AdventureSceneConfig = {
   requiredInventory: ['wallet', 'passport', 'phone', 'reservationPaper', 'keycard'],
   ambiance,
   completionMessage: 'Stage 2 clear. The hotel welcomes you in.',
+  loadingTagline: 'Polishing the marble at reception…',
 };

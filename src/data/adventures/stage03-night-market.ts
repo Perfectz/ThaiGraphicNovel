@@ -661,4 +661,5 @@ export const stageThreeAdventure: AdventureSceneConfig = {
   requiredInventory: ['plateOfNoodles', 'cupOfWater'],
   ambiance,
   completionMessage: 'Stage 3 clear. The night market accepts you.',
+  loadingTagline: 'Stringing up the night-market lanterns…',
 };

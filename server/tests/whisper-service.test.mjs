@@ -131,6 +131,23 @@ test('repeated-noise transcripts are treated as Whisper hallucinations', () => {
   assert.equal(isLikelyWhisperHallucination('sawatdee khrap'), false);
 });
 
+test('stock Whisper filler transcripts are rejected unless the target asked for them', () => {
+  // Whisper falls back to these on silence/noise. Reject when we asked for
+  // a different phrase, but accept when the prompt really was "ขอบคุณครับ".
+  assert.equal(
+    isLikelyWhisperHallucination('ขอบคุณครับ', { targetPhrase: 'สวัสดีตอนเช้าครับ' }),
+    true,
+  );
+  assert.equal(
+    isLikelyWhisperHallucination('ขอบคุณครับ', { targetPhrase: 'ขอบคุณครับ' }),
+    false,
+  );
+  assert.equal(
+    isLikelyWhisperHallucination('Thank you for watching.', { targetPhrase: 'สวัสดีครับ' }),
+    true,
+  );
+});
+
 test('standalone Whisper service exposes health, transcript judging, and audio validation', async () => {
   const child = await startWhisperService();
 

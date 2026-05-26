@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { lessonScenarios } from '../data/lessonScenarios';
 import { type StageTheme } from '../data/stageThemes';
+import { TECH_DEMO_PLAYABLE_STAGE_COUNT } from '../data/techDemoConfig';
 import {
   getStageThemeByScenarioId,
   useActiveScenarioIndex,
@@ -56,15 +57,6 @@ export type LevelSelectProps = {
   isOpen: boolean;
   onClose: () => void;
 };
-
-/**
- * Stages 4-10 are locked for the tech-demo build. The data and adventure
- * configs still exist for forward compatibility (so the engine never sees
- * a "missing stage" gap), but the player can't enter them from the level
- * select. This constant defines the inclusive count of playable stages
- * starting from index 0 — bump it as more stages reach production polish.
- */
-const TECH_DEMO_PLAYABLE_STAGE_COUNT = 3;
 
 type LevelCardProps = {
   index: number;

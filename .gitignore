@@ -12,6 +12,15 @@ pnpm-debug.log*
 .codex-run-logs/
 thai-quest-demo-video/
 tmp/
+debug.log
+temp_analysis.txt
+tmp-*.png
+linkedin-trailer/
+linkedin-trailer-v2/
+thai-quest-comparison-clips/
+thai-quest-trailer-v2/
+.agents/
+.claude/
 pride_park_storyboard_first_5.md
 
 # Local drop box and source art exports stay local unless copied into src/assets.

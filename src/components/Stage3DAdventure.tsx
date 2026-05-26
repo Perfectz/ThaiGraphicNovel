@@ -20,6 +20,7 @@ import type {
 } from '../data/adventures/types';
 import {
   getVoiceJudgeMode,
+  saveVoiceJudgeMode,
   VOICE_JUDGE_MODE_CHANGED_EVENT,
   type VoiceJudgeMode,
 } from '../services/openAiSettings';
@@ -30,7 +31,10 @@ import {
   type PronunciationVerdict,
 } from '../services/realtimePronunciation';
 import { createWhisperPronunciationSession } from '../services/whisperPronunciation';
+import { DemoEndSplash } from './DemoEndSplash';
 import { SuPronunciationJudge } from './SuPronunciationJudge';
+import { TECH_DEMO_PLAYABLE_STAGE_COUNT } from '../data/techDemoConfig';
+import { getBrowserCapabilities } from '../services/browserCapabilities';
 import { CharacterDebugIntroDialogue } from './CharacterDebugIntroDialogue';
 import { getStageIntroLines } from '../data/adventures/stageIntros';
 import { getStageOneSuAudioSrc, getSuAudioSrc } from '../services/suLineAudio';
@@ -76,6 +80,32 @@ const adventureVerbs: Array<{ id: AdventureVerb; label: string }> = [
   { id: 'talk', label: 'Talk' },
 ];
 
+// --- Trailer-capture debug flags ---
+// Surfaced via URL query so scripts/record-promo.mjs can drive HUD-off and
+// orbit-camera clips deterministically without code edits between takes.
+// Both are read once at module-load (queries don't change inside a single
+// page lifetime), and both are gated behind a query param presence check so
+// they're invisible to normal users.
+function readTrailerDebugFlags() {
+  if (typeof window === 'undefined') {
+    return {
+      hideHud: false,
+      debugOrbit: null as { hotspotId: string; radius: number; speed: number } | null,
+    };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const hideHud = params.get('no-hud') === '1';
+  const orbitTarget = params.get('debug-orbit');
+  const debugOrbit = orbitTarget
+    ? {
+        hotspotId: orbitTarget,
+        radius: Number(params.get('orbit-radius') ?? '3.0'),
+        speed: Number(params.get('orbit-speed') ?? '0.4'),
+      }
+    : null;
+  return { hideHud, debugOrbit };
+}
+
 type ActiveCommand = {
   hotspot: AdventureHotspot3D;
   command: AdventureCommand;
@@ -98,7 +128,6 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   const roomRef = useRef<string>(config.rooms[0].id);
   const selectHotspotRef = useRef<(hotspot: AdventureHotspot3D) => void>(() => {});
   const moveToRef = useRef<(position: THREE.Vector3) => void>(() => {});
-  const completionTimerRef = useRef<number | null>(null);
   const stageIntroAudioRef = useRef<HTMLAudioElement | null>(null);
   const soundSettings = useSoundSettings();
   // Su's recorded VO for each conversation turn — plays her prompt then her
@@ -124,6 +153,65 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   const [conversationProgress, setConversationProgress] = useState<Record<string, number>>({});
   const [inventory, setInventory] = useState<string[]>([]);
   const [message, setMessage] = useState(config.rooms[0].description);
+  const standUpIntroTriggerRef = useRef<(() => void) | null>(null);
+  const standUpIntroPendingRef = useRef(false);
+  const standUpIntroStartedRef = useRef(false);
+  const [isLocationView, setIsLocationView] = useState(false);
+  const [isHudMenuOpen, setIsHudMenuOpen] = useState(false);
+
+  // Trailer-capture flags — see readTrailerDebugFlags. useMemo with [] deps
+  // because query params don't change inside a page lifetime; capturing once
+  // avoids re-running the parser every render.
+  const trailerFlags = useMemo(() => readTrailerDebugFlags(), []);
+
+  // When no-hud is on, promote a marker attribute to <body> so CSS can also
+  // hide UI rendered OUTSIDE this component's shell (MusicToggle in App,
+  // DialoguePanel from intro lines, etc.). Scoping to body keeps the
+  // selectors loud and the cleanup unambiguous on unmount.
+  useEffect(() => {
+    if (!trailerFlags.hideHud) return;
+    document.body.setAttribute('data-trailer-capture-no-hud', '1');
+    return () => {
+      document.body.removeAttribute('data-trailer-capture-no-hud');
+    };
+  }, [trailerFlags.hideHud]);
+
+  useEffect(() => {
+    if (!isLocationView) {
+      document.body.removeAttribute('data-adventure-location-view');
+      return;
+    }
+    document.body.setAttribute('data-adventure-location-view', '1');
+    function restoreHudFromKeyboard(event: KeyboardEvent) {
+      if (event.key === 'Escape' || event.key.toLowerCase() === 'h') {
+        setIsLocationView(false);
+      }
+    }
+    window.addEventListener('keydown', restoreHudFromKeyboard);
+    return () => {
+      window.removeEventListener('keydown', restoreHudFromKeyboard);
+      document.body.removeAttribute('data-adventure-location-view');
+    };
+  }, [isLocationView]);
+
+  // Trailer-capture room-jump (?enter-room=<id>). Lets record-promo.mjs
+  // jump straight to a stage's secondary room (cookline / frontDesk /
+  // bathroom) without clicking the room-nav pill — which is invisible in
+  // no-hud mode. Fires once on mount after the scene refs are populated.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const target = new URLSearchParams(window.location.search).get('enter-room');
+    if (!target || target === config.rooms[0].id) return;
+    // The scene mounts asynchronously; defer one tick so sceneRefs.current
+    // is populated before enterRoom needs it.
+    const handle = window.setTimeout(() => {
+      enterRoom(target);
+    }, 1200);
+    return () => window.clearTimeout(handle);
+    // We intentionally read enterRoom + config.rooms via closure here — the
+    // effect is fire-once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [voiceStatus, setVoiceStatus] = useState('Choose a command to practice.');
   const [voiceError, setVoiceError] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -134,6 +222,12 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   // skipped a lot knows it was tracked, and so future SRS work (Q3) can use
   // the count as a "needs review" signal per stage.
   const [skipCount, setSkipCount] = useState(0);
+  // Captions strip text — set by the conversation VO effect when audio
+  // starts playing, cleared when it ends. Rendered at the bottom of the
+  // screen only when soundSettings.captionsEnabled is true (default on),
+  // so deaf/HoH players and muted-playthrough players still get every Su
+  // line.
+  const [playbackCaption, setPlaybackCaption] = useState('');
   const [voiceMode, setVoiceMode] = useState<VoiceJudgeMode>(() => getVoiceJudgeMode());
   const [verdict, setVerdict] = useState<PronunciationVerdict | null>(null);
   // Review mode — when set, the cue card + voice judge target a PRIOR turn
@@ -145,6 +239,24 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   reviewTurnIndexRef.current = reviewTurnIndex;
   const [stageComplete, setStageComplete] = useState(false);
   const [loadStatus, setLoadStatus] = useState(`Loading ${config.title}...`);
+  // MVP 5 — Loading polish. We track three independent signals so the
+  // overlay can render a progressive checklist and decide when it's truly
+  // safe to fade out:
+  //   - patrickLoaded:  GLB+animations or fallback Patrick mounted
+  //   - roomBuilt:      the room-rebuild effect has placed geometry
+  //   - minDisplayElapsed: a 900ms timer that guarantees the overlay
+  //     stays on screen long enough to register, even on a fast machine
+  //     where everything loads in <100ms. Prevents a strobing pop.
+  const [patrickLoaded, setPatrickLoaded] = useState(false);
+  const [roomBuilt, setRoomBuilt] = useState(false);
+  const [minDisplayElapsed, setMinDisplayElapsed] = useState(false);
+  useEffect(() => {
+    // Held just long enough that the load chrome registers visually but
+    // doesn't feel artificial. 900ms is below the threshold where a user
+    // starts feeling impatient (~1s) and above the strobe threshold (~250ms).
+    const timeoutId = window.setTimeout(() => setMinDisplayElapsed(true), 900);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
   const [pronunciationFlash, setPronunciationFlash] = useState<PronunciationScoreFlash | null>(null);
   const [hintsDismissed, setHintsDismissed] = useState(false);
 
@@ -156,11 +268,18 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   const hasIntro = introLines.length > 0;
   const [introIndex, setIntroIndex] = useState(0);
   const [isIntroComplete, setIsIntroComplete] = useState(!hasIntro);
+  // "Logically ready" means the engine has done its job; "can hide overlay"
+  // adds the min-display guard so the spinner doesn't strobe. We use the
+  // logical state for downstream guards (input gates, audio start) and the
+  // composite for the overlay opacity.
   const sceneReady = /ready/i.test(loadStatus);
+  const canHideLoadOverlay = sceneReady && patrickLoaded && roomBuilt && minDisplayElapsed;
   // Pre-roll cinematic. When the config has an introVideoUrl, the full-screen
   // video overlay becomes the visible loading screen while the Three.js room
   // and assets mount behind it.
-  const hasIntroMovie = Boolean(config.introVideoUrl);
+  // Respect prefers-reduced-motion by skipping the pre-roll cinematic
+  // entirely — the VN dialogue still covers the narrative beats.
+  const hasIntroMovie = Boolean(config.introVideoUrl) && !getBrowserCapabilities().prefersReducedMotion;
   const [isIntroMovieDone, setIsIntroMovieDone] = useState(!hasIntroMovie);
   const isIntroMovieActive = hasIntroMovie && !isIntroMovieDone;
   const canShowIntroDialogue = isIntroMovieDone && sceneReady;
@@ -213,7 +332,17 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   // still in progress.
   const introInputUnlockedRef = useRef<boolean>(!hasIntro && !hasIntroMovie);
   introInputUnlockedRef.current = isIntroComplete && canShowIntroDialogue;
+  function requestStandUpIntro() {
+    if (standUpIntroStartedRef.current) return;
+    const trigger = standUpIntroTriggerRef.current;
+    if (!trigger) {
+      standUpIntroPendingRef.current = true;
+      return;
+    }
+    trigger();
+  }
   function advanceStageIntro() {
+    requestStandUpIntro();
     if (introIndex < introLines.length - 1) {
       setIntroIndex(introIndex + 1);
     }
@@ -276,6 +405,11 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   const activeConversationProgress = activeConversation?.command.conversation
     ? `${effectiveTurnIndex + 1}/${activeConversation.command.conversation.length}${isReviewing ? ' · Review' : ''}`
     : '';
+  const hudMenuSummary = activeConversation
+    ? activeConversationProgress || 'Conversation'
+    : activeCommand
+      ? activeCommand.command.label
+      : (selectedHotspot?.label ?? 'Actions');
   const activeSpeechRomanization =
     activeConversationTurn?.response.romanization ?? activeCommand?.command.romanization;
   const inventoryCount = inventory.length;
@@ -307,7 +441,15 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       alpha: false,
       powerPreference: 'high-performance',
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    // Pixel ratio is capped per-device class:
+    //   mobile / iOS → 1.0  (a phone GPU pushing 3× the pixels of a
+    //                         desktop crushes the frame rate)
+    //   desktop      → 1.5  (perceived quality stops scaling past this on
+    //                         most displays, but cost keeps climbing)
+    // The browser's reported devicePixelRatio is still the upper bound,
+    // so a 1× display gets 1× regardless of our cap.
+    const caps = getBrowserCapabilities();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, caps.recommendedPixelRatio));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -332,6 +474,26 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     // rig sits cleanly in frame when the scene first opens.
     controls.target.set(1.6, 1.45, 0.2);
     applyResponsiveCameraPreset(camera, controls, renderer.domElement, config.rooms[0]);
+
+    // Trailer-capture orbit mode (?debug-orbit=<hotspotId>&orbit-radius=N&orbit-speed=N).
+    // Looks up the hotspot's world position from any room (room transitions
+    // are not used during beauty-orbit clips, so first-match is fine) and
+    // freezes user camera input. The animate loop below overrides the
+    // camera each frame to a circular path around that point.
+    const orbitConfig = trailerFlags.debugOrbit;
+    const orbitCenter: THREE.Vector3 | null = (() => {
+      if (!orbitConfig) return null;
+      for (const room of config.rooms) {
+        const match = room.hotspots.find((h) => h.id === orbitConfig.hotspotId);
+        if (match) {
+          return new THREE.Vector3(match.position[0], 1.45, match.position[2]);
+        }
+      }
+      return null;
+    })();
+    if (orbitConfig && orbitCenter) {
+      controls.enabled = false;
+    }
 
     // Hemisphere intensity is bumped 35% over config so the scene reads brighter without
     // washing out the per-stage palette.
@@ -538,29 +700,45 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
               deadAction.setLoop(THREE.LoopOnce, 1);
               deadAction.clampWhenFinished = true;
               deadAction.time = reverseDuration;
-              deadAction.timeScale = -1;
+              deadAction.timeScale = 1;
+              deadAction.paused = true;
               deadAction.play();
               currentAction = deadAction;
               currentPatrickActionId = 'dead';
               // Apply the prone pose immediately so we don't flash the T-pose
-              // for a frame before the reverse playback kicks in.
+              // for a frame while waiting for the player's first tap.
               mixer.update(0);
               setLoadStatus(`${config.title} ready.`);
-              window.setTimeout(
-                () => {
-                  if (disposed) return;
-                  ensureAndPlayPatrickAction('idle', 0.45);
-                  // Re-arm the dead action so a future game-over uses it
-                  // normally (forward, from frame 0).
-                  window.setTimeout(() => {
+              setPatrickLoaded(true);
+              standUpIntroTriggerRef.current = () => {
+                if (disposed || standUpIntroStartedRef.current) return;
+                standUpIntroStartedRef.current = true;
+                standUpIntroPendingRef.current = false;
+                deadAction.paused = false;
+                deadAction.time = reverseDuration;
+                deadAction.timeScale = -1;
+                deadAction.play();
+                currentAction = deadAction;
+                currentPatrickActionId = 'dead';
+                window.setTimeout(
+                  () => {
                     if (disposed) return;
-                    deadAction.timeScale = 1;
-                    deadAction.time = 0;
-                    deadAction.paused = true;
-                  }, 600);
-                },
-                Math.max(220, reverseDuration * 1000 + 80),
-              );
+                    ensureAndPlayPatrickAction('idle', 0.45);
+                    // Re-arm the dead action so a future game-over uses it
+                    // normally (forward, from frame 0).
+                    window.setTimeout(() => {
+                      if (disposed) return;
+                      deadAction.timeScale = 1;
+                      deadAction.time = 0;
+                      deadAction.paused = true;
+                    }, 600);
+                  },
+                  Math.max(220, reverseDuration * 1000 + 80),
+                );
+              };
+              if (standUpIntroPendingRef.current) {
+                standUpIntroTriggerRef.current();
+              }
               return;
             }
           }
@@ -569,6 +747,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         playPatrickAction('idle', 0);
         mixer.update(0.016);
         setLoadStatus(`${config.title} ready.`);
+        setPatrickLoaded(true);
       },
       undefined,
       () => {
@@ -585,6 +764,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         head.position.y = 1.95;
         playerRoot.add(head);
         setLoadStatus(`${config.title} ready with fallback Patrick.`);
+        setPatrickLoaded(true);
       },
     );
 
@@ -602,6 +782,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       // Otherwise the player can stumble onto a hotspot or walk before they
       // know what verb does what.
       if (!introInputUnlockedRef.current) return;
+      requestStandUpIntro();
       const rect = renderer.domElement.getBoundingClientRect();
       refs.pointer.set(
         ((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -713,6 +894,8 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
           y: player.position.y,
           z: player.position.z,
           ry: player.rotation.y,
+          action: currentPatrickActionId,
+          standUpStarted: standUpIntroStartedRef.current,
           colliders: refs.colliders.length,
         };
       }
@@ -756,7 +939,20 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
           npcs: npcPositions,
         };
       }
-      if (cinematic) {
+      if (orbitConfig && orbitCenter) {
+        // Trailer beauty-orbit mode overrides all auto-follow. The camera
+        // moves on a circular path at constant angular velocity around the
+        // chosen hotspot, looking at it the whole time. speed===0 freezes
+        // the camera on its initial angle (used for locked-off beauty shots
+        // like the lantern dust loop).
+        const angle = (now / 1000) * orbitConfig.speed;
+        camera.position.set(
+          orbitCenter.x + Math.cos(angle) * orbitConfig.radius,
+          orbitCenter.y + 0.55,
+          orbitCenter.z + Math.sin(angle) * orbitConfig.radius,
+        );
+        controls.target.copy(orbitCenter);
+      } else if (cinematic) {
         // Cinematic two-shot is in flight. Drive camera + target along the
         // pre-computed lerp; the auto-bias below is skipped so it doesn't
         // fight the motion. Ease-in-out cubic gives a film-style move that
@@ -825,6 +1021,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       if (renderer.domElement.parentElement === mount) {
         mount.removeChild(renderer.domElement);
       }
+      standUpIntroTriggerRef.current = null;
       sceneRefs.current = null;
     };
     // Bootstrap once. Config changes are not expected — a parent should remount with a new key.
@@ -846,6 +1043,10 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     refs.objectsByHotspot.clear();
 
     currentRoom.build(refs.roomGroup, currentRoom.palette);
+    // Geometry is in place — flip the milestone so the load overlay
+    // checklist crosses off "Building room" and the overlay can hide
+    // once the min-display timer also elapses.
+    setRoomBuilt(true);
 
     const textureLoader = new THREE.TextureLoader();
     currentRoom.hotspots.forEach((hotspot) => {
@@ -924,12 +1125,37 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       window.removeEventListener('focus', syncVoiceMode);
       pronunciationSession.current?.disconnect();
       pronunciationSession.current = null;
-      if (completionTimerRef.current !== null) {
-        window.clearTimeout(completionTimerRef.current);
-        completionTimerRef.current = null;
-      }
     };
   }, []);
+
+  // Trailer-capture voice-injection hook. Exposes
+  // `window.__injectVoiceAttempt(wavUrl)` whenever the Whisper voice coach is
+  // connected so scripts/record-promo.mjs can feed a pre-recorded WAV through
+  // the real judge during the voice-loop clips (23/24/25). Gated behind DEV
+  // and an opt-in `window.__CLIP_CAPTURE` flag so it can never reach
+  // production, even if the build flag is somehow forced.
+  useEffect(() => {
+    if (!import.meta.env.DEV && !(window as unknown as { __CLIP_CAPTURE?: boolean }).__CLIP_CAPTURE) {
+      return;
+    }
+    if (!hasVoiceCoach) return;
+    const session = pronunciationSession.current;
+    const inject = session?.injectAudioFile;
+    if (!inject) return; // Realtime sessions don't implement it.
+    const win = window as unknown as Record<string, unknown>;
+    win.__injectVoiceAttempt = async (wavUrl: string) => {
+      // Always refresh the prompt before injection — the active command can
+      // change between captures and the previous prompt would judge against
+      // the wrong target phrase.
+      session?.updatePrompt(pronunciationPrompt);
+      await inject(wavUrl);
+    };
+    return () => {
+      if (win.__injectVoiceAttempt && session?.injectAudioFile === inject) {
+        delete win.__injectVoiceAttempt;
+      }
+    };
+  }, [hasVoiceCoach, pronunciationPrompt]);
 
   // Auto-clear pronunciation score flash after the CSS animation finishes (~1450ms)
   useEffect(() => {
@@ -974,6 +1200,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
 
   useEffect(() => {
     stopSuPlayback();
+    setPlaybackCaption('');
     if (!activeConversation || stageComplete || !soundSettings.guideAudioEnabled) return;
     const turn = activeConversation.command.conversation?.[activeConversation.turnIndex];
     if (!turn) return;
@@ -986,21 +1213,32 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       ),
     );
     const entry = stageOneConversationDeck[turn.id];
-    const sources = characterTurnAudioSrc
-      ? [characterTurnAudioSrc]
-      : [getStageOneSuAudioSrc(entry?.suAudioId), getStageOneSuAudioSrc(entry?.coachingAudioId)].filter(
-          (src): src is string => Boolean(src),
-        );
-    if (!sources.length) return;
+    // Pair each audio source with the line text we should surface as a
+    // caption when it's the one currently playing. For Stage 1 conversation
+    // turns we play suLine then coachingLine — both have matching text in
+    // the deck. For other stages (no deck entry) we fall back to the
+    // turn's npcEnglish so something still shows when captions are on.
+    const playback: Array<{ src: string; caption: string }> = characterTurnAudioSrc
+      ? [{ src: characterTurnAudioSrc, caption: turn.npcEnglish }]
+      : [
+          { src: getStageOneSuAudioSrc(entry?.suAudioId) ?? '', caption: entry?.suLine ?? turn.npcEnglish },
+          { src: getStageOneSuAudioSrc(entry?.coachingAudioId) ?? '', caption: entry?.coachingLine ?? '' },
+        ].filter((slot) => Boolean(slot.src));
+    if (!playback.length) return;
     const runId = suPlaybackRunRef.current;
     void (async () => {
-      for (const src of sources) {
+      for (const slot of playback) {
         if (suPlaybackRunRef.current !== runId) return;
-        await suAudioPlayer.playUntilEnded(src, soundSettings.guideAudioVolume);
+        setPlaybackCaption(slot.caption);
+        await suAudioPlayer.playUntilEnded(slot.src, soundSettings.guideAudioVolume);
       }
+      // Clear the caption once the run finishes so the strip doesn't
+      // linger after audio ends.
+      if (suPlaybackRunRef.current === runId) setPlaybackCaption('');
     })();
     return () => {
       if (suPlaybackRunRef.current === runId) stopSuPlayback();
+      setPlaybackCaption('');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -1244,10 +1482,32 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     try {
       return await connectionPromise.current;
     } catch (error) {
-      setVoiceError(error instanceof Error ? error.message : String(error));
-      setVoiceStatus(
-        `${selectedMode === 'whisper' ? 'Local Whisper' : 'Realtime'} voice coach could not connect.`,
-      );
+      // MVP 3 — Mic-denied auto-fallback. If the browser blocked
+      // getUserMedia (NotAllowedError / PermissionDenied / SecurityError on
+      // insecure origins), automatically flip into No-mic mode and persist
+      // it. The player keeps playing instead of staring at a dead Connect
+      // Mic button. We deliberately keep the original error string in the
+      // voice-error slot so anyone curious can still see why — but the
+      // status line and voice mode shift immediately to no-mic.
+      const message = error instanceof Error ? error.message : String(error);
+      const errorName = error instanceof Error ? error.name : '';
+      const isMicDenial =
+        /NotAllowed|Permission|denied|getUserMedia/i.test(`${errorName} ${message}`) ||
+        // Some browsers (older Safari) reject mic on insecure contexts with
+        // SecurityError — treat that as the same "can't get a mic" path.
+        errorName === 'SecurityError' ||
+        errorName === 'NotFoundError'; // No mic hardware
+      if (isMicDenial) {
+        saveVoiceJudgeMode('no-mic');
+        setVoiceMode('no-mic');
+        setVoiceError('');
+        setVoiceStatus('Microphone unavailable — switched to No-mic mode. Tap Confirm Phrase to continue.');
+      } else {
+        setVoiceError(message);
+        setVoiceStatus(
+          `${selectedMode === 'whisper' ? 'Local Whisper' : 'Realtime'} voice coach could not connect.`,
+        );
+      }
       setHasVoiceCoach(false);
       return null;
     } finally {
@@ -1432,6 +1692,15 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     playHotspotNpcAnimation(hotspot, 'talk');
   }
 
+  function completeCurrentStage() {
+    setStageComplete(true);
+    setVoiceStatus(config.completionMessage);
+    const refs = sceneRefs.current;
+    void refs?.loadPatrickAction('victory').then((loaded) => {
+      if (loaded) refs.playPatrickAction('victory', 0.16);
+    });
+  }
+
   function advanceConversation(conversation: ActiveConversation) {
     const turns = conversation.command.conversation ?? [];
     const currentTurn = turns[conversation.turnIndex];
@@ -1470,6 +1739,10 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     // Conversation done — release the two-shot anchor so the camera target
     // can drift back to the normal player-bias point.
     if (sceneRefs.current) sceneRefs.current.conversationAnchor = null;
+
+    if (conversation.command.completesAdventure) {
+      completeCurrentStage();
+    }
   }
 
   function executeCommand({ hotspot, command }: ActiveCommand) {
@@ -1485,17 +1758,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       playHotspotNpcAnimation(hotspot);
     }
     if (command.completesAdventure) {
-      setStageComplete(true);
-      setVoiceStatus(config.completionMessage);
-      const refs = sceneRefs.current;
-      void refs?.loadPatrickAction('victory').then((loaded) => {
-        if (loaded) refs.playPatrickAction('victory', 0.16);
-      });
-      if (onComplete) {
-        completionTimerRef.current = window.setTimeout(() => {
-          onComplete();
-        }, 1600);
-      }
+      completeCurrentStage();
     }
   }
 
@@ -1509,7 +1772,9 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
 
   return (
     <main
-      className="adventure-3d-shell relative h-dvh min-h-dvh w-screen overflow-hidden bg-slate-950 text-white lg:min-h-[620px]"
+      className={`adventure-3d-shell relative h-dvh min-h-dvh w-screen overflow-hidden bg-slate-950 text-white lg:min-h-[620px] ${
+        trailerFlags.hideHud ? 'adventure-3d-shell--no-hud' : ''
+      } ${isLocationView ? 'adventure-3d-shell--location-view' : ''}`}
       style={shellStyle}
     >
       <div ref={mountRef} className="absolute inset-0" aria-label={`${config.title} 3D viewport`} />
@@ -1535,16 +1800,41 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         </div>
       ) : null}
 
-      {/* Load overlay — premium spinner over the scene until GLB + room are ready */}
+      {/* Load overlay — premium spinner over the scene until GLB + room
+          are ready. Hides only after a) all milestones flipped and b) the
+          900ms min-display timer elapsed (prevents the strobe on fast
+          machines). Hidden immediately while the intro movie is playing
+          because the movie itself is the loading screen at that point. */}
       <div
         className={`adventure-3d-load-overlay ${
-          sceneReady || isIntroMovieActive ? 'adventure-3d-load-overlay--hidden' : ''
+          canHideLoadOverlay || isIntroMovieActive ? 'adventure-3d-load-overlay--hidden' : ''
         }`}
+        aria-live="polite"
+        aria-busy={!canHideLoadOverlay}
       >
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center gap-3">
           <div className="adventure-3d-load-spinner" />
           <p className="adventure-3d-load-label">{config.badge}</p>
           <p className="adventure-3d-load-sublabel">{config.title}</p>
+          {config.loadingTagline ? (
+            <p className="adventure-3d-load-tagline">{config.loadingTagline}</p>
+          ) : (
+            <p className="adventure-3d-load-tagline">Bringing the scene online…</p>
+          )}
+          <ul className="adventure-3d-load-checklist" aria-label="Loading progress">
+            <li className={patrickLoaded ? 'is-done' : ''}>
+              <span aria-hidden="true">{patrickLoaded ? '✓' : '·'}</span>
+              <span>{patrickLoaded ? 'Patrick rig ready' : 'Loading Patrick rig'}</span>
+            </li>
+            <li className={roomBuilt ? 'is-done' : ''}>
+              <span aria-hidden="true">{roomBuilt ? '✓' : '·'}</span>
+              <span>{roomBuilt ? 'Room geometry built' : 'Building room geometry'}</span>
+            </li>
+            <li className={minDisplayElapsed ? 'is-done' : ''}>
+              <span aria-hidden="true">{minDisplayElapsed ? '✓' : '·'}</span>
+              <span>{minDisplayElapsed ? 'Voice coach armed' : 'Arming voice coach'}</span>
+            </li>
+          </ul>
         </div>
       </div>
 
@@ -1581,29 +1871,42 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         </div>
       </div>
 
-      {/* Stage completion celebration */}
+      {/* Stage completion celebration. Two distinct paths:
+          - Final stage of the tech demo (scenarioNumber === playable count):
+            full DemoEndSplash with phrase roll, feedback CTA, credits.
+          - Any earlier stage: a compact Stage Clear prompt that waits for
+            the player to explicitly proceed into the next level. */}
       {stageComplete ? (
-        <div className="pointer-events-none absolute inset-0 z-[55] grid place-items-center">
-          <div className="adventure-3d-completion">
-            <span className="adventure-3d-completion__eyebrow">Stage Clear</span>
-            <h2 className="adventure-3d-completion__title">{config.completionMessage}</h2>
-            <p className="adventure-3d-completion__body">
-              {config.title} — Patrick is ready for the next rift.
-            </p>
-            <button
-              type="button"
-              onClick={() => onComplete?.()}
-              className="adventure-3d-connect mt-4"
-              style={{ display: 'inline-grid' }}
-            >
-              Continue Journey
-            </button>
+        config.scenarioNumber >= TECH_DEMO_PLAYABLE_STAGE_COUNT ? (
+          <DemoEndSplash onReplay={() => onReturnToOverworld?.()} onContinue={() => onComplete?.()} />
+        ) : (
+          <div className="pointer-events-none absolute inset-0 z-[55] grid place-items-center">
+            <div className="adventure-3d-completion pointer-events-auto">
+              <span className="adventure-3d-completion__eyebrow">Stage Clear</span>
+              <h2 className="adventure-3d-completion__title">{config.completionMessage}</h2>
+              <p className="adventure-3d-completion__body">
+                {config.title} — Patrick is ready for the next rift.
+              </p>
+              <button
+                type="button"
+                onClick={() => onComplete?.()}
+                className="adventure-3d-connect mt-4"
+                style={{ display: 'inline-grid' }}
+              >
+                Proceed to Level {config.scenarioNumber + 1}
+              </button>
+            </div>
           </div>
-        </div>
+        )
       ) : null}
 
-      {/* Bottom action panel */}
-      <section className="adventure-3d-panel pointer-events-auto absolute inset-x-3 bottom-10 z-50 grid max-h-[min(20rem,42dvh)] gap-3 overflow-y-auto p-3 text-white sm:inset-x-6 sm:bottom-10 sm:grid-cols-[minmax(0,1fr)_minmax(13rem,0.58fr)_minmax(17rem,0.78fr)] sm:p-4 lg:inset-x-10">
+      {/* Collapsible action HUD */}
+      <section
+        id="adventure-3d-action-panel"
+        className={`adventure-3d-panel pointer-events-auto absolute inset-x-3 top-[10rem] z-50 grid max-h-[min(20rem,42dvh)] gap-3 overflow-y-auto p-3 text-white sm:inset-x-6 sm:top-[10.8rem] sm:grid-cols-[minmax(0,1fr)_minmax(13rem,0.58fr)_minmax(17rem,0.78fr)] sm:p-4 lg:inset-x-10 ${
+          isHudMenuOpen ? 'adventure-3d-panel--hud-open' : ''
+        }`}
+      >
         {/* COLUMN 1 — verbs + command card */}
         <div className="min-w-0">
           <div className="grid grid-cols-4 gap-1.5">
@@ -1829,6 +2132,19 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
               Return To Map
             </button>
           ) : null}
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsHudMenuOpen(false);
+              setIsLocationView(true);
+            }}
+            className="adventure-3d-room-pill text-center"
+            title="Hide the HUD so you can view the location."
+          >
+            View Location
+            <span className="adventure-3d-mic__hint">Hide all HUD views</span>
+          </button>
         </div>
 
         {/* COLUMN 3 — Su judge panel */}
@@ -1848,6 +2164,32 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         </details>
       </section>
 
+      {!stageComplete ? (
+        <div className="adventure-3d-mobile-dock pointer-events-auto">
+          <button
+            type="button"
+            onClick={() => setIsHudMenuOpen((current) => !current)}
+            className="adventure-3d-mobile-dock__primary"
+            aria-expanded={isHudMenuOpen}
+            aria-controls="adventure-3d-action-panel"
+          >
+            <span>{isHudMenuOpen ? 'Close' : 'Menu'}</span>
+            <span className="adventure-3d-mobile-dock__hint">{hudMenuSummary}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsHudMenuOpen(false);
+              setIsLocationView(true);
+            }}
+            className="adventure-3d-mobile-dock__view"
+            aria-label="View location without HUD"
+          >
+            View
+          </button>
+        </div>
+      ) : null}
+
       {/* Auto-hiding hint strip — visible until first interaction. Hidden while
           the intro dialogue is active so the bubble has the whole bottom strip. */}
       <div
@@ -1857,6 +2199,35 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         <span>Tap hotspots</span>
         <span>Pinch or scroll to zoom</span>
       </div>
+
+      {/* Su voiceover captions — pinned mid-bottom so they read above the
+          action panel but well below the hotspot ring. Only renders when
+          captions are enabled in Settings AND there is line text actively
+          playing. Decorated as a subtle film-caption strip rather than a
+          UI chip so it disappears into the scene when nothing's playing
+          and reads quickly when something is. */}
+      {soundSettings.captionsEnabled && playbackCaption ? (
+        <div
+          aria-live="polite"
+          className="pointer-events-none absolute inset-x-3 bottom-6 z-[45] flex justify-center sm:inset-x-12 sm:bottom-8 lg:inset-x-20"
+        >
+          <div className="max-w-3xl rounded-md border border-white/10 bg-black/70 px-4 py-2 text-center text-sm font-medium leading-relaxed text-white/95 shadow-lg backdrop-blur-sm sm:text-base">
+            {playbackCaption}
+          </div>
+        </div>
+      ) : null}
+
+      {isLocationView && !trailerFlags.hideHud ? (
+        <button
+          type="button"
+          onClick={() => setIsLocationView(false)}
+          className="adventure-3d-restore-hud"
+          aria-label="Show HUD"
+          title="Show HUD (Esc or H)"
+        >
+          HUD
+        </button>
+      ) : null}
 
       {/* Per-stage intro dialogue — Patrick reacts then Su walks the player
           through the stage. Reuses the same VN cut-in component as Stage 1

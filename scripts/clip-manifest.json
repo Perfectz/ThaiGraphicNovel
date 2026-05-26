@@ -1,0 +1,320 @@
+{
+  "$comment": "Drives scripts/record-promo.mjs and scripts/encode-clips.mjs. Each entry is one of the 25 source clips in C:/Users/pzgam/.claude/plans/i-want-to-create-virtual-canyon.md. Coordinates are stage index (0/1/2), room id (from src/data/adventures/stage*.ts), and an optional debug hotspot id. Clips that compose entirely in the editor (or reuse existing assets) have source: 'editor' and are skipped by record-promo.mjs.",
+  "clips": [
+    {
+      "id": "01",
+      "title": "3 days ago this was a VN — cold open",
+      "durationMs": 10000,
+      "source": "editor",
+      "notes": "Push-in on appdemo-render.mp4 in editor. Existing asset, no engine capture."
+    },
+    {
+      "id": "02",
+      "title": "Rift arrival reveal",
+      "durationMs": 12000,
+      "source": "engine",
+      "stage": 0,
+      "room": "lobby",
+      "hotspot": "su",
+      "hideHud": true,
+      "fps": 24,
+      "viewport": "1920x1080",
+      "keepIntroVideo": true
+    },
+    {
+      "id": "03",
+      "title": "VN dialogue montage",
+      "durationMs": 12000,
+      "source": "editor",
+      "notes": "Composite of dialogue-desktop.png, overworld-desktop.png, battle-desktop.png, appdemo-render.mp4."
+    },
+    {
+      "id": "04",
+      "title": "Phone overworld static",
+      "durationMs": 10000,
+      "source": "editor",
+      "notes": "phone-overworld.png with subtle parallax."
+    },
+    {
+      "id": "05",
+      "title": "Day-counter A/B split",
+      "durationMs": 12000,
+      "source": "editor",
+      "notes": "Composite VN render vs 3D lobby capture from clip 02/08."
+    },
+    {
+      "id": "06",
+      "title": "/goals workflow screen-record",
+      "durationMs": 15000,
+      "source": "manual",
+      "notes": "User-driven OBS/Win+G capture of Claude Code /goals output. Not automated."
+    },
+    {
+      "id": "07",
+      "title": "Code → game cutaway",
+      "durationMs": 12000,
+      "source": "editor",
+      "notes": "User-driven VS Code + engine intercut."
+    },
+    {
+      "id": "08",
+      "title": "Hotel lobby grand pan",
+      "durationMs": 12000,
+      "source": "engine",
+      "stage": 0,
+      "room": "lobby",
+      "hotspot": null,
+      "hideHud": true,
+      "fps": 30,
+      "viewport": "1920x1080"
+    },
+    {
+      "id": "09a",
+      "title": "Su coaching close-up (HUD on)",
+      "durationMs": 14000,
+      "source": "engine",
+      "stage": 0,
+      "room": "lobby",
+      "hotspot": "su",
+      "hideHud": false,
+      "fps": 30,
+      "viewport": "1920x1080"
+    },
+    {
+      "id": "09b",
+      "title": "Su coaching close-up (HUD off)",
+      "durationMs": 14000,
+      "source": "engine",
+      "stage": 0,
+      "room": "lobby",
+      "hotspot": "su",
+      "hideHud": true,
+      "fps": 30,
+      "viewport": "1920x1080"
+    },
+    {
+      "id": "10a",
+      "title": "Front-desk check-in (HUD on)",
+      "durationMs": 12000,
+      "source": "engine",
+      "stage": 1,
+      "room": "frontDesk",
+      "hotspot": "hotelLobbyGirl",
+      "hideHud": false,
+      "fps": 30,
+      "viewport": "1920x1080"
+    },
+    {
+      "id": "10b",
+      "title": "Front-desk check-in (HUD off)",
+      "durationMs": 12000,
+      "source": "engine",
+      "stage": 1,
+      "room": "frontDesk",
+      "hotspot": "hotelLobbyGirl",
+      "hideHud": true,
+      "fps": 30,
+      "viewport": "1920x1080"
+    },
+    {
+      "id": "11a",
+      "title": "Night market neon ignite (HUD on)",
+      "durationMs": 13000,
+      "source": "engine",
+      "stage": 2,
+      "room": "stalls",
+      "hotspot": "stage3Vendor",
+      "hideHud": false,
+      "fps": 30,
+      "viewport": "1920x1080"
+    },
+    {
+      "id": "11b",
+      "title": "Night market neon ignite (HUD off)",
+      "durationMs": 13000,
+      "source": "engine",
+      "stage": 2,
+      "room": "stalls",
+      "hotspot": "stage3Vendor",
+      "hideHud": true,
+      "fps": 30,
+      "viewport": "1920x1080"
+    },
+    {
+      "id": "12",
+      "title": "Wok line kinetic",
+      "durationMs": 12000,
+      "source": "engine",
+      "stage": 2,
+      "room": "cookline",
+      "hotspot": null,
+      "hideHud": true,
+      "fps": 30,
+      "viewport": "1920x1080"
+    },
+    {
+      "id": "13",
+      "title": "Rift gate finale tease",
+      "durationMs": 10000,
+      "source": "existing",
+      "sourcePath": "thai-quest-trailer-v2/assets/3d/clips/stage3d-10-rift-gate.mp4",
+      "notes": "Trim existing capture down to 10s."
+    },
+    {
+      "id": "14",
+      "title": "Hold-to-speak → pass",
+      "durationMs": 14000,
+      "source": "engine",
+      "stage": 0,
+      "room": "lobby",
+      "hotspot": "su",
+      "hideHud": false,
+      "fps": 30,
+      "viewport": "1920x1080",
+      "voiceInject": "voice-demo/sawatdee-take2-pass.wav",
+      "notes": "Real Whisper judge call via __injectVoiceAttempt."
+    },
+    {
+      "id": "15",
+      "title": "Phrase typography drop",
+      "durationMs": 10000,
+      "source": "editor",
+      "notes": "Composed over clip 12 wok footage in editor (hyperframes-compatible)."
+    },
+    {
+      "id": "16",
+      "title": "Inventory pickup montage",
+      "durationMs": 12000,
+      "source": "engine",
+      "stage": 1,
+      "room": "lobby",
+      "hotspot": null,
+      "hideHud": false,
+      "fps": 30,
+      "viewport": "1920x1080",
+      "notes": "Driver script clicks each pickup hotspot in order. See record-promo drive script."
+    },
+    {
+      "id": "17",
+      "title": "Title screen split — phone ↔ desktop",
+      "durationMs": 12000,
+      "source": "engine-dual",
+      "scene": "title",
+      "viewports": ["390x844", "1440x900"],
+      "fps": 30,
+      "hideHud": false,
+      "notes": "Two parallel Playwright pages, lockstep capture. Composite side-by-side in editor."
+    },
+    {
+      "id": "18",
+      "title": "Lesson roadmap reflow",
+      "durationMs": 13000,
+      "source": "engine-dual",
+      "scene": "roadmap",
+      "viewports": ["390x844", "1440x900"],
+      "fps": 30,
+      "hideHud": false
+    },
+    {
+      "id": "19",
+      "title": "Gameplay in hand (phone portrait)",
+      "durationMs": 14000,
+      "source": "engine",
+      "stage": 0,
+      "room": "lobby",
+      "hotspot": "su",
+      "hideHud": false,
+      "fps": 30,
+      "viewport": "390x844",
+      "notes": "Composite inside iPhone bezel PNG in editor."
+    },
+    {
+      "id": "20",
+      "title": "Su 360° beauty orbit",
+      "durationMs": 12000,
+      "source": "engine",
+      "stage": 0,
+      "room": "lobby",
+      "hotspot": null,
+      "hideHud": true,
+      "fps": 30,
+      "viewport": "1920x1080",
+      "debugOrbit": { "hotspotId": "su", "radius": 2.2, "speed": 0.32 }
+    },
+    {
+      "id": "21",
+      "title": "Lantern dust loop",
+      "durationMs": 10000,
+      "source": "engine",
+      "stage": 2,
+      "room": "stalls",
+      "hotspot": null,
+      "hideHud": true,
+      "fps": 30,
+      "viewport": "1920x1080",
+      "debugOrbit": { "hotspotId": "menu-board", "radius": 1.8, "speed": 0.08 },
+      "notes": "Slow orbit around the lit menu board — frames the lantern strings + neon backdrop without any character in shot."
+    },
+    {
+      "id": "22",
+      "title": "Brand mark end card",
+      "durationMs": 11000,
+      "source": "editor",
+      "notes": "Composed in HyperFrames / editor. Glassmorphic chips per aesthetic spec."
+    },
+    {
+      "id": "23",
+      "title": "Voice — fail → coach → pass (hero clip)",
+      "durationMs": 15000,
+      "source": "engine",
+      "stage": 0,
+      "room": "lobby",
+      "hotspot": "su",
+      "hideHud": false,
+      "fps": 30,
+      "viewport": "1920x1080",
+      "voiceInjectSequence": [
+        { "atMs": 2500, "wav": "voice-demo/sawatdee-take1-fail.wav" },
+        { "atMs": 9500, "wav": "voice-demo/sawatdee-take2-pass.wav" }
+      ],
+      "notes": "Driver waits, injects fail WAV, waits for verdict + coach line, injects pass WAV. The HERO clip."
+    },
+    {
+      "id": "24",
+      "title": "Pronunciation roulette montage",
+      "durationMs": 13000,
+      "source": "engine",
+      "stage": 0,
+      "room": "lobby",
+      "hotspot": "su",
+      "hideHud": false,
+      "fps": 30,
+      "viewport": "1920x1080",
+      "voiceInjectSequence": [
+        { "atMs": 1000, "wav": "voice-demo/sawatdee-pass.wav" },
+        { "atMs": 3600, "wav": "voice-demo/khobkun-fail.wav" },
+        { "atMs": 6200, "wav": "voice-demo/khotoht-pass.wav" },
+        { "atMs": 8800, "wav": "voice-demo/yindee-fail.wav" },
+        { "atMs": 11400, "wav": "voice-demo/aroi-pass.wav" }
+      ],
+      "notes": "Driver advances to next phrase between each injection."
+    },
+    {
+      "id": "25",
+      "title": "Coach UI close-up",
+      "durationMs": 11000,
+      "source": "engine",
+      "stage": 0,
+      "room": "lobby",
+      "hotspot": "su",
+      "hideHud": false,
+      "fps": 30,
+      "viewport": "1920x1080",
+      "voiceInjectSequence": [
+        { "atMs": 1500, "wav": "voice-demo/sawatdee-take1-fail.wav" },
+        { "atMs": 7500, "wav": "voice-demo/sawatdee-take2-pass.wav" }
+      ],
+      "notes": "Editor crops to lower-third + dims surrounding 3D. Same WAVs as clip 23 but framed differently in post."
+    }
+  ]
+}

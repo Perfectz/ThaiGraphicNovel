@@ -62,6 +62,7 @@ async function handleJudgeAudio(req, res) {
   try {
     const transcript = await transcribeAudio({
       audio,
+      targetPhrase: metadata.targetPhrase,
     });
     sendJson(res, 200, judgeTranscript({ ...metadata, transcript }), corsHeaders);
   } catch (error) {

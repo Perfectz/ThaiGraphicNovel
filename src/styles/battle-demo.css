@@ -69,19 +69,56 @@
   will-change: transform, filter;
 }
 
-.bd-battler__img {
+.bd-battler__img,
+.bd-battler__sheet {
   position: relative;
   z-index: 2;
-  object-fit: contain;
-  object-position: center bottom;
   filter: drop-shadow(0 22px 24px rgba(0, 0, 0, 0.65));
   pointer-events: none;
-  /* Idle bob */
+}
+
+.bd-battler__img {
+  object-fit: contain;
+  object-position: center bottom;
   animation: bdIdleBob 4s ease-in-out infinite;
 }
 
-.bd-battler--ally .bd-battler__img {
+.bd-battler__sheet {
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-size: 400% 200%;
+  background-position: 0% 0%;
+  image-rendering: auto;
+  animation:
+    bdSpriteIdle 850ms linear infinite,
+    bdIdleBob 4s ease-in-out infinite;
+}
+
+.bd-battler__sheet--cast {
+  background-position-y: 100%;
+  animation:
+    bdSpriteAction 620ms linear infinite,
+    bdCast 600ms ease-out;
+}
+
+.bd-battler__sheet--hurt {
+  background-position-y: 100%;
+  animation: bdSpriteAction 520ms linear 1;
+}
+
+.bd-battler__sheet--down {
+  background-position: 100% 100%;
+  animation: none;
+}
+
+.bd-battler--ally .bd-battler__img,
+.bd-battler--ally .bd-battler__sheet {
   animation-delay: -1.2s;
+}
+
+.bd-battler--enemy .bd-battler__sheet {
+  animation-delay: -0.55s;
 }
 
 .bd-battler__shadow {
@@ -119,6 +156,36 @@
   }
   50% {
     transform: translateY(-6px);
+  }
+}
+
+@keyframes bdSpriteIdle {
+  0%,
+  49.99% {
+    background-position: 0% 0%;
+  }
+  50%,
+  100% {
+    background-position: 33.333% 0%;
+  }
+}
+
+@keyframes bdSpriteAction {
+  0%,
+  24.99% {
+    background-position: 0% 100%;
+  }
+  25%,
+  49.99% {
+    background-position: 33.333% 100%;
+  }
+  50%,
+  74.99% {
+    background-position: 66.667% 100%;
+  }
+  75%,
+  100% {
+    background-position: 100% 100%;
   }
 }
 
@@ -178,7 +245,8 @@
   opacity: 0.6;
 }
 
-.bd-battler--down .bd-battler__img {
+.bd-battler--down .bd-battler__img,
+.bd-battler--down .bd-battler__sheet {
   animation: none;
 }
 
@@ -283,6 +351,168 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.bd-vfx-glyph,
+.bd-vfx-burst {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.bd-vfx-glyph {
+  left: 50%;
+  top: 36%;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.9rem;
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow:
+    0 2px 0 rgba(2, 6, 23, 0.95),
+    0 0 18px currentColor;
+  animation: bdTechniqueGlyph 820ms ease-out forwards;
+}
+
+@media (max-width: 639px) {
+  .bd-vfx-glyph {
+    font-size: 1.35rem;
+  }
+}
+
+.bd-vfx-burst {
+  inset: 16%;
+  z-index: 2;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  animation: bdTechniqueBurst 820ms ease-out forwards;
+}
+
+.bd-vfx-glyph::before {
+  content: '!';
+}
+
+.bd-vfx-tech-sawatdee-spark .bd-vfx-glyph::before {
+  content: 'สวัสดี';
+}
+
+.bd-vfx-tech-khopkhun-blade .bd-vfx-glyph::before {
+  content: 'ขอบคุณ';
+}
+
+.bd-vfx-tech-phom-pyre .bd-vfx-glyph::before {
+  content: 'ผม';
+}
+
+.bd-vfx-tech-mai-pen-rai-veil .bd-vfx-glyph::before {
+  content: 'ไม่เป็นไร';
+}
+
+.bd-vfx-tech-aroi-inferno .bd-vfx-glyph::before {
+  content: 'อร่อย';
+}
+
+.bd-vfx-tech-sabai-aura .bd-vfx-glyph::before {
+  content: 'สบาย';
+}
+
+.bd-vfx-tech-chai-strike .bd-vfx-glyph::before {
+  content: 'ใช่';
+}
+
+.bd-vfx-tech-nam-cha-frost .bd-vfx-glyph::before {
+  content: 'น้ำชา';
+}
+
+.bd-vfx-tech-sawatdee-spark .bd-vfx-burst {
+  background:
+    repeating-conic-gradient(from 18deg, rgba(103, 232, 249, 0.85) 0 10deg, transparent 10deg 24deg),
+    radial-gradient(circle, rgba(255, 255, 255, 0.65), transparent 62%);
+}
+
+.bd-vfx-tech-khopkhun-blade .bd-vfx-burst {
+  border-radius: 0;
+  background:
+    linear-gradient(35deg, transparent 42%, rgba(254, 243, 199, 0.95) 48%, transparent 54%),
+    linear-gradient(-35deg, transparent 42%, rgba(255, 255, 255, 0.95) 48%, transparent 54%);
+}
+
+.bd-vfx-tech-phom-pyre .bd-vfx-burst,
+.bd-vfx-tech-aroi-inferno .bd-vfx-burst {
+  background:
+    repeating-radial-gradient(circle, rgba(254, 215, 170, 0.9) 0 8px, transparent 8px 18px),
+    radial-gradient(circle, rgba(251, 146, 60, 0.85), transparent 66%);
+}
+
+.bd-vfx-tech-aroi-inferno .bd-vfx-burst {
+  inset: 4%;
+  filter: drop-shadow(0 0 28px rgba(251, 146, 60, 0.95));
+}
+
+.bd-vfx-tech-mai-pen-rai-veil .bd-vfx-burst {
+  background:
+    conic-gradient(from 90deg, transparent, rgba(167, 243, 208, 0.85), transparent 42%),
+    radial-gradient(circle, rgba(110, 231, 183, 0.42), transparent 60%);
+}
+
+.bd-vfx-tech-sabai-aura .bd-vfx-burst {
+  background:
+    radial-gradient(circle, transparent 34%, rgba(254, 243, 199, 0.9) 36%, transparent 40%),
+    radial-gradient(circle, rgba(110, 231, 183, 0.5), transparent 66%);
+}
+
+.bd-vfx-tech-chai-strike .bd-vfx-burst {
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, transparent 38%, rgba(196, 181, 253, 0.9) 42%, transparent 48%),
+    radial-gradient(circle, rgba(91, 33, 182, 0.75), transparent 62%);
+}
+
+.bd-vfx-tech-nam-cha-frost .bd-vfx-burst {
+  border-radius: 10px;
+  background:
+    conic-gradient(
+      from 45deg,
+      rgba(186, 230, 253, 0.95),
+      transparent 18%,
+      rgba(147, 197, 253, 0.8),
+      transparent 42%
+    ),
+    radial-gradient(circle, rgba(219, 234, 254, 0.7), transparent 60%);
+}
+
+@keyframes bdTechniqueGlyph {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -34%) scale(0.5);
+  }
+  22% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.18);
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -82%) scale(0.92);
+  }
+}
+
+@keyframes bdTechniqueBurst {
+  0% {
+    opacity: 0;
+    transform: scale(0.35) rotate(0deg);
+  }
+  32% {
+    opacity: 0.9;
+    transform: scale(1) rotate(45deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55) rotate(160deg);
+  }
 }
 
 /* SLASH — diagonal blade arcs */
@@ -756,6 +986,123 @@
 
 .bd-choice-card:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.bd-voice-cast {
+  box-shadow:
+    inset 0 0 0 1px rgba(103, 232, 249, 0.08),
+    0 16px 30px rgba(0, 0, 0, 0.28);
+}
+
+.bd-sprite-page {
+  --bd-page-glow: rgba(103, 232, 249, 0.45);
+  --bd-page-line: rgba(103, 232, 249, 0.72);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.bd-sprite-page--fire {
+  --bd-page-glow: rgba(251, 146, 60, 0.5);
+  --bd-page-line: rgba(251, 146, 60, 0.85);
+}
+
+.bd-sprite-page--ice {
+  --bd-page-glow: rgba(147, 197, 253, 0.5);
+  --bd-page-line: rgba(186, 230, 253, 0.88);
+}
+
+.bd-sprite-page--holy {
+  --bd-page-glow: rgba(254, 243, 199, 0.5);
+  --bd-page-line: rgba(254, 243, 199, 0.88);
+}
+
+.bd-sprite-page--wind {
+  --bd-page-glow: rgba(110, 231, 183, 0.5);
+  --bd-page-line: rgba(167, 243, 208, 0.88);
+}
+
+.bd-sprite-page--shadow {
+  --bd-page-glow: rgba(196, 181, 253, 0.48);
+  --bd-page-line: rgba(196, 181, 253, 0.84);
+}
+
+.bd-sprite-frame {
+  position: relative;
+  display: grid;
+  min-height: 4.3rem;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(244, 241, 235, 0.12);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 48%),
+    radial-gradient(circle at 50% 45%, var(--bd-page-glow), transparent 64%), rgba(2, 6, 23, 0.46);
+}
+
+.bd-sprite-frame::before,
+.bd-sprite-frame::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.bd-sprite-frame::before {
+  inset: 23%;
+  border: 2px solid var(--bd-page-line);
+  opacity: 0.75;
+  transform: rotate(45deg);
+}
+
+.bd-sprite-frame::after {
+  inset: 0.35rem;
+  border-top: 1px solid var(--bd-page-line);
+  border-bottom: 1px solid var(--bd-page-line);
+  opacity: 0.35;
+}
+
+.bd-sprite-frame span {
+  position: relative;
+  z-index: 1;
+  max-width: 90%;
+  color: #fff;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1.05;
+  text-align: center;
+  text-shadow:
+    0 2px 0 rgba(2, 6, 23, 0.95),
+    0 0 14px var(--bd-page-line);
+}
+
+.bd-sprite-frame--glyph span {
+  font-size: 1.05rem;
+}
+
+.bd-sprite-frame--impact::before {
+  border-radius: 50%;
+  transform: none;
+}
+
+.bd-sprite-page--khopkhun-blade .bd-sprite-frame--impact::before,
+.bd-sprite-page--chai-strike .bd-sprite-frame--impact::before {
+  inset: 10% 28%;
+  border-width: 0;
+  background: linear-gradient(135deg, transparent 42%, var(--bd-page-line) 48%, transparent 54%);
+  transform: rotate(-14deg);
+}
+
+.bd-sprite-page--aroi-inferno .bd-sprite-frame--impact,
+.bd-sprite-page--phom-pyre .bd-sprite-frame--impact {
+  background:
+    repeating-radial-gradient(circle, var(--bd-page-line) 0 3px, transparent 3px 9px), rgba(2, 6, 23, 0.46);
+}
+
+.bd-sprite-page--nam-cha-frost .bd-sprite-frame--impact::before {
+  border-radius: 8px;
+  clip-path: polygon(50% 0%, 61% 34%, 98% 36%, 68% 57%, 79% 96%, 50% 72%, 20% 96%, 31% 57%, 2% 36%, 39% 34%);
 }
 
 @media (max-width: 639px) {

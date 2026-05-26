@@ -54,6 +54,14 @@ export type PronunciationSession = {
   startRecording: () => void;
   stopRecording: () => void;
   disconnect: () => void;
+  // Trailer-capture hook (Whisper sessions only). Fetches a WAV at `wavUrl`
+  // and feeds it through the same judge path the mic uses, firing the same
+  // onStatus / onVerdict / onError callbacks. Realtime sessions don't
+  // implement it (WebRTC track injection is out of scope); calling it
+  // there throws so misuse is loud. Gate any wiring behind
+  // `import.meta.env.DEV || window.__CLIP_CAPTURE` before exposing to
+  // `window.__injectVoiceAttempt`.
+  injectAudioFile?: (wavUrl: string) => Promise<void>;
 };
 
 type SessionOptions = {

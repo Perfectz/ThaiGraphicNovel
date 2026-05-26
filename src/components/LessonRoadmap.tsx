@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { lessonScenarios } from '../data/lessonScenarios';
+import { isStageLocked, TECH_DEMO_PLAYABLE_STAGE_COUNT } from '../data/techDemoConfig';
 import { getPhrasePhoneticSpelling } from '../data/thaiPhrases';
 import { useProgressionSnapshot } from '../store/selectors';
 import { Card, Chip, Modal } from './ui';
@@ -9,13 +10,17 @@ type LessonRoadmapProps = {
   onClose: () => void;
 };
 
-type StageStatus = 'completed' | 'current' | 'upcoming';
+type StageStatus = 'completed' | 'current' | 'upcoming' | 'locked';
 
 function statusFor(
   scenarioIndex: number,
   activeIndex: number,
   completedIds: ReadonlyArray<string>,
 ): StageStatus {
+  // Tech-demo lock wins over every other status — a locked stage is locked
+  // even if it was previously completed in a longer build, because the
+  // current build can't render it.
+  if (isStageLocked(scenarioIndex)) return 'locked';
   const scenario = lessonScenarios[scenarioIndex];
   if (scenario && completedIds.includes(scenario.id)) return 'completed';
   if (scenarioIndex === activeIndex) return 'current';
@@ -97,9 +102,12 @@ export function LessonRoadmap({ isOpen, onClose }: LessonRoadmapProps) {
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Chip>
-          {completedCount} of {lessonScenarios.length} completed
+          {completedCount} of {TECH_DEMO_PLAYABLE_STAGE_COUNT} completed
         </Chip>
         <Chip tone="accent">Stage {activeScenarioIndex + 1} next up</Chip>
+        <Chip tone="default">
+          Tech demo · {TECH_DEMO_PLAYABLE_STAGE_COUNT} of {lessonScenarios.length} stages playable
+        </Chip>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-[14rem_minmax(0,1fr)]">
@@ -129,6 +137,12 @@ export function LessonRoadmap({ isOpen, onClose }: LessonRoadmapProps) {
           {lessonScenarios.map((scenario, index) => {
             const status = statusFor(index, activeScenarioIndex, completedScenarioIds);
             const isFocused = index === focusedIndex;
+            const isLocked = status === 'locked';
+            // Locked rows: dimmed, no hover/focus pop, label announces lock
+            // so screen readers don't mislead users into thinking the stage
+            // is reachable. The row stays focusable (so the rail keyboard
+            // nav still works for browsing what's coming later) but does
+            // not change the chosen stage when clicked.
             return (
               <button
                 key={scenario.id}
@@ -139,6 +153,7 @@ export function LessonRoadmap({ isOpen, onClose }: LessonRoadmapProps) {
                 type="button"
                 role="option"
                 aria-selected={isFocused}
+                aria-disabled={isLocked}
                 tabIndex={isFocused ? 0 : -1}
                 onClick={() => {
                   setFocusedIndex(index);
@@ -149,8 +164,11 @@ export function LessonRoadmap({ isOpen, onClose }: LessonRoadmapProps) {
                   `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink ` +
                   (isFocused
                     ? 'border-accent bg-accent/10 text-paper'
-                    : 'border-hairline bg-ink-elevated text-paper-muted hover:border-accent/60 hover:text-paper')
+                    : isLocked
+                      ? 'border-hairline/40 bg-ink-elevated/40 text-paper-quiet'
+                      : 'border-hairline bg-ink-elevated text-paper-muted hover:border-accent/60 hover:text-paper')
                 }
+                title={isLocked ? 'Coming after launch — this is a 3-stage demo build.' : undefined}
               >
                 <span className="flex flex-col gap-0.5 min-w-0">
                   <span className="text-[0.65rem] font-bold uppercase tracking-[0.22em] text-paper-quiet">
@@ -168,6 +186,14 @@ export function LessonRoadmap({ isOpen, onClose }: LessonRoadmapProps) {
                     className="text-[0.55rem] font-bold uppercase tracking-[0.18em] text-accent"
                   >
                     Now
+                  </span>
+                ) : status === 'locked' ? (
+                  <span
+                    aria-label="Locked — coming after launch"
+                    className="text-[0.55rem] font-bold uppercase tracking-[0.18em] text-paper-quiet"
+                    title="Coming after launch — this is a 3-stage demo build."
+                  >
+                    🔒
                   </span>
                 ) : null}
               </button>

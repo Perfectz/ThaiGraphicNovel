@@ -4,6 +4,7 @@ import { BattleHUD } from './BattleHUD';
 import { ChapterCharacterLayer } from './ChapterCharacterLayer';
 import { DialogueBox } from './DialogueBox';
 import { Stage3DAdventureDispatcher } from './Stage3DAdventureDispatcher';
+import { StageErrorBoundary } from './StageErrorBoundary';
 import { Button, Chip } from './ui';
 
 export function GameCanvas() {
@@ -25,7 +26,14 @@ export function GameCanvas() {
     (currentScene === 'dialogue' && activeScenarioIndex === 0) ||
     (currentScene === 'pointClickAdventure' && activeScenarioIndex === 1)
   ) {
-    return <Stage3DAdventureDispatcher />;
+    // StageErrorBoundary catches any Three.js / GLTFLoader / scene-init
+    // failure and offers Reload / Return-to-map / Report-bug recovery so
+    // a single bad asset can't take down the whole demo.
+    return (
+      <StageErrorBoundary>
+        <Stage3DAdventureDispatcher />
+      </StageErrorBoundary>
+    );
   }
 
   const { activeScenario, activeStage, focusCharacter, focusLabel, focusLine, startLessonLabel } =
