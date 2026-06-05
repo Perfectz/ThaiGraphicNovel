@@ -1,30 +1,39 @@
 import * as THREE from 'three';
 import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
-import type { ColliderBounds } from './collision';
+import {
+  resolveCircleCollision,
+  PLAYER_COLLISION_RADIUS,
+  type ColliderRect,
+  type ColliderBounds,
+} from './collision';
 
 /**
- * WebXR controller + locomotion layer for the Stage 3D adventure.
+ * WebXR controller + FIRST-PERSON locomotion layer for the Stage 3D adventure.
  *
- * Responsibilities:
- *  - Build the two XR controllers and their grip models, parented to the
- *    player rig so they move with the dolly.
- *  - Draw a pointer ray from each controller and, on trigger (`selectstart`),
- *    raycast from the controller into the world via the shared `onPick`
- *    callback — the SAME pick core the flat-screen pointer uses (walk Patrick /
- *    select a hotspot). The third-person model is preserved in VR.
- *  - Comfort locomotion driven by the thumbsticks:
- *      • horizontal push  → snap-turn the rig ±30° about the head
- *      • forward push     → teleport the rig along the pointed-at floor point,
- *                           clamped to the room bounds
+ * In VR the player *is* Patrick — the headset sits at his head. Movement is
+ * smooth, FPS-style:
+ *  - left thumbstick  → glide through the room in the direction you're facing
+ *                       (forward/back + strafe), collision-resolved so you can't
+ *                       walk through walls or NPCs
+ *  - right thumbstick → smooth continuous turn (yaw) about your head
  *
- * Everything here is inert until an XR session is presenting; `update()` early-
- * returns otherwise, and the controllers simply sit idle in the scene graph.
+ * Each frame we sync the game's `playerRoot` (Patrick) to the head's world XZ,
+ * so all existing proximity / conversation / NPC-facing logic keeps working —
+ * walk up to Su and she turns to you. The visible Patrick avatar is hidden by
+ * the caller while presenting (you're inside him).
+ *
+ * The trigger still raycasts: the in-world HUD gets first refusal (`onUiSelect*`)
+ * and otherwise a world pick (`onPick`) selects the hotspot you point at.
+ *
+ * Everything is inert until a session presents; `update()` early-returns.
  */
 
-const SNAP_TURN_RADIANS = THREE.MathUtils.degToRad(30);
-const STICK_ENGAGE = 0.7; // push past this to trigger snap / teleport
-const STICK_RELEASE = 0.3; // fall back under this to re-arm (debounce)
+const MOVE_SPEED = 2.4; // metres / second at full stick
+const TURN_SPEED = 2.2; // radians / second at full stick (~125°/s)
+const DEADZONE = 0.15;
 const RAY_LENGTH = 8;
+const WAKE_DROP = 1.1; // metres the view starts below standing height
+const WAKE_MS = 2400; // duration of the "getting up off the floor" rise
 
 /**
  * three's typed `Object3DEventMap` doesn't include the WebXR controller events
@@ -41,19 +50,21 @@ export type XRControlsHandle = {
   controllers: THREE.Group[];
   grips: THREE.Group[];
   /** Call once per frame from the animate loop. No-op while not presenting. */
-  update: () => void;
+  update: (delta: number) => void;
+  /** Kick off the one-shot "wake up off the floor" rise (call on session start). */
+  startWakeUp: () => void;
   dispose: () => void;
 };
 
 type XRControlsOptions = {
   renderer: THREE.WebGLRenderer;
-  /** The camera dolly. Controllers parent here; teleport/turn move this. */
+  /** The camera dolly. Controllers parent here; locomotion moves this. */
   playerRig: THREE.Group;
-  /** The headset camera (child of the rig) — used to find head world position. */
+  /** The headset camera (child of the rig). Its world pose is the player head. */
   camera: THREE.PerspectiveCamera;
-  /** Invisible floor plane to raycast teleport/world picks against. */
-  floor: THREE.Object3D;
-  /** Shared world-pick core (hotspot/floor → select + walk Patrick). */
+  /** Patrick's transform — synced to the head each frame so game logic tracks you. */
+  playerRoot: THREE.Group;
+  /** Shared world-pick core (hotspot/floor → select). */
   onPick: (raycaster: THREE.Raycaster) => void;
   /**
    * Give the in-world HUD first refusal on a trigger press. Return true if the
@@ -63,7 +74,9 @@ type XRControlsOptions = {
   onUiSelectStart?: (raycaster: THREE.Raycaster) => boolean;
   /** Trigger released after a HUD press was consumed on the same controller. */
   onUiSelectEnd?: () => void;
-  /** XZ clamp so the player can't teleport through walls / out of the room. */
+  /** Live colliders for the current room (rebuilt per room — read each frame). */
+  getColliders: () => ColliderRect[];
+  /** XZ clamp so the player can't walk out of the room. */
   roomBounds: ColliderBounds;
 };
 
@@ -79,7 +92,6 @@ function makeRayLine(): THREE.Line {
   });
   const line = new THREE.Line(geometry, material);
   line.name = 'xr-pointer-ray';
-  line.scale.z = 1;
   return line;
 }
 
@@ -87,19 +99,18 @@ export function createXRControls({
   renderer,
   playerRig,
   camera,
-  floor,
+  playerRoot,
   onPick,
   onUiSelectStart,
   onUiSelectEnd,
+  getColliders,
   roomBounds,
 }: XRControlsOptions): XRControlsHandle {
   const controllerModelFactory = new XRControllerModelFactory();
   const controllers: THREE.Group[] = [];
   const grips: THREE.Group[] = [];
   const inputSources: Array<XRInputSource | null> = [null, null];
-  // Per-controller debounce latches so a single stick push fires once.
-  const snapArmed = [true, true];
-  const teleportArmed = [true, true];
+  const handedness: Array<XRHandedness | undefined> = [undefined, undefined];
   // Per-controller flag: did this trigger press land on a HUD button? If so the
   // matching release routes to onUiSelectEnd (hold-to-record) instead of world.
   const uiActive = [false, false];
@@ -108,6 +119,12 @@ export function createXRControls({
   const raycaster = new THREE.Raycaster();
   const headWorld = new THREE.Vector3();
   const pivotWorld = new THREE.Vector3();
+  const headQuat = new THREE.Quaternion();
+  const forward = new THREE.Vector3();
+  const right = new THREE.Vector3();
+  const desired = new THREE.Vector3();
+
+  let wakeStart = -1;
 
   const aimRayFromController = (controller: THREE.Group) => {
     tempMatrix.identity().extractRotation(controller.matrixWorld);
@@ -119,7 +136,7 @@ export function createXRControls({
     const controller = event.target;
     const index = (controller.userData.controllerIndex as number) ?? 0;
     aimRayFromController(controller);
-    // HUD gets first refusal: a press on a panel button never also walks Patrick.
+    // HUD gets first refusal: a press on a panel button never also picks the world.
     if (onUiSelectStart && onUiSelectStart(raycaster)) {
       uiActive[index] = true;
       return;
@@ -143,9 +160,11 @@ export function createXRControls({
     controller.addEventListener('selectend', onSelectEnd);
     controller.addEventListener('connected', (event) => {
       inputSources[i] = event.data ?? null;
+      handedness[i] = event.data?.handedness;
     });
     controller.addEventListener('disconnected', () => {
       inputSources[i] = null;
+      handedness[i] = undefined;
     });
     playerRig.add(controller);
     controllers.push(controller);
@@ -156,24 +175,71 @@ export function createXRControls({
     grips.push(grip);
   }
 
-  function clampToRoom() {
-    playerRig.position.x = THREE.MathUtils.clamp(
-      playerRig.position.x,
-      roomBounds.minX,
-      roomBounds.maxX,
-    );
-    playerRig.position.z = THREE.MathUtils.clamp(
-      playerRig.position.z,
-      roomBounds.minZ,
-      roomBounds.maxZ,
-    );
+  function startWakeUp() {
+    wakeStart = performance.now();
+    playerRig.position.y = -WAKE_DROP;
   }
 
-  function snapTurn(direction: number) {
-    // Rotate the rig about the head's world position so the view pivots around
-    // the player, not around the (possibly distant) rig origin.
+  function applyWakeUp(now: number) {
+    if (wakeStart < 0) return;
+    const t = Math.min(1, (now - wakeStart) / WAKE_MS);
+    const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    playerRig.position.y = -WAKE_DROP * (1 - ease);
+    if (t >= 1) {
+      playerRig.position.y = 0;
+      wakeStart = -1;
+    }
+  }
+
+  function readSticks() {
+    let moveX = 0;
+    let moveZ = 0;
+    let turn = 0;
+    for (let i = 0; i < controllers.length; i += 1) {
+      const gamepad = inputSources[i]?.gamepad;
+      if (!gamepad) continue;
+      const axes = gamepad.axes ?? [];
+      // Quest-style sticks live on axes[2]/axes[3]; fall back to [0]/[1].
+      const sx = (axes.length >= 4 ? axes[2] : axes[0]) ?? 0;
+      const sy = (axes.length >= 4 ? axes[3] : axes[1]) ?? 0;
+      if (handedness[i] === 'right') {
+        turn += sx;
+      } else {
+        // Left controller (or unknown handedness) drives movement.
+        moveX += sx;
+        moveZ += sy;
+      }
+    }
+    return { moveX, moveZ, turn };
+  }
+
+  function moveBy(stickX: number, stickZ: number, delta: number) {
+    // Forward/right derived from where the head is actually looking, flattened
+    // to the floor plane so look-up/down doesn't change walking speed.
+    camera.getWorldQuaternion(headQuat);
+    forward.set(0, 0, -1).applyQuaternion(headQuat);
+    forward.y = 0;
+    if (forward.lengthSq() < 1e-6) forward.set(0, 0, -1);
+    forward.normalize();
+    right.set(1, 0, 0).applyQuaternion(headQuat);
+    right.y = 0;
+    if (right.lengthSq() < 1e-6) right.set(1, 0, 0);
+    right.normalize();
+
+    camera.getWorldPosition(headWorld);
+    desired.set(headWorld.x, 0, headWorld.z);
+    // stickZ is negative when pushed forward → move along +forward.
+    desired.addScaledVector(forward, -stickZ * MOVE_SPEED * delta);
+    desired.addScaledVector(right, stickX * MOVE_SPEED * delta);
+    resolveCircleCollision(desired, PLAYER_COLLISION_RADIUS, getColliders(), roomBounds);
+    // Shift the rig by the resolved horizontal delta (camera follows the rig).
+    playerRig.position.x += desired.x - headWorld.x;
+    playerRig.position.z += desired.z - headWorld.z;
+  }
+
+  function turnBy(stick: number, delta: number) {
     camera.getWorldPosition(pivotWorld);
-    const angle = -direction * SNAP_TURN_RADIANS;
+    const angle = -stick * TURN_SPEED * delta;
     const sin = Math.sin(angle);
     const cos = Math.cos(angle);
     const dx = playerRig.position.x - pivotWorld.x;
@@ -183,44 +249,23 @@ export function createXRControls({
     playerRig.rotation.y += angle;
   }
 
-  function teleport(controller: THREE.Group) {
-    tempMatrix.identity().extractRotation(controller.matrixWorld);
-    raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-    const hit = raycaster.intersectObject(floor)[0];
-    if (!hit) return;
-    // Move the rig so the player's head ends up over the targeted floor point
-    // (XZ only — height stays on the floor reference space).
-    camera.getWorldPosition(headWorld);
-    playerRig.position.x += hit.point.x - headWorld.x;
-    playerRig.position.z += hit.point.z - headWorld.z;
-    clampToRoom();
-  }
-
-  function update() {
+  function update(delta: number) {
     if (!renderer.xr.isPresenting) return;
-    for (let i = 0; i < controllers.length; i += 1) {
-      const gamepad = inputSources[i]?.gamepad;
-      if (!gamepad) continue;
-      const axes = gamepad.axes ?? [];
-      // Quest-style sticks live on axes[2]/axes[3]; fall back to [0]/[1].
-      const x = axes.length >= 4 ? axes[2] : axes[0] ?? 0;
-      const y = axes.length >= 4 ? axes[3] : axes[1] ?? 0;
+    applyWakeUp(performance.now());
 
-      if (Math.abs(x) > STICK_ENGAGE && snapArmed[i]) {
-        snapTurn(Math.sign(x));
-        snapArmed[i] = false;
-      } else if (Math.abs(x) < STICK_RELEASE) {
-        snapArmed[i] = true;
-      }
-
-      if (y < -STICK_ENGAGE && teleportArmed[i]) {
-        teleport(controllers[i]);
-        teleportArmed[i] = false;
-      } else if (y > -STICK_RELEASE) {
-        teleportArmed[i] = true;
-      }
+    const { moveX, moveZ, turn } = readSticks();
+    if (Math.abs(moveX) > DEADZONE || Math.abs(moveZ) > DEADZONE) {
+      moveBy(moveX, moveZ, delta);
     }
+    if (Math.abs(turn) > DEADZONE) {
+      turnBy(turn, delta);
+    }
+
+    // Sync the game player (Patrick) to the head so proximity / conversation /
+    // NPC-facing logic all track the real first-person position.
+    camera.getWorldPosition(headWorld);
+    playerRoot.position.x = headWorld.x;
+    playerRoot.position.z = headWorld.z;
   }
 
   function dispose() {
@@ -236,5 +281,5 @@ export function createXRControls({
     }
   }
 
-  return { controllers, grips, update, dispose };
+  return { controllers, grips, update, startWakeUp, dispose };
 }

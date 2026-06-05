@@ -953,10 +953,11 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       renderer,
       playerRig,
       camera,
-      floor,
+      playerRoot,
       onPick: handleWorldPick,
       onUiSelectStart,
       onUiSelectEnd,
+      getColliders: () => refs.colliders,
       roomBounds: ROOM_BOUNDS,
     });
     refs.xrControls = xrControls;
@@ -969,18 +970,29 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     function onXRSessionStart() {
       controlsEnabledBeforeXR = controls.enabled;
       controls.enabled = false;
-      // Stand the player on the floor a few metres back from the characters
-      // (who cluster around z≈0), facing -Z — the headset's default forward.
-      playerRig.position.set(0, 0, 6.5);
+      // FIRST PERSON: the player *is* Patrick. Drop the rig onto Patrick's
+      // current floor position so the headset opens at his eyes, hide his
+      // avatar (you're inside him), and stop any pending click-to-move so the
+      // flat walk system doesn't drag him while the stick drives movement.
+      playerRig.position.set(playerRoot.position.x, 0, playerRoot.position.z);
       playerRig.rotation.set(0, 0, 0);
+      playerRoot.visible = false;
+      refs.targetPosition.copy(playerRoot.position);
+      // The DOM intro (pre-roll video + tap-through dialogue) is invisible and
+      // un-tappable inside an immersive session, and it gates all world input.
+      // Force it complete on VR entry so the player drops straight into play.
+      setIsIntroMovieDone(true);
+      setIsIntroComplete(true);
+      xrControls.startWakeUp();
       xrHud.group.visible = true;
     }
     function onXRSessionEnd() {
-      // Restore the flat-screen camera + rig so OrbitControls resumes exactly
-      // where it left off.
+      // Restore the flat-screen camera + rig + avatar so OrbitControls resumes
+      // exactly where it left off.
       playerRig.position.set(0, 0, 0);
       playerRig.rotation.set(0, 0, 0);
       camera.position.copy(flatCameraPosition);
+      playerRoot.visible = true;
       controls.enabled = controlsEnabledBeforeXR;
       xrHud.group.visible = false;
     }
@@ -1015,38 +1027,43 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
 
       const target = refs.targetPosition;
       const player = refs.playerRoot;
-      const distance = player.position.distanceTo(target);
-      if (distance > 0.035) {
-        const step = Math.min(distance, delta * 3.2);
-        nextPlayerPosition.copy(player.position).lerp(target, step / distance);
-        // Resolve collision BEFORE committing the new position. If the desired
-        // step would land inside an obstacle, the resolver slides Patrick along
-        // it; the original `target` stays put so he keeps trying to reach it
-        // from a different angle as the player moves the camera.
-        resolveCircleCollision(nextPlayerPosition, PLAYER_COLLISION_RADIUS, refs.colliders, ROOM_BOUNDS);
-        faceToward(player, target);
-        player.position.copy(nextPlayerPosition);
-        targetMarker.visible = true;
-        targetMarker.position.set(target.x, 0.04, target.z);
-        const nextTravelActionId: PatrickAnimationId = distance > 3.1 ? 'run' : 'walk';
-        desiredTravelActionId = nextTravelActionId;
-        if (currentPatrickActionId !== nextTravelActionId) {
-          ensureAndPlayPatrickAction(nextTravelActionId, 0.12);
-        }
-      } else {
-        targetMarker.visible = false;
-        if (desiredTravelActionId !== 'idle') {
-          desiredTravelActionId = 'idle';
-          ensureAndPlayPatrickAction('idle', 0.18);
-        }
-        // First idle frame after arrival — if the player clicked a hotspot
-        // to get here, rotate Patrick to face the NPC instead of leaving
-        // him pointing in his last travel direction (which is some
-        // tangential approach vector, not the conversation partner).
-        if (refs.playerArrivalFacing) {
-          arrivalFacingTarget.set(refs.playerArrivalFacing.x, 0, refs.playerArrivalFacing.z);
-          faceToward(player, arrivalFacingTarget);
-          refs.playerArrivalFacing = null;
+      // Flat-screen click-to-move. In VR this is suspended — the player is
+      // first-person and the controller sticks drive playerRoot directly (see
+      // xrControls.update below), so the walk-to-target lerp must not fight it.
+      if (!presenting) {
+        const distance = player.position.distanceTo(target);
+        if (distance > 0.035) {
+          const step = Math.min(distance, delta * 3.2);
+          nextPlayerPosition.copy(player.position).lerp(target, step / distance);
+          // Resolve collision BEFORE committing the new position. If the desired
+          // step would land inside an obstacle, the resolver slides Patrick along
+          // it; the original `target` stays put so he keeps trying to reach it
+          // from a different angle as the player moves the camera.
+          resolveCircleCollision(nextPlayerPosition, PLAYER_COLLISION_RADIUS, refs.colliders, ROOM_BOUNDS);
+          faceToward(player, target);
+          player.position.copy(nextPlayerPosition);
+          targetMarker.visible = true;
+          targetMarker.position.set(target.x, 0.04, target.z);
+          const nextTravelActionId: PatrickAnimationId = distance > 3.1 ? 'run' : 'walk';
+          desiredTravelActionId = nextTravelActionId;
+          if (currentPatrickActionId !== nextTravelActionId) {
+            ensureAndPlayPatrickAction(nextTravelActionId, 0.12);
+          }
+        } else {
+          targetMarker.visible = false;
+          if (desiredTravelActionId !== 'idle') {
+            desiredTravelActionId = 'idle';
+            ensureAndPlayPatrickAction('idle', 0.18);
+          }
+          // First idle frame after arrival — if the player clicked a hotspot
+          // to get here, rotate Patrick to face the NPC instead of leaving
+          // him pointing in his last travel direction (which is some
+          // tangential approach vector, not the conversation partner).
+          if (refs.playerArrivalFacing) {
+            arrivalFacingTarget.set(refs.playerArrivalFacing.x, 0, refs.playerArrivalFacing.z);
+            faceToward(player, arrivalFacingTarget);
+            refs.playerArrivalFacing = null;
+          }
         }
       }
       publishStage3DDevState({
@@ -1061,7 +1078,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       if (presenting) {
         // VR: process controller locomotion/turn, then render the scene
         // directly (headset owns the camera; no EffectComposer per-eye).
-        xrControls.update();
+        xrControls.update(delta);
         renderer.render(scene, camera);
         return;
       }
