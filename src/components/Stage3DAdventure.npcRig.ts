@@ -77,6 +77,7 @@ export async function attachRiggedNpcModelToHotspot(
   npcFacingTargets: Array<{ object: THREE.Object3D; parent: THREE.Object3D }>,
   npcControllers: Map<string, NpcAnimationController>,
   onLoadFailure: () => void,
+  onModelSettled: () => void = () => {},
 ) {
   const modelConfig = hotspot.model;
   if (!modelConfig) return;
@@ -116,6 +117,7 @@ export async function attachRiggedNpcModelToHotspot(
     model.rotation.y = modelConfig.rotationY ?? 0;
     model.updateMatrixWorld(true);
     npcFacingTargets.push({ object: model, parent: group });
+    onModelSettled();
 
     const mixer = new THREE.AnimationMixer(model);
     npcMixers.push(mixer);
@@ -178,6 +180,7 @@ export async function attachRiggedNpcModelToHotspot(
   } catch {
     if (!group.parent) return;
     onLoadFailure();
+    onModelSettled();
   }
 }
 

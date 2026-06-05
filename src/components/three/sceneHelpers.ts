@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
 export type RoomPalette = {
   floor: number;
@@ -65,6 +66,46 @@ export function addBox(
 ) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(...size),
+    createStandardMaterial(
+      color,
+      options.roughness,
+      options.metalness,
+      options.emissive ?? 0,
+      options.emissiveIntensity ?? 0,
+    ),
+  );
+  mesh.position.set(...position);
+  if (options.rotationY) mesh.rotation.y = options.rotationY;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  if (options.collider ?? autoCollider(size, position)) {
+    mesh.userData.collider = true;
+  }
+  group.add(mesh);
+  return mesh;
+}
+
+/** Like addBox but with softened edges — for props that read wrong as hard
+ *  cubes (counters, crates, signage frames, furniture). Slightly more verts
+ *  than a box; use for hero props, not for the dozens of tiny floor decals. */
+export function addRoundedBox(
+  group: THREE.Group,
+  size: [number, number, number],
+  position: [number, number, number],
+  color: number,
+  options: {
+    radius?: number;
+    roughness?: number;
+    metalness?: number;
+    emissive?: number;
+    emissiveIntensity?: number;
+    rotationY?: number;
+    collider?: boolean;
+  } = {},
+) {
+  const radius = options.radius ?? Math.min(0.08, Math.min(...size) * 0.25);
+  const mesh = new THREE.Mesh(
+    new RoundedBoxGeometry(size[0], size[1], size[2], 3, radius),
     createStandardMaterial(
       color,
       options.roughness,
@@ -256,16 +297,47 @@ export function addWallPanel(
   );
 }
 
+/** Mesh built from a caller-supplied material (e.g. a textured PBR material)
+ *  rather than a flat colour. Receives shadows; never casts (room surfaces). */
+function addSurface(
+  group: THREE.Group,
+  size: [number, number, number],
+  position: [number, number, number],
+  material: THREE.Material,
+  collider: boolean,
+) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
+  mesh.position.set(...position);
+  mesh.receiveShadow = true;
+  if (collider) mesh.userData.collider = true;
+  group.add(mesh);
+  return mesh;
+}
+
 export function addRoomShell(
   group: THREE.Group,
   palette: RoomPalette,
-  options: { floorTiles?: boolean; backWall?: boolean; sideWalls?: boolean; ceilingTrim?: boolean } = {},
+  options: {
+    floorTiles?: boolean;
+    backWall?: boolean;
+    sideWalls?: boolean;
+    ceilingTrim?: boolean;
+    /** Optional PBR material for the floor; falls back to the flat palette colour. */
+    floorMaterial?: THREE.Material;
+    /** Optional PBR material for the back + side walls; falls back to flat palette. */
+    wallMaterial?: THREE.Material;
+  } = {},
 ) {
   const { floorTiles = true, backWall = true, sideWalls = true, ceilingTrim = true } = options;
   // Floor (lies under PLAYER_FLOOR_LIP — auto-skipped, but be explicit for clarity)
-  addBox(group, [18, 0.1, 12], [0, -0.05, 0], palette.floor, { collider: false });
-  // Floor grid lines — pure decals
-  if (floorTiles) {
+  if (options.floorMaterial) {
+    addSurface(group, [18, 0.1, 12], [0, -0.05, 0], options.floorMaterial, false);
+  } else {
+    addBox(group, [18, 0.1, 12], [0, -0.05, 0], palette.floor, { collider: false });
+  }
+  // Floor grid lines — pure decals. Skipped when a floor texture carries the
+  // detail (drawing grid lines over marble slabs reads as a clashing grid).
+  if (floorTiles && !options.floorMaterial) {
     const lineColor = darken(palette.floor, 0.4);
     for (let x = -8; x <= 8; x += 2) {
       addBox(group, [0.025, 0.012, 11.7], [x, 0.018, 0], lineColor, { collider: false });
@@ -276,12 +348,21 @@ export function addRoomShell(
   }
   // Back wall — blocks
   if (backWall) {
-    addBox(group, [18, 5, 0.18], [0, 2.5, -6], palette.wall);
+    if (options.wallMaterial) {
+      addSurface(group, [18, 5, 0.18], [0, 2.5, -6], options.wallMaterial, true);
+    } else {
+      addBox(group, [18, 5, 0.18], [0, 2.5, -6], palette.wall);
+    }
   }
   // Side walls — block
   if (sideWalls) {
-    addBox(group, [0.18, 5, 12], [-9, 2.5, 0], palette.wall);
-    addBox(group, [0.18, 5, 12], [9, 2.5, 0], palette.wall);
+    if (options.wallMaterial) {
+      addSurface(group, [0.18, 5, 12], [-9, 2.5, 0], options.wallMaterial, true);
+      addSurface(group, [0.18, 5, 12], [9, 2.5, 0], options.wallMaterial, true);
+    } else {
+      addBox(group, [0.18, 5, 12], [-9, 2.5, 0], palette.wall);
+      addBox(group, [0.18, 5, 12], [9, 2.5, 0], palette.wall);
+    }
   }
   // Ceiling trim — decoratives
   if (ceilingTrim) {
@@ -299,6 +380,28 @@ export function addPottedPlant(group: THREE.Group, x: number, z: number) {
   addCylinder(group, 0.19, 1.15, [x, 0.85, z], 0x2f5f46, { segments: 10 });
   addBox(group, [0.72, 0.24, 0.18], [x + 0.18, 1.28, z], 0x4ade80);
   addBox(group, [0.2, 0.22, 0.72], [x - 0.16, 1.08, z + 0.08], 0x22c55e);
+  addContactShadow(group, x, z, 0.5, 0.55);
+}
+
+/** Layered low-poly tropical plant — a pot, trunk, and three offset foliage
+ *  spheres in jittered greens. Richer than addPottedPlant's two cylinders.
+ *  Drops a contact shadow so it sits on the floor. */
+export function addFoliage(group: THREE.Group, x: number, z: number, scale = 1) {
+  addCylinder(group, 0.3 * scale, 0.44 * scale, [x, 0.22 * scale, z], 0x7c4a2a, { segments: 12 });
+  addCylinder(group, 0.08 * scale, 0.9 * scale, [x, 0.85 * scale, z], 0x3f6d3a, {
+    segments: 8,
+    collider: false,
+  });
+  const greens = [0x2f7d4f, 0x39a05a, 0x4ade80];
+  const blobs: Array<[number, number, number, number]> = [
+    [x - 0.22 * scale, 1.25 * scale, z + 0.1 * scale, 0.4 * scale],
+    [x + 0.24 * scale, 1.35 * scale, z - 0.08 * scale, 0.44 * scale],
+    [x, 1.6 * scale, z + 0.05 * scale, 0.5 * scale],
+  ];
+  blobs.forEach(([bx, by, bz, r], i) => {
+    addSphere(group, r, [bx, by, bz], greens[i % greens.length], { collider: false });
+  });
+  addContactShadow(group, x, z, 0.5 * scale, 0.6);
 }
 
 export function addHangingLantern(group: THREE.Group, x: number, y: number, z: number, color: number) {
@@ -329,6 +432,7 @@ export function addHangingLantern(group: THREE.Group, x: number, y: number, z: n
 }
 
 export function addStreetLamp(group: THREE.Group, x: number, z: number, color = 0xfde68a) {
+  addContactShadow(group, x, z, 0.55, 0.5);
   // Pole
   addCylinder(group, 0.08, 3.6, [x, 1.8, z], 0x1f2937);
   // Arm
@@ -360,6 +464,7 @@ export function addStallCounter(
   topColor = 0xb45b35,
 ) {
   const [x, , z] = position;
+  addContactShadow(group, x, z, Math.max(width, 1.55) * 0.62, 0.5);
   addBox(group, [width, 0.95, 1.4], [x, 0.475, z], bodyColor);
   addBox(group, [width + 0.18, 0.16, 1.55], [x, 1.04, z], topColor);
   addBox(group, [width + 0.22, 0.06, 0.06], [x, 1.16, z + 0.74], 0xfbbf24, {
@@ -405,13 +510,57 @@ export function addLanternStringBetween(
   }
 }
 
+const MATERIAL_TEXTURE_FIELDS = [
+  'alphaMap',
+  'aoMap',
+  'bumpMap',
+  'clearcoatMap',
+  'clearcoatNormalMap',
+  'clearcoatRoughnessMap',
+  'displacementMap',
+  'emissiveMap',
+  'envMap',
+  'gradientMap',
+  'lightMap',
+  'map',
+  'metalnessMap',
+  'normalMap',
+  'roughnessMap',
+  'sheenColorMap',
+  'sheenRoughnessMap',
+  'specularColorMap',
+  'specularIntensityMap',
+] as const;
+
+const REUSABLE_TEXTURE_USER_DATA_KEY = 'sceneHelperReusableTexture';
+
+function markReusableTexture<TTexture extends THREE.Texture>(texture: TTexture): TTexture {
+  texture.userData[REUSABLE_TEXTURE_USER_DATA_KEY] = true;
+  return texture;
+}
+
+function shouldDisposeTexture(texture: THREE.Texture) {
+  return texture.userData[REUSABLE_TEXTURE_USER_DATA_KEY] !== true;
+}
+
+function disposeMaterial(material: THREE.Material) {
+  const textureOwner = material as unknown as Record<string, unknown>;
+  MATERIAL_TEXTURE_FIELDS.forEach((field) => {
+    const texture = textureOwner[field];
+    if (texture instanceof THREE.Texture && shouldDisposeTexture(texture)) {
+      texture.dispose();
+    }
+  });
+  material.dispose();
+}
+
 export function disposeObjectTree(root: THREE.Object3D) {
   root.traverse((object) => {
     const mesh = object as THREE.Mesh;
     mesh.geometry?.dispose?.();
     const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
-    if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
-    else material?.dispose?.();
+    if (Array.isArray(material)) material.forEach(disposeMaterial);
+    else if (material) disposeMaterial(material);
   });
 }
 
@@ -457,6 +606,100 @@ export function addParticleField(
   const points = new THREE.Points(geometry, material);
   group.add(points);
   return points;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Atmosphere helpers (sky dome + contact shadows)
+ *
+ * Both are pure visual grounding — neither blocks movement. The sky dome
+ * replaces the flat `scene.background` colour with a vertical two-tone
+ * gradient so the horizon behind the room reads with depth. Contact shadows
+ * drop a soft radial blob under props/characters so they sit on the floor
+ * instead of floating, independent of (and cheaper than) real shadow maps.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/** Large inward-facing gradient sphere. Cheap (no texture), renders behind
+ *  everything. Returns the mesh so the caller can dispose it on teardown. */
+export function addSkyDome(scene: THREE.Scene, topColor: number, bottomColor: number, radius = 60) {
+  const geometry = new THREE.SphereGeometry(radius, 24, 16);
+  const material = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    uniforms: {
+      topColor: { value: new THREE.Color(topColor) },
+      bottomColor: { value: new THREE.Color(bottomColor) },
+      offset: { value: radius * 0.18 },
+      exponent: { value: 0.7 },
+    },
+    vertexShader: `
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 topColor;
+      uniform vec3 bottomColor;
+      uniform float offset;
+      uniform float exponent;
+      varying vec3 vWorldPosition;
+      void main() {
+        float h = normalize(vWorldPosition + vec3(0.0, offset, 0.0)).y;
+        float t = pow(max(h, 0.0), exponent);
+        gl_FragColor = vec4(mix(bottomColor, topColor, t), 1.0);
+      }
+    `,
+  });
+  const dome = new THREE.Mesh(geometry, material);
+  dome.name = 'sky-dome';
+  scene.add(dome);
+  return dome;
+}
+
+let cachedContactShadowTexture: THREE.CanvasTexture | null = null;
+
+function getContactShadowTexture(): THREE.CanvasTexture | null {
+  if (cachedContactShadowTexture) return cachedContactShadowTexture;
+  if (typeof document === 'undefined') return null;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, 'rgba(0,0,0,0.55)');
+  gradient.addColorStop(0.55, 'rgba(0,0,0,0.22)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  cachedContactShadowTexture = markReusableTexture(texture);
+  return texture;
+}
+
+/** Soft radial blob laid flat on the floor under a prop/character. Never a
+ *  collider. `opacity` scales the whole blob; `radius` is the floor footprint. */
+export function addContactShadow(group: THREE.Group, x: number, z: number, radius = 0.6, opacity = 0.85) {
+  const texture = getContactShadowTexture();
+  if (!texture) return null;
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    fog: true,
+  });
+  const blob = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), material);
+  blob.rotation.x = -Math.PI / 2;
+  blob.position.set(x, 0.012, z);
+  blob.renderOrder = 1;
+  group.add(blob);
+  return blob;
 }
 
 export function addRiftPortal(group: THREE.Group, position: [number, number, number], radius = 1.4) {

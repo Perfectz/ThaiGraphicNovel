@@ -100,6 +100,7 @@ export function createHotspotObject(
   npcMixers: THREE.AnimationMixer[],
   npcFacingTargets: Array<{ object: THREE.Object3D; parent: THREE.Object3D }>,
   npcControllers: Map<string, NpcAnimationController>,
+  options: { onModelSettled?: () => void } = {},
 ) {
   const group = new THREE.Group();
   group.position.set(...hotspot.position);
@@ -149,6 +150,7 @@ export function createHotspotObject(
           addFallbackMarker(group, hotspot);
         }
       },
+      options.onModelSettled,
     );
   } else if (!addSpriteBillboard(textureLoader, group, hotspot)) {
     addFallbackMarker(group, hotspot);

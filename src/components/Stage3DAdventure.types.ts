@@ -2,6 +2,8 @@ import type * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { ColliderRect } from './three/collision';
 import type { PatrickAnimationId } from './three/patrickRig';
+import type { XRControlsHandle } from './three/xrControls';
+import type { XRHudHandle } from './three/xrHud';
 
 /**
  * Animation controller surface for any rigged NPC hosted by a hotspot. Each
@@ -25,6 +27,19 @@ export type NpcAnimationController = {
 export type SceneRefs = {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
+  /**
+   * The XR "player rig" / camera dolly. The camera is a child of this Group.
+   * In flat-screen mode the rig sits at the origin and OrbitControls drives the
+   * camera directly (so the rig is a transparent pass-through). When an XR
+   * session is presenting, OrbitControls is disabled, the headset drives the
+   * camera's local pose, and this rig is positioned/rotated to move the player
+   * through the room (teleport + snap-turn in Phase B).
+   */
+  playerRig: THREE.Group;
+  /** VR controllers + locomotion layer (null until the bootstrap effect runs). */
+  xrControls: XRControlsHandle | null;
+  /** In-world VR HUD panel (null until the bootstrap effect runs). */
+  xrHud: XRHudHandle | null;
   renderer: THREE.WebGLRenderer;
   controls: OrbitControls;
   floor: THREE.Mesh;

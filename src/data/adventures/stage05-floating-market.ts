@@ -1,14 +1,17 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import {
   addBox,
   addCylinder,
   addEmissiveBox,
+  addFoliage,
   addHangingLantern,
+  addLanternStringBetween,
   addParticleField,
   addPlane,
   addRoomShell,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
+import { makeWoodFloorMaterial } from '../../components/three/proceduralTextures';
 import { charmShopVendorReactions } from '../charmShopVendorReactions';
 import { lessonScenarios } from '../lessonScenarios';
 import type { AdventureRoom3D, AdventureSceneConfig, SceneAmbiance } from './types';
@@ -32,6 +35,16 @@ const charmShopPalette: RoomPalette = {
   trim: 0xfacc15,
   glow: 0xa855f7,
 };
+
+// Flat warm glow pool on the water surface — fakes a lantern reflection.
+function addReflection(group: THREE.Group, x: number, z: number, radius: number, color: number) {
+  const geo = new THREE.CircleGeometry(radius, 24);
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.16, depthWrite: false });
+  const m = new THREE.Mesh(geo, mat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, -0.01, z);
+  group.add(m);
+}
 
 function buildSilkStrip(group: THREE.Group, x: number, z: number, height: number, color: number) {
   addBox(group, [0.4, height, 0.04], [x, 1.4 + height / 2, z], color, {
@@ -98,11 +111,38 @@ function buildDockRoom(group: THREE.Group, palette: RoomPalette) {
   for (let i = 0; i < 5; i++) {
     const x = -6 + i * 3;
     addHangingLantern(group, x, 2.8, -2.0, i % 2 === 0 ? 0xfacc15 : 0xfb7185);
+    // Faint reflection of the awning lantern shimmering on the river
+    addReflection(group, x, 4.0, 1.3, i % 2 === 0 ? 0xfacc15 : 0xfb7185);
   }
+
+  // Extra lanterns strung out over the open water (signature beat)
+  addLanternStringBetween(group, -8, 8, 5.5, 3.4, 7, 0xfbbf24);
+  addHangingLantern(group, -6, 3.0, 2.8, 0xfb7185);
+  addHangingLantern(group, 0, 3.0, 3.4, 0xfacc15);
+  addHangingLantern(group, 6, 3.0, 2.8, 0xa855f7);
+
+  // Warm lantern reflection pools dancing on the river surface
+  const reflections: Array<[number, number, number, number]> = [
+    [-6, 5.5, 1.5, 0xfbbf24],
+    [-3, 6.4, 1.2, 0xfb7185],
+    [0, 5.6, 1.6, 0xfacc15],
+    [3, 6.6, 1.2, 0xfbbf24],
+    [6, 5.5, 1.5, 0xa855f7],
+    [-4.5, 3.0, 0.9, 0xfacc15],
+    [4.5, 3.0, 0.9, 0xfb7185],
+  ];
+  reflections.forEach(([x, z, r, c]) => addReflection(group, x, z, r, c));
+
+  // Foliage clusters on the dock for density (no colliders, off the walk paths)
+  addFoliage(group, -8.0, -1.6, 0.9);
+  addFoliage(group, -7.4, -3.6, 1.1);
+  addFoliage(group, 8.0, -1.6, 0.9);
+  addFoliage(group, 7.4, -3.6, 1.1);
+  addFoliage(group, -0.5, -4.6, 0.8);
 }
 
 function buildCharmShopRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: false });
+  addRoomShell(group, palette, { ceilingTrim: false, floorMaterial: makeWoodFloorMaterial(4, 5) });
   // Replace back wall with shelf-of-charms
   addBox(group, [18, 5, 0.18], [0, 2.5, -6], 0x4a2812);
   // Shelves

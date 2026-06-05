@@ -1,14 +1,20 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import {
   addBox,
   addCylinder,
   addEmissiveBox,
+  addFoliage,
   addNeonSign,
   addParticleField,
   addRoomShell,
+  addRoundedBox,
   addStreetLamp,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
+import {
+  makeConcreteMaterial,
+  makeBrickWallMaterial,
+} from '../../components/three/proceduralTextures';
 import { rescueGuideReactions } from '../rescueGuideReactions';
 import { lessonScenarios } from '../lessonScenarios';
 import type { AdventureRoom3D, AdventureSceneConfig, SceneAmbiance } from './types';
@@ -33,8 +39,21 @@ const mainStreetPalette: RoomPalette = {
   glow: 0x22d3ee,
 };
 
+function addPuddle(group: THREE.Group, x: number, z: number, radius: number, color: number, opacity = 0.18) {
+  const geo = new THREE.CircleGeometry(radius, 24);
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
+  const m = new THREE.Mesh(geo, mat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, 0.02, z);
+  group.add(m);
+}
+
 function buildAlleyRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: false });
+  addRoomShell(group, palette, {
+    ceilingTrim: false,
+    floorMaterial: makeConcreteMaterial(0x4a4742, 5, 5),
+    wallMaterial: makeBrickWallMaterial(0x5c3a30, 3, 2),
+  });
   // Replace the side walls with taller building silhouettes
   addBox(group, [0.4, 6, 12], [-9, 3, 0], 0x0b0712);
   addBox(group, [0.4, 6, 12], [9, 3, 0], 0x0b0712);
@@ -77,12 +96,55 @@ function buildAlleyRoom(group: THREE.Group, palette: RoomPalette) {
   addBox(group, [0.8, 1.6, 0.6], [6.8, 0.8, 2.4], 0xb91c1c, { emissive: 0xb91c1c, emissiveIntensity: 0.5 });
   addEmissiveBox(group, [0.6, 0.18, 0.06], [6.8, 1.5, 2.05], 0xfde047, 1.1);
 
+  // --- Signature beat: dominant magenta neon key source on the right wall ---
+  const NEON = 0xec4899;
+  addBox(group, [0.18, 3.0, 1.4], [8.6, 2.6, -1.6], 0x0b0712);
+  addNeonSign(group, [8.42, 3.0, -1.6], [0.6, 2.4], NEON, 0.22);
+  // Faint neon halo cast on the wall behind the sign
+  addEmissiveBox(group, [0.06, 3.4, 1.9], [8.55, 2.6, -1.6], NEON, 0.4);
+
+  // Puddle glows reflecting the neon down the alley floor
+  addPuddle(group, 5.6, -1.4, 1.1, NEON, 0.2);
+  addPuddle(group, 2.4, 0.6, 0.8, NEON, 0.16);
+  addPuddle(group, -1.2, -2.2, 0.95, NEON, 0.18);
+  addPuddle(group, -3.4, 2.4, 0.7, 0x22d3ee, 0.14);
+  addPuddle(group, 0.4, 3.6, 0.85, NEON, 0.16);
+  addPuddle(group, 4.0, 2.8, 0.55, 0x22d3ee, 0.14);
+
+  // --- Alley clutter for density + claustrophobia (against walls) ---
+  // Stacked crates in the back-left corner
+  addRoundedBox(group, [0.9, 0.9, 0.9], [-7.4, 0.45, -4.4], 0x6b4f2a, { radius: 0.05, roughness: 0.9, collider: true });
+  addRoundedBox(group, [0.8, 0.8, 0.8], [-7.5, 1.3, -4.5], 0x7c5a30, { radius: 0.05, roughness: 0.9, collider: true });
+  addRoundedBox(group, [0.85, 0.85, 0.85], [-6.5, 0.43, -4.6], 0x5e4524, { radius: 0.05, roughness: 0.9, collider: true });
+  // Dumpster on the right wall
+  addRoundedBox(group, [1.4, 1.1, 0.9], [7.6, 0.55, 3.6], 0x1f3a2e, { radius: 0.06, roughness: 0.7, metalness: 0.3, collider: true });
+  addBox(group, [1.45, 0.1, 0.95], [7.6, 1.12, 3.6], 0x14271d);
+  // Crates near the dead-end wall (kept clear of the central path)
+  addRoundedBox(group, [0.8, 0.8, 0.8], [-2.6, 0.4, -5.3], 0x6b4f2a, { radius: 0.05, roughness: 0.9, collider: true });
+  addRoundedBox(group, [0.7, 0.7, 0.7], [-2.7, 1.15, -5.35], 0x7c5a30, { radius: 0.05, roughness: 0.9, collider: true });
+
+  // Vertical drainage pipes running up the building walls
+  addCylinder(group, 0.08, 5.2, [-8.5, 2.6, 3.8], 0x4b5563, { metalness: 0.6, roughness: 0.4 });
+  addCylinder(group, 0.08, 5.2, [8.45, 2.6, -4.6], 0x4b5563, { metalness: 0.6, roughness: 0.4 });
+  // Horizontal pipe spanning low across the dead end
+  addCylinder(group, 0.06, 7.5, [0, 4.4, -5.6], 0x6b7280, { metalness: 0.6, roughness: 0.4, rotationZ: Math.PI / 2 });
+
+  // Weeds sprouting from cracks against the walls
+  addFoliage(group, -7.0, 4.0, 0.7);
+  addFoliage(group, 7.2, -3.2, 0.6);
+  addFoliage(group, -8.2, -1.0, 0.5);
+
   // Steam / mist particles
   addParticleField(group, 60, { x: [-8, 8], y: [0.5, 3.5], z: [-5, 4] }, 0xb6c6d6, 0.06);
 }
 
 function buildMainStreetRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: false, backWall: false });
+  addRoomShell(group, palette, {
+    ceilingTrim: false,
+    backWall: false,
+    floorMaterial: makeConcreteMaterial(0x4a4742, 5, 5),
+    wallMaterial: makeBrickWallMaterial(0x5c3a30, 3, 2),
+  });
   addBox(group, [18, 4.2, 0.4], [0, 2.1, -5.8], 0x07070d);
   // Storefronts
   for (let i = -3; i <= 3; i++) {

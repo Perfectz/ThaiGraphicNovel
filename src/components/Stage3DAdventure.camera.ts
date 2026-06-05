@@ -24,9 +24,9 @@ export function isPhoneLandscapeViewport(width: number, height: number) {
   return height < 520 && width > height;
 }
 
-export function getRoomHotspotFocus(room: AdventureRoom3D) {
+export function getRoomHotspotFocus(room: AdventureRoom3D, target = new THREE.Vector3()) {
   if (!room.hotspots.length) {
-    return new THREE.Vector3(room.patrickStart[0], 1.45, room.patrickStart[2]);
+    return target.set(room.patrickStart[0], 1.45, room.patrickStart[2]);
   }
 
   const sum = room.hotspots.reduce(
@@ -37,7 +37,7 @@ export function getRoomHotspotFocus(room: AdventureRoom3D) {
     },
     { x: 0, z: 0 },
   );
-  return new THREE.Vector3(sum.x / room.hotspots.length, 1.45, sum.z / room.hotspots.length);
+  return target.set(sum.x / room.hotspots.length, 1.45, sum.z / room.hotspots.length);
 }
 
 export function applyResponsiveCameraPreset(
@@ -113,15 +113,18 @@ export function getCameraAutoFollowTarget(
   playerPosition: THREE.Vector3,
   width: number,
   height: number,
+  target = new THREE.Vector3(),
 ) {
-  const hotspotFocus = getRoomHotspotFocus(room);
+  const hotspotFocus = getRoomHotspotFocus(room, target);
   const isPortraitPhone = isPhonePortraitViewport(width, height);
   const isLandscapePhone = isPhoneLandscapeViewport(width, height);
-  const target = isPortraitPhone
-    ? hotspotFocus.multiplyScalar(0.82).add(playerPosition.clone().multiplyScalar(0.18))
-    : isLandscapePhone
-      ? hotspotFocus.multiplyScalar(0.55).add(playerPosition.clone().multiplyScalar(0.45))
-      : playerPosition.clone().multiplyScalar(0.25);
+  if (isPortraitPhone) {
+    target.copy(hotspotFocus).multiplyScalar(0.82).addScaledVector(playerPosition, 0.18);
+  } else if (isLandscapePhone) {
+    target.copy(hotspotFocus).multiplyScalar(0.55).addScaledVector(playerPosition, 0.45);
+  } else {
+    target.copy(playerPosition).multiplyScalar(0.25);
+  }
   target.y = 1.45;
   return { target, isPortraitPhone, isLandscapePhone };
 }

@@ -1,15 +1,24 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import {
   addBox,
+  addContactShadow,
   addCylinder,
   addEmissiveBox,
+  addFoliage,
   addHangingLantern,
   addLanternStringBetween,
+  addNeonSign,
   addParticleField,
   addPlane,
   addRoomShell,
+  addRoundedBox,
+  addSphere,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
+import {
+  makeWoodFloorMaterial,
+  makeBrickWallMaterial,
+} from '../../components/three/proceduralTextures';
 import { cafeFriendReactions } from '../cafeFriendReactions';
 import { lessonScenarios } from '../lessonScenarios';
 import type { AdventureRoom3D, AdventureSceneConfig, SceneAmbiance } from './types';
@@ -34,8 +43,22 @@ const terracePalette: RoomPalette = {
   glow: 0xc084fc,
 };
 
+// Small inline warm pendant: thin cord + glowing bulb + point light
+function addWarmPendant(group: THREE.Group, x: number, z: number, ceilingY = 3.8, dropY = 2.5) {
+  const cordH = ceilingY - dropY;
+  addBox(group, [0.03, cordH, 0.03], [x, dropY + cordH / 2, z], 0x1c1208, { collider: false });
+  addSphere(group, 0.16, [x, dropY, z], 0xfcd34d, { emissive: 0xfcd34d, emissiveIntensity: 1.4 });
+  const light = new THREE.PointLight(0xfcd34d, 0.9, 6, 2);
+  light.position.set(x, dropY - 0.15, z);
+  group.add(light);
+}
+
 function buildCafeInterior(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: true });
+  addRoomShell(group, palette, {
+    ceilingTrim: true,
+    floorMaterial: makeWoodFloorMaterial(4, 5),
+    wallMaterial: makeBrickWallMaterial(0x8a5340, 3, 2),
+  });
   // Warm window light row on back wall
   addEmissiveBox(group, [12, 1.4, 0.04], [0, 2.4, -5.85], 0xfde68a, 1.0);
   for (let i = -5; i <= 5; i += 2.5) {
@@ -71,6 +94,38 @@ function buildCafeInterior(group: THREE.Group, palette: RoomPalette) {
 
   // Edison string light row
   addLanternStringBetween(group, -7, 7, -1.0, 3.4, 8, 0xfde68a);
+
+  // --- Signature beat: warm pendant lights over the counter ---
+  [-3.6, -2.0, -0.4].forEach((px) => addWarmPendant(group, px, -3.4, 3.9, 2.55));
+  // Pendants over the foreground tables too
+  [-4.5, 1.5].forEach((px) => addWarmPendant(group, px, 1.6, 3.6, 2.7));
+
+  // --- Signature beat: glowing amber menu board on the back wall ---
+  addEmissiveBox(group, [3.4, 1.6, 0.06], [4.6, 3.2, -5.82], 0xfbbf24, 0.9);
+  addBox(group, [3.6, 1.8, 0.04], [4.6, 3.2, -5.88], 0x1c1208, { collider: false });
+  addNeonSign(group, [4.6, 3.55, -5.78], [2.6, 0.18], 0xfff7ed, 0.12);
+  for (let i = 0; i < 3; i++) {
+    addBox(group, [2.4, 0.05, 0.02], [4.6, 3.05 - i * 0.32, -5.78], 0xfde68a, {
+      emissive: 0xfde68a,
+      emissiveIntensity: 0.5,
+      collider: false,
+    });
+  }
+
+  // --- Signature beat: steam wisps rising off the cups on the counter ---
+  addParticleField(group, 20, { x: [-1.4, 0.0], y: [1.3, 2.4], z: [-3.55, -3.25] }, 0xfff7ed, 0.04);
+
+  // Extra café props for density
+  // Bar stools tucked under the espresso bar lip (off the walk route)
+  [-3.6, -2.4, -1.2, 0.0].forEach((sx) => {
+    addCylinder(group, 0.05, 0.95, [sx, 0.475, -2.55], 0x2c1808, { segments: 10 });
+    addRoundedBox(group, [0.42, 0.12, 0.42], [sx, 0.98, -2.55], 0x6b3f1b, { radius: 0.06 });
+  });
+  // Corner reading nook against the right wall
+  addRoundedBox(group, [1.0, 0.5, 1.0], [5.4, 0.25, 3.2], 0x7c3f24, { radius: 0.1 });
+  addFoliage(group, 5.6, 3.6, 1.3);
+  addFoliage(group, -5.8, -2.0, 1.0);
+  addContactShadow(group, 5.4, 3.2, 0.7, 0.7);
 
   // Soft ambient particles (steam)
   addParticleField(group, 30, { x: [-4, 4], y: [1.4, 3.0], z: [-3.5, 0] }, 0xf3f4f6, 0.05);

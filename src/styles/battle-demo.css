@@ -278,6 +278,24 @@
 
 /* ── Damage numbers ────────────────────────────────────────────────── */
 
+/* Positioned zones that float damage text over the 3D battlers. The hero
+ * party stands on the left third of the stage, the boss on the right. */
+.bd-damage-zone {
+  position: absolute;
+  top: 14%;
+  height: 40%;
+  width: 32%;
+  pointer-events: none;
+}
+
+.bd-damage-zone--hero {
+  left: 6%;
+}
+
+.bd-damage-zone--enemy {
+  right: 6%;
+}
+
 .bd-damage {
   position: absolute;
   top: 12%;

@@ -9,6 +9,10 @@ import {
   addWallPanel,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
+import {
+  makeMarbleFloorMaterial,
+  makePlasterWallMaterial,
+} from '../../components/three/proceduralTextures';
 import { lessonScenarios } from '../lessonScenarios';
 import { stageOneConversationDeck } from '../stageOneSuVoiceLines';
 import { customPhraseCommand, phraseCommand } from './shared/phraseCommand';
@@ -64,7 +68,13 @@ const lobbyPalette: RoomPalette = {
 };
 
 function buildHotelLobbyRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: true });
+  // Polished veined-marble floor + mottled teal plaster walls — restores the
+  // textured art direction the original bespoke lobby had (see file header).
+  addRoomShell(group, palette, {
+    ceilingTrim: true,
+    floorMaterial: makeMarbleFloorMaterial(3, 2),
+    wallMaterial: makePlasterWallMaterial(palette.wall, 4, 1.5),
+  });
   addCeilingLights(group, palette, [-4.5, 0, 4.5], -2.3);
 
   // ---- Reception desk along the back wall -------------------------------

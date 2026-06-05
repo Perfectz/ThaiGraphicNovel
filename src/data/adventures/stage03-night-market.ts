@@ -13,6 +13,10 @@ import {
   addWok,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
+import {
+  makeConcreteMaterial,
+  makeBrickWallMaterial,
+} from '../../components/three/proceduralTextures';
 import { streetFoodVendorReactions } from '../streetFoodVendorReactions';
 import { lessonScenarios } from '../lessonScenarios';
 import type { AdventureRoom3D, AdventureSceneConfig, SceneAmbiance } from './types';
@@ -38,7 +42,11 @@ const cooklinePalette: RoomPalette = {
 };
 
 function buildStallsRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: false });
+  addRoomShell(group, palette, {
+    ceilingTrim: false,
+    floorMaterial: makeConcreteMaterial(0x6b6660, 5, 5),
+    wallMaterial: makeBrickWallMaterial(0x7a4636, 3, 2),
+  });
   // Night sky beyond the back wall (replace back wall with deep magenta gradient strip)
   addBox(group, [18, 5, 0.18], [0, 2.5, -6], 0x1a0b2e);
   addEmissiveBox(group, [18, 0.18, 0.05], [0, 0.18, -5.85], palette.glow, 0.6);
@@ -214,7 +222,11 @@ function buildStallsRoom(group: THREE.Group, palette: RoomPalette) {
 }
 
 function buildCooklineRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: false });
+  addRoomShell(group, palette, {
+    ceilingTrim: false,
+    floorMaterial: makeConcreteMaterial(0x6b6660, 5, 5),
+    wallMaterial: makeBrickWallMaterial(0x7a4636, 3, 2),
+  });
   addBox(group, [18, 5, 0.18], [0, 2.5, -6], 0x18101e);
   addCeilingLights(group, palette, [-4.5, 0, 4.5], -2.3);
 

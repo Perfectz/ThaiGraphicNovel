@@ -16,6 +16,11 @@ import {
   addRoomShell,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
+import {
+  makeMarbleFloorMaterial,
+  makePlasterWallMaterial,
+  makeTileFloorMaterial,
+} from '../../components/three/proceduralTextures';
 import { lessonScenarios } from '../lessonScenarios';
 import { customPhraseCommand, phraseCommand } from './shared/phraseCommand';
 import type {
@@ -139,7 +144,11 @@ function addChandelier(group: THREE.Group, x: number, z: number, bulbCount = 8) 
 }
 
 function buildLobbyRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: true });
+  addRoomShell(group, palette, {
+    ceilingTrim: true,
+    floorMaterial: makeMarbleFloorMaterial(3, 2),
+    wallMaterial: makePlasterWallMaterial(palette.wall, 4, 1.5),
+  });
   addRearWallBackdrop(group, lobbyBackgroundUrl);
   addCeilingLights(group, palette, [-4.5, 0, 4.5], -2.3);
   addChandelier(group, 0, -0.6);
@@ -207,7 +216,11 @@ function buildLobbyRoom(group: THREE.Group, palette: RoomPalette) {
 }
 
 function buildFrontDeskRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: true });
+  addRoomShell(group, palette, {
+    ceilingTrim: true,
+    floorMaterial: makeMarbleFloorMaterial(3, 2),
+    wallMaterial: makePlasterWallMaterial(palette.wall, 4, 1.5),
+  });
   addRearWallBackdrop(group, frontDeskBackgroundUrl);
   addCeilingLights(group, palette, [-4.5, 0, 4.5], -2.6);
   addChandelier(group, 0, 0.4, 10);
@@ -290,7 +303,11 @@ function buildFrontDeskRoom(group: THREE.Group, palette: RoomPalette) {
 }
 
 function buildBathroomRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: true });
+  addRoomShell(group, palette, {
+    ceilingTrim: true,
+    floorMaterial: makeTileFloorMaterial(0xe8eef0, 5, 4),
+    wallMaterial: makeTileFloorMaterial(0xeaf2f4, 5, 3),
+  });
   addRearWallBackdrop(group, bathroomBackgroundUrl);
   // Sky-blue ceiling lights — colder than the warm-gold ones elsewhere.
   addCeilingLights(group, palette, [-3.0, 0, 3.0], -2.6);

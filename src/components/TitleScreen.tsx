@@ -4,6 +4,14 @@ import { getScenarioByIndex } from '../domain/scenarioRules';
 import { TECH_DEMO_PLAYABLE_STAGE_COUNT } from '../data/techDemoConfig';
 import { getBrowserAdvisory } from '../services/browserCapabilities';
 import logoUrl from '../assets/branding/isekai-thai-quest-logo.svg';
+import {
+  GearIcon,
+  GridIcon,
+  InfoIcon,
+  PlayIcon,
+  SwordsIcon,
+  TargetIcon,
+} from './ui/TitleMenuIcons';
 
 // Three.js is the largest dependency in the app (~400kb). Lazy-loading it lets the
 // title screen's text/CTA paint in the first frame; the 3D scene streams in after.
@@ -86,23 +94,38 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
 
           {/* Action zone — primary CTA + nav row + status line */}
           <nav aria-label="Title menu" className="relative z-20 flex flex-col gap-3">
+            {/* Hero resume card — a returning player's primary action is to
+                continue, so surface the next stage by name instead of a bare
+                button. New players see the plain Start CTA in the row below. */}
+            {hasSavedGame && resumeScenario ? (
+              <button
+                type="button"
+                onClick={continueAdventure}
+                className="group flex w-full max-w-md items-center gap-4 rounded-lg border border-[#67E8F9]/40 bg-gradient-to-r from-[#67E8F9]/15 to-[#67E8F9]/5 p-4 text-left transition-colors duration-150 hover:border-[#67E8F9] hover:from-[#67E8F9]/25"
+              >
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#67E8F9] text-[#0A0A0B] transition-transform duration-150 group-hover:scale-105">
+                  <PlayIcon className="text-2xl" />
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="font-display text-[10px] font-bold uppercase tracking-[0.3em] text-[#67E8F9]">
+                    Resume · Stage {activeScenarioIndex + 1}
+                  </span>
+                  <span className="truncate font-display text-lg font-black uppercase tracking-tight text-[#F4F1EB]">
+                    {resumeScenario.title}
+                  </span>
+                </span>
+              </button>
+            ) : null}
             <div className="flex flex-wrap items-center gap-3">
-              {hasSavedGame ? (
-                <button
-                  type="button"
-                  onClick={continueAdventure}
-                  className="title-modern-button title-modern-button--primary group"
-                >
-                  <span className="title-modern-button__chevron">▶</span>
-                  <span>Continue</span>
-                </button>
-              ) : (
+              {hasSavedGame ? null : (
                 <button
                   type="button"
                   onClick={startAdventure}
                   className="title-modern-button title-modern-button--primary group"
                 >
-                  <span className="title-modern-button__chevron">▶</span>
+                  <span className="title-modern-button__chevron">
+                    <PlayIcon />
+                  </span>
                   <span>Start</span>
                 </button>
               )}
@@ -111,7 +134,7 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
                 onClick={openLevelSelect}
                 className="title-modern-button title-modern-button--ghost"
               >
-                <span aria-hidden="true">☷</span>
+                <GridIcon />
                 <span>Level Select</span>
               </button>
               <button
@@ -119,7 +142,7 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
                 onClick={onOpenSettings}
                 className="title-modern-button title-modern-button--ghost"
               >
-                <span aria-hidden="true">⚙</span>
+                <GearIcon />
                 <span>Settings</span>
               </button>
               {hasSavedGame ? (
@@ -136,7 +159,7 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
                 onClick={openAbout}
                 className="title-modern-button title-modern-button--ghost"
               >
-                <span aria-hidden="true">ⓘ</span>
+                <InfoIcon />
                 <span>About</span>
               </button>
               <button
@@ -147,7 +170,7 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
                 }}
                 className="title-modern-button title-modern-button--ghost"
               >
-                <span aria-hidden="true">⚔</span>
+                <SwordsIcon />
                 <span>Battle Demo</span>
               </button>
               {/* Microgames — WarioWare-style bonus mode for stages 1-3. Hard
@@ -160,15 +183,15 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
                 }}
                 className="title-modern-button title-modern-button--ghost"
               >
-                <span aria-hidden="true">🎯</span>
+                <TargetIcon />
                 <span>Microgames</span>
               </button>
             </div>
-            <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#F4F1EB]/55">
-              {resumeScenario
-                ? `Stage ${activeScenarioIndex + 1} · ${resumeScenario.title}`
-                : 'Chapter 1 · Chao Phraya Star Hotel'}
-            </p>
+            {resumeScenario ? null : (
+              <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#F4F1EB]/55">
+                Chapter 1 · Chao Phraya Star Hotel
+              </p>
+            )}
           </nav>
         </div>
 

@@ -4,11 +4,16 @@ import {
   addCeilingLights,
   addCylinder,
   addEmissiveBox,
+  addFoliage,
   addParticleField,
   addPottedPlant,
   addRoomShell,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
+import {
+  makeMarbleFloorMaterial,
+  makePlasterWallMaterial,
+} from '../../components/three/proceduralTextures';
 import { formalArchivistReactions } from '../formalArchivistReactions';
 import { lessonScenarios } from '../lessonScenarios';
 import type { AdventureRoom3D, AdventureSceneConfig, SceneAmbiance } from './types';
@@ -33,9 +38,46 @@ const archivePalette: RoomPalette = {
   glow: 0xfb923c,
 };
 
+const MARBLE = 0xe5e7eb;
+
+// Grand marble column with a base, shaft, and capital.
+function addMarbleColumn(group: THREE.Group, x: number, z: number) {
+  addBox(group, [1.0, 0.3, 1.0], [x, 0.15, z], 0xf3edd8, { collider: true });
+  addCylinder(group, 0.42, 4, [x, 2.15, z], MARBLE, { segments: 20, collider: true });
+  addBox(group, [1.0, 0.3, 1.0], [x, 4.3, z], 0xf3edd8);
+}
+
+// Hanging banner lit from below by a cool emissive uplight strip.
+function addLitBanner(group: THREE.Group, x: number, z: number, color: number, glow: number) {
+  addBox(group, [0.9, 3.4, 0.08], [x, 2.9, z], color, { roughness: 0.9 });
+  addBox(group, [1.05, 0.16, 0.16], [x, 4.7, z], 0xf3edd8);
+  addEmissiveBox(group, [1.0, 0.06, 0.3], [x, 0.06, z + 0.15], glow, 1.1);
+}
+
 function buildFoyerRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: true });
+  addRoomShell(group, palette, {
+    ceilingTrim: true,
+    floorMaterial: makeMarbleFloorMaterial(3, 2),
+    wallMaterial: makePlasterWallMaterial(palette.wall, 4, 1.5),
+  });
   addCeilingLights(group, palette, [-4.5, 0, 4.5], -2.3);
+
+  // Grand symmetric colonnade against both side walls
+  [-3.5, 0.5].forEach((z) => {
+    addMarbleColumn(group, -7.4, z);
+    addMarbleColumn(group, 7.4, z);
+  });
+
+  // Banners flanking the central seal, mirrored across X
+  addLitBanner(group, -3.4, -5.6, 0x7f1d1d, 0xfb923c);
+  addLitBanner(group, 3.4, -5.6, 0x1e3a8a, 0x60a5fa);
+
+  // Cool marble runner accent down the central axis
+  addBox(group, [2.4, 0.014, 9.0], [0, 0.036, -0.5], MARBLE, { roughness: 0.5 });
+
+  // Foliage planters flanking the entrance approach, mirrored
+  addFoliage(group, -4.6, 4.0, 1.1);
+  addFoliage(group, 4.6, 4.0, 1.1);
 
   // Marble checker floor accent
   for (let x = -8; x < 8; x += 2) {
@@ -94,7 +136,11 @@ function buildFoyerRoom(group: THREE.Group, palette: RoomPalette) {
 }
 
 function buildArchiveRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: true });
+  addRoomShell(group, palette, {
+    ceilingTrim: true,
+    floorMaterial: makeMarbleFloorMaterial(3, 2),
+    wallMaterial: makePlasterWallMaterial(palette.wall, 4, 1.5),
+  });
   // Atmospheric warm overhead light
   addCeilingLights(group, palette, [-4.5, 0, 4.5], -2.3);
   addEmissiveBox(group, [16, 0.12, 0.1], [0, 4.4, -5.85], 0xfb923c, 0.7);

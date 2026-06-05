@@ -3,12 +3,14 @@ import {
   addBox,
   addCylinder,
   addEmissiveBox,
+  addFoliage,
   addParticleField,
   addRoomShell,
   addSphere,
   addStreetLamp,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
+import { makeConcreteMaterial } from '../../components/three/proceduralTextures';
 import { taxiDriverReactions } from '../taxiDriverReactions';
 import { lessonScenarios } from '../lessonScenarios';
 import type { AdventureRoom3D, AdventureSceneConfig, SceneAmbiance } from './types';
@@ -64,6 +66,12 @@ function buildTaxi(group: THREE.Group, x: number, z: number, color: number, rota
   addEmissiveBox(carGroup, [0.12, 0.08, 0.06], [-0.4, 1.05, 0.0], 0xfde047, 1.2);
   // Roof TAXI sign
   addEmissiveBox(carGroup, [0.5, 0.12, 0.22], [-0.1, 1.22, 0], 0xfde047, 1.4);
+  // Rear tail-lights (the body's local +x faces forward, so -x is the tail)
+  addEmissiveBox(carGroup, [0.05, 0.12, 0.16], [-1.2, 0.6, 0.42], 0xef4444, 1.8);
+  addEmissiveBox(carGroup, [0.05, 0.12, 0.16], [-1.2, 0.6, -0.42], 0xef4444, 1.8);
+  // Headlight wash
+  addEmissiveBox(carGroup, [0.05, 0.1, 0.16], [1.2, 0.5, 0.4], 0xfef9c3, 1.4);
+  addEmissiveBox(carGroup, [0.05, 0.1, 0.16], [1.2, 0.5, -0.4], 0xfef9c3, 1.4);
   return carGroup;
 }
 
@@ -97,10 +105,33 @@ function buildTukTuk(group: THREE.Group, x: number, z: number, color: number) {
   addCylinder(carGroup, 0.2, 0.16, [1.15, 0.2, 0], 0x0b0712, { segments: 18, rotationZ: Math.PI / 2 });
   // Glow strip
   addEmissiveBox(carGroup, [1.4, 0.04, 0.06], [0, 1.32, 0.65], 0xa855f7, 1.0);
+  // Rear tail-lights (rear is local -x)
+  addEmissiveBox(carGroup, [0.05, 0.14, 0.16], [-0.82, 0.5, 0.45], 0xfb7185, 1.8);
+  addEmissiveBox(carGroup, [0.05, 0.14, 0.16], [-0.82, 0.5, -0.45], 0xfb7185, 1.8);
+}
+
+/** Warm faded glow pool laid flat on the asphalt under a lamp/sign. Reads as a
+ *  light cast on wet tarmac once bloom hits it. Never a collider. */
+function addLightPool(group: THREE.Group, x: number, z: number, radius: number, color: number) {
+  const geo = new THREE.CircleGeometry(radius, 32);
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false,
+  });
+  const pool = new THREE.Mesh(geo, mat);
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.set(x, 0.02, z);
+  group.add(pool);
 }
 
 function buildCurbRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: false, backWall: false });
+  addRoomShell(group, palette, {
+    ceilingTrim: false,
+    backWall: false,
+    floorMaterial: makeConcreteMaterial(0x1c1c22, 6, 6),
+  });
   // Replace back wall with a low building silhouette + sky
   addBox(group, [18, 4.2, 0.4], [0, 2.1, -5.8], 0x0a0a13);
   // Storefront glow row
@@ -121,9 +152,17 @@ function buildCurbRoom(group: THREE.Group, palette: RoomPalette) {
   // A parked taxi
   buildTaxi(group, -1.2, -2.4, 0xf97316, 0);
 
-  // Street lamp anchors
+  // Street lamp anchors + warm pools on the wet asphalt below them
   addStreetLamp(group, -7, 1.8, 0xfde047);
   addStreetLamp(group, 7, 1.8, 0xfde047);
+  addLightPool(group, -7, 2.85, 2.2, 0xfde047);
+  addLightPool(group, 7, 2.85, 2.2, 0xfde047);
+  // Tail-light wash pooling behind the parked taxi
+  addLightPool(group, -2.6, -2.4, 1.1, 0xef4444);
+
+  // Roadside greenery softening the curb
+  addFoliage(group, -5.6, 2.6, 0.9);
+  addFoliage(group, 4.8, 2.6, 0.8);
 
   // Phone booth / call stand (small)
   addBox(group, [0.7, 1.4, 0.7], [6.4, 0.7, 2.4], 0x0e7490, { emissive: 0x0e7490, emissiveIntensity: 0.3 });
@@ -134,7 +173,11 @@ function buildCurbRoom(group: THREE.Group, palette: RoomPalette) {
 }
 
 function buildIntersectionRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: false, backWall: false });
+  addRoomShell(group, palette, {
+    ceilingTrim: false,
+    backWall: false,
+    floorMaterial: makeConcreteMaterial(0x1c1c22, 6, 6),
+  });
   addBox(group, [18, 4.2, 0.4], [0, 2.1, -5.8], 0x070710);
 
   // Traffic light pole
@@ -160,6 +203,11 @@ function buildIntersectionRoom(group: THREE.Group, palette: RoomPalette) {
 
   addStreetLamp(group, -7, 1.8, 0xfde047);
   addStreetLamp(group, 7, 1.8, 0xfde047);
+  addLightPool(group, -7, 2.85, 2.2, 0xfde047);
+  addLightPool(group, 7, 2.85, 2.2, 0xfde047);
+  // Tail-light pools behind the idling tuk-tuks
+  addLightPool(group, 2.4, -1.6, 1.0, 0xfb7185);
+  addLightPool(group, 4.6, -1.6, 1.0, 0x34d399);
 
   // Distant traffic lights as emissive dots
   for (let x = -6; x <= 6; x += 2) {

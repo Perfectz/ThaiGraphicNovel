@@ -22,16 +22,7 @@ import {
 } from '../services/realtimePronunciation';
 import { createWhisperPronunciationSession } from '../services/whisperPronunciation';
 import { Button, Chip, MicButton, StatBar, VerdictBadge } from './ui';
-
-// Real visual assets — Bangkok-rift temple gate background plus character
-// sprites and the Rift Guardian boss in 4 emotional states.
-import battleBackgroundUrl from '../assets/backgrounds/rift-negotiation-temple-gate.png';
-import patrickSheetAUrl from '../assets/battle/spritesheets/patrick-isometric-a.png';
-import patrickSheetBUrl from '../assets/battle/spritesheets/patrick-isometric-b.png';
-import riftGuardianSheetAUrl from '../assets/battle/spritesheets/rift-guardian-isometric-a.png';
-import riftGuardianSheetBUrl from '../assets/battle/spritesheets/rift-guardian-isometric-b.png';
-import suSheetAUrl from '../assets/battle/spritesheets/su-isometric-a.png';
-import suSheetBUrl from '../assets/battle/spritesheets/su-isometric-b.png';
+import { BattleStage3D } from './BattleStage3D';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Type definitions
@@ -693,11 +684,9 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
   // Render
   // ─────────────────────────────────────────────────────────────────────
 
-  const showShake = state.hasShake;
-
   return (
     <main
-      className={`bd-stage ${showShake ? 'bd-stage--shake' : ''} relative h-dvh w-screen overflow-hidden text-paper`}
+      className="bd-stage relative h-dvh w-screen overflow-hidden text-paper"
       aria-label="Phantasy Star 4 style battle demo"
     >
       {/* Top chrome: title + exit */}
@@ -727,55 +716,28 @@ export function PhantasyBattleDemo({ onExit }: PhantasyBattleDemoProps) {
         <BattleBanner name="Defeat" subtitle="Su pulls you back from the Rift." accent="ember" />
       ) : null}
 
-      {/* Background image + rift glow */}
-      <div
-        className="bd-stage__bg"
-        style={{ backgroundImage: `url(${battleBackgroundUrl})` }}
-        aria-hidden="true"
+      {/* 3D battle stage — temple gate arena with rigged heroes + boss */}
+      <BattleStage3D
+        heroCasting={state.hero.isCasting}
+        heroHurt={state.hero.isHurt}
+        heroDown={state.phase === 'defeat'}
+        heroVictory={state.phase === 'victory'}
+        suCasting={pendingVoiceTechnique?.kind === 'heal' || pendingVoiceTechnique?.kind === 'defend'}
+        suDown={state.phase === 'defeat'}
+        enemyHurt={state.enemy.isHurt}
+        enemyCasting={state.enemy.isCasting}
+        enemyDown={state.enemy.isDefeated || state.phase === 'victory'}
+        vfx={state.vfx}
+        hasShake={state.hasShake}
       />
-      <div className="bd-stage__rift" aria-hidden="true" />
 
-      {/* Battlefield */}
+      {/* Battlefield HUD overlay (canvas renders behind this) */}
       <section className="bd-layout absolute inset-0 z-10 grid grid-rows-[1fr_auto]">
-        <div className="bd-field relative grid grid-cols-[1.1fr_1fr] items-end gap-4 px-4 pb-4 pt-24 sm:px-12 sm:pt-28">
-          {/* Hero side (left) — Patrick from back + Su as ally */}
-          <div className="relative flex items-end justify-center gap-6">
-            <BattlerSprite
-              variant="hero"
-              sheetAUrl={patrickSheetAUrl}
-              sheetBUrl={patrickSheetBUrl}
-              alt="Patrick from behind, facing the Rift Guardian"
-              isHurt={state.hero.isHurt}
-              isCasting={state.hero.isCasting}
-              isDown={state.phase === 'defeat'}
-              isActive={state.phase === 'commandSelect'}
-            />
-            <BattlerSprite
-              variant="ally"
-              sheetAUrl={suSheetAUrl}
-              sheetBUrl={suSheetBUrl}
-              alt="Su, gesturing in support"
-              isHurt={false}
-              isCasting={pendingVoiceTechnique?.kind === 'heal' || pendingVoiceTechnique?.kind === 'defend'}
-              isDown={state.phase === 'defeat'}
-            />
-            {/* Hero VFX layer (for heals / on-self buffs) */}
-            <VfxOverlay vfx={state.vfx.filter((v) => v.target === 'hero')} />
+        <div className="bd-field pointer-events-none relative">
+          <div className="bd-damage-zone bd-damage-zone--hero">
             <DamageStack damageNumbers={state.damageNumbers.filter((d) => d.target === 'hero')} />
           </div>
-
-          {/* Enemy side (right) */}
-          <div className="relative flex items-end justify-center">
-            <BattlerSprite
-              variant="enemy"
-              sheetAUrl={riftGuardianSheetAUrl}
-              sheetBUrl={riftGuardianSheetBUrl}
-              alt="The Rift Guardian, a regal opponent"
-              isHurt={state.enemy.isHurt}
-              isCasting={state.enemy.isCasting}
-              isDown={state.enemy.isDefeated || state.phase === 'victory'}
-            />
-            <VfxOverlay vfx={state.vfx.filter((v) => v.target === 'enemy')} />
+          <div className="bd-damage-zone bd-damage-zone--enemy">
             <DamageStack damageNumbers={state.damageNumbers.filter((d) => d.target === 'enemy')} />
           </div>
         </div>
@@ -913,83 +875,6 @@ function BattleBanner({
     <div className="bd-banner">
       <div className={`bd-banner__name ${colorClass}`}>{name}</div>
       <div className="bd-banner__sub">{subtitle}</div>
-    </div>
-  );
-}
-
-function BattlerSprite({
-  variant,
-  sheetAUrl,
-  sheetBUrl,
-  alt,
-  isHurt,
-  isCasting,
-  isDown,
-  isActive = false,
-}: {
-  variant: 'hero' | 'ally' | 'enemy';
-  sheetAUrl: string;
-  sheetBUrl: string;
-  alt: string;
-  isHurt: boolean;
-  isCasting: boolean;
-  isDown: boolean;
-  isActive?: boolean;
-}) {
-  const classes = [
-    'bd-battler',
-    `bd-battler--${variant}`,
-    isHurt ? 'bd-battler--hurt' : '',
-    isCasting ? 'bd-battler--cast' : '',
-    isDown ? 'bd-battler--down' : '',
-    isActive ? 'bd-battler--active' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  // Enemy sprites are roughly half-portraits; size them bigger to anchor the
-  // composition like a PS4 boss. Heroes are full-bodies so they need less.
-  const sizeStyle =
-    variant === 'enemy'
-      ? { width: 'clamp(8rem, 17vw, 13rem)', height: 'clamp(9rem, 19vw, 14.5rem)' }
-      : variant === 'ally'
-        ? { width: 'clamp(6rem, 13vw, 9rem)', height: 'clamp(6.75rem, 14.5vw, 10rem)' }
-        : { width: 'clamp(6rem, 13vw, 9rem)', height: 'clamp(8rem, 17vw, 12rem)' };
-  const activeSheetUrl = isCasting || isHurt || isDown ? sheetBUrl : sheetAUrl;
-  const sheetStateClass = isDown
-    ? 'bd-battler__sheet--down'
-    : isHurt
-      ? 'bd-battler__sheet--hurt'
-      : isCasting
-        ? 'bd-battler__sheet--cast'
-        : 'bd-battler__sheet--idle';
-
-  return (
-    <div className={classes} style={sizeStyle}>
-      <div className="bd-battler__aura" aria-hidden="true" />
-      <div
-        aria-label={alt}
-        role="img"
-        className={`bd-battler__sheet ${sheetStateClass}`}
-        style={{ backgroundImage: `url(${activeSheetUrl})` }}
-      />
-      <div className="bd-battler__shadow" aria-hidden="true" />
-    </div>
-  );
-}
-
-function VfxOverlay({ vfx }: { vfx: ActiveVfx[] }) {
-  return (
-    <div className="bd-vfx-layer" aria-hidden="true">
-      {vfx.map((v) => (
-        <div
-          key={v.id}
-          className={`bd-vfx-target bd-vfx-${v.element} ${v.techniqueId ? `bd-vfx-tech-${v.techniqueId}` : ''}`}
-        >
-          <span className="bd-vfx-glyph" />
-          <span className="bd-vfx-burst" />
-        </div>
-      ))}
     </div>
   );
 }

@@ -9,8 +9,11 @@ import {
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { disposeObjectTree } from './three/sceneHelpers';
-import { collectColliders, resolveCircleCollision, PLAYER_COLLISION_RADIUS } from './three/collision';
+import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
+import { addSkyDome, lighten } from './three/sceneHelpers';
+import { resolveCircleCollision, PLAYER_COLLISION_RADIUS } from './three/collision';
+import { createXRControls } from './three/xrControls';
+import { createXRHud, type XRHudSnapshot } from './three/xrHud';
 import { patrickAnimationSources, patrickModelAssetUrl, type PatrickAnimationId } from './three/patrickRig';
 import type {
   AdventureCommand,
@@ -50,7 +53,6 @@ import { useSoundSettings } from '../hooks/useSoundSettings';
 import type { SceneRefs } from './Stage3DAdventure.types';
 import { getDefaultNpcAnimationId } from './Stage3DAdventure.npcRig';
 import {
-  createHotspotObject,
   faceToward,
   formatInventoryList,
   getClickPriority,
@@ -67,11 +69,25 @@ import {
   applyResponsiveCameraPreset,
   createTwoShotCameraMove,
   getCameraAutoFollowTarget,
-  isPhoneLandscapeViewport,
-  isPhonePortraitViewport,
   ROOM_BOUNDS,
   type CinematicMove,
 } from './Stage3DAdventure.camera';
+import {
+  advanceCinematicCamera,
+  applyTrailerOrbitCamera,
+  configureShadowCaster,
+  configureStageRenderer,
+  createStagePostFX,
+  enableStageXR,
+  disposeMountedStageScene,
+  publishStage3DDevState,
+  readTrailerOrbitDebugConfig,
+  resolveTrailerOrbitCenter,
+  updateAnimatedRoomDecor,
+  type StagePostFX,
+  type TrailerOrbitDebugConfig,
+} from './Stage3DAdventure.runtime';
+import { rebuildAdventureRoom } from './Stage3DAdventure.rooms';
 
 const adventureVerbs: Array<{ id: AdventureVerb; label: string }> = [
   { id: 'look', label: 'Look' },
@@ -90,19 +106,12 @@ function readTrailerDebugFlags() {
   if (typeof window === 'undefined') {
     return {
       hideHud: false,
-      debugOrbit: null as { hotspotId: string; radius: number; speed: number } | null,
+      debugOrbit: null as TrailerOrbitDebugConfig | null,
     };
   }
   const params = new URLSearchParams(window.location.search);
   const hideHud = params.get('no-hud') === '1';
-  const orbitTarget = params.get('debug-orbit');
-  const debugOrbit = orbitTarget
-    ? {
-        hotspotId: orbitTarget,
-        radius: Number(params.get('orbit-radius') ?? '3.0'),
-        speed: Number(params.get('orbit-speed') ?? '0.4'),
-      }
-    : null;
+  const debugOrbit = readTrailerOrbitDebugConfig(params);
   return { hideHud, debugOrbit };
 }
 
@@ -128,6 +137,20 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   const roomRef = useRef<string>(config.rooms[0].id);
   const selectHotspotRef = useRef<(hotspot: AdventureHotspot3D) => void>(() => {});
   const moveToRef = useRef<(position: THREE.Vector3) => void>(() => {});
+  // --- VR (WebXR) HUD dispatch bridge ---
+  // The in-world VR HUD's controller-ray buttons call these refs, which always
+  // point at the latest-render closures of the same handlers the DOM HUD uses.
+  // No gameplay logic is duplicated — only routed to a 3D surface.
+  const vrSelectCommandRef = useRef<(verb: AdventureVerb) => void>(() => {});
+  const vrStartVoiceRef = useRef<() => void>(() => {});
+  const vrStopVoiceRef = useRef<() => void>(() => {});
+  const vrSkipRef = useRef<() => void>(() => {});
+  const vrConfirmNoMicRef = useRef<() => void>(() => {});
+  const vrConnectMicRef = useRef<() => void>(() => {});
+  const vrContinueRef = useRef<() => void>(() => {});
+  // Tracks whether the current HUD trigger-hold started a recording, so the
+  // release knows to stop it (hold-to-speak).
+  const vrRecordingRef = useRef(false);
   const stageIntroAudioRef = useRef<HTMLAudioElement | null>(null);
   const soundSettings = useSoundSettings();
   // Su's recorded VO for each conversation turn — plays her prompt then her
@@ -427,6 +450,10 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(config.ambiance.background);
     scene.fog = new THREE.Fog(config.ambiance.fogColor, config.ambiance.fogNear, config.ambiance.fogFar);
+    // Gradient sky dome behind the room — the flat background colour stays as
+    // the fog/clear colour, the dome adds a vertical two-tone so the horizon
+    // reads with depth. Sky top lifts toward the hemi sky colour.
+    addSkyDome(scene, lighten(config.ambiance.hemiSky, 0.15), config.ambiance.background);
 
     const camera = new THREE.PerspectiveCamera(52, mount.clientWidth / mount.clientHeight, 0.1, 80);
     // Stage 1 opens with Patrick rising on the left and Su waving on the right.
@@ -435,6 +462,17 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     // headroom to orbit and admire either character without snapping past the
     // soft polar/distance limits below.
     camera.position.set(-2.4, 2.7, 8.4);
+
+    // XR player rig (camera dolly). The camera lives inside this Group so that
+    // in VR the headset drives the camera's *local* pose while the rig is moved
+    // through the room (teleport / snap-turn, Phase B). The rig stays at the
+    // identity transform in flat-screen mode, so OrbitControls — which mutates
+    // the camera's local position/quaternion — behaves exactly as before
+    // (local space == world space when the parent is identity).
+    const playerRig = new THREE.Group();
+    playerRig.name = 'xr-player-rig';
+    scene.add(playerRig);
+    playerRig.add(camera);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -448,15 +486,25 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     //                         most displays, but cost keeps climbing)
     // The browser's reported devicePixelRatio is still the upper bound,
     // so a 1× display gets 1× regardless of our cap.
-    const caps = getBrowserCapabilities();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, caps.recommendedPixelRatio));
-    renderer.setSize(mount.clientWidth, mount.clientHeight);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
-    renderer.domElement.className = 'h-full w-full';
-    renderer.domElement.dataset.testid = 'stage-3d-adventure-canvas';
+    configureStageRenderer(renderer, mount);
+    enableStageXR(renderer);
     mount.appendChild(renderer.domElement);
+
+    // "Enter VR" button, appended into the mount div outside React's tree so
+    // React never re-renders over it. VRButton self-disables to "VR NOT
+    // SUPPORTED" when the browser/headset has no immersive-vr session, so it is
+    // inert and harmless on a normal desktop. Removed in the cleanup below.
+    const vrButton = VRButton.createButton(renderer);
+    vrButton.dataset.testid = 'stage-3d-vr-button';
+    // Lift it clear of the bottom HUD dock and sit it above all overlays so the
+    // "ENTER VR" affordance stays tappable on a headset-capable browser.
+    vrButton.style.bottom = 'auto';
+    vrButton.style.top = '0.75rem';
+    vrButton.style.left = 'auto';
+    vrButton.style.right = '7.5rem';
+    vrButton.style.transform = 'none';
+    vrButton.style.zIndex = '60';
+    mount.appendChild(vrButton);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enablePan = false;
@@ -481,16 +529,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     // freezes user camera input. The animate loop below overrides the
     // camera each frame to a circular path around that point.
     const orbitConfig = trailerFlags.debugOrbit;
-    const orbitCenter: THREE.Vector3 | null = (() => {
-      if (!orbitConfig) return null;
-      for (const room of config.rooms) {
-        const match = room.hotspots.find((h) => h.id === orbitConfig.hotspotId);
-        if (match) {
-          return new THREE.Vector3(match.position[0], 1.45, match.position[2]);
-        }
-      }
-      return null;
-    })();
+    const orbitCenter = resolveTrailerOrbitCenter(config, orbitConfig);
     if (orbitConfig && orbitCenter) {
       controls.enabled = false;
     }
@@ -505,7 +544,9 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     scene.add(hemi);
     const keyLight = new THREE.DirectionalLight(config.ambiance.keyColor, config.ambiance.keyIntensity * 1.2);
     keyLight.position.set(...config.ambiance.keyPosition);
+    configureShadowCaster(keyLight);
     scene.add(keyLight);
+    scene.add(keyLight.target);
     const rimLight = new THREE.PointLight(config.ambiance.rimColor, config.ambiance.rimIntensity, 14);
     rimLight.position.set(...config.ambiance.rimPosition);
     scene.add(rimLight);
@@ -525,6 +566,17 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     );
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
+
+    // Post-processing: bloom so the stages' emissives (neon, lanterns, woks,
+    // rift portal) glow. RenderPass holds scene+camera by reference, so room
+    // geometry added later still renders through the composer.
+    const postFx: StagePostFX = createStagePostFX(
+      renderer,
+      scene,
+      camera,
+      mount.clientWidth || window.innerWidth || 1,
+      mount.clientHeight || window.innerHeight || 1,
+    );
 
     let disposed = false;
     let mixer: THREE.AnimationMixer | null = null;
@@ -564,6 +616,9 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     const refs: SceneRefs = {
       scene,
       camera,
+      playerRig,
+      xrControls: null,
+      xrHud: null,
       renderer,
       controls,
       floor,
@@ -666,6 +721,12 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         const scale = size.y > 0 ? 1.85 / size.y : 1;
         model.scale.setScalar(scale);
         model.position.y = 0;
+        model.traverse((object) => {
+          if ((object as THREE.Mesh).isMesh) {
+            object.castShadow = true;
+            object.receiveShadow = true;
+          }
+        });
         playerRoot.add(model);
         mixer = new THREE.AnimationMixer(model);
         mixer.addEventListener('finished', (event) => {
@@ -769,28 +830,29 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     );
 
     function onResize() {
+      // While an XR session is presenting, the headset owns the framebuffer
+      // size and projection — touching renderer/composer/camera here would
+      // fight the WebXR manager. The flat canvas is resized again on exit.
+      if (renderer.xr.isPresenting) return;
       if (!mountRef.current) return;
       const width = mountRef.current.clientWidth;
       const height = mountRef.current.clientHeight;
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
+      postFx.setSize(width, height);
     }
 
-    function onPointerUp(event: PointerEvent) {
-      // Block all world clicks until the per-stage intro dialogue completes.
-      // Otherwise the player can stumble onto a hotspot or walk before they
-      // know what verb does what.
+    // Shared pick core: given a configured raycaster (built either from the 2D
+    // pointer in flat mode, or from a VR controller's world matrix), resolve a
+    // hotspot/floor hit and drive the existing select + walk-Patrick flow. This
+    // is the single source of truth for world interaction so the flat click
+    // path and the VR controller path stay in lockstep.
+    function handleWorldPick(raycaster: THREE.Raycaster) {
       if (!introInputUnlockedRef.current) return;
       requestStandUpIntro();
-      const rect = renderer.domElement.getBoundingClientRect();
-      refs.pointer.set(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        -(((event.clientY - rect.top) / rect.height) * 2 - 1),
-      );
-      refs.raycaster.setFromCamera(refs.pointer, camera);
       const hotspotObjects = Array.from(refs.objectsByHotspot.values());
-      const hotspotHit = refs.raycaster
+      const hotspotHit = raycaster
         .intersectObjects(hotspotObjects, true)
         .sort(
           (a, b) => getClickPriority(b.object) - getClickPriority(a.object) || a.distance - b.distance,
@@ -813,7 +875,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
           return;
         }
       }
-      const floorHit = refs.raycaster.intersectObject(floor)[0];
+      const floorHit = raycaster.intersectObject(floor)[0];
       if (floorHit) {
         moveToRef.current(new THREE.Vector3(floorHit.point.x, 0, floorHit.point.z));
         // Floor click — no NPC to face. Cancel any pending hotspot facing
@@ -822,47 +884,148 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       }
     }
 
+    function onPointerUp(event: PointerEvent) {
+      // Block all world clicks until the per-stage intro dialogue completes.
+      // Otherwise the player can stumble onto a hotspot or walk before they
+      // know what verb does what.
+      if (!introInputUnlockedRef.current) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      refs.pointer.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -(((event.clientY - rect.top) / rect.height) * 2 - 1),
+      );
+      refs.raycaster.setFromCamera(refs.pointer, camera);
+      handleWorldPick(refs.raycaster);
+    }
+
+    // In-world VR HUD panel — mirrors the React HUD state and floats in front
+    // of the player. Parented to the rig so it follows teleport/turn.
+    const xrHud = createXRHud();
+    playerRig.add(xrHud.group);
+    // Hidden on the flat screen — only shown while an immersive session presents
+    // (toggled in the session handlers below). Otherwise it would float in the
+    // world during normal desktop play.
+    xrHud.group.visible = false;
+    refs.xrHud = xrHud;
+
+    // A controller trigger first asks the HUD whether it hit a button; if so we
+    // route to the matching DOM handler (via the dispatch refs) instead of the
+    // world pick. Returns true when the press is consumed by the HUD.
+    function onUiSelectStart(raycaster: THREE.Raycaster): boolean {
+      const action = xrHud.hitTest(raycaster);
+      if (!action) return false;
+      switch (action.kind) {
+        case 'verb':
+          vrSelectCommandRef.current(action.verb as AdventureVerb);
+          break;
+        case 'record':
+          vrStartVoiceRef.current();
+          vrRecordingRef.current = true;
+          break;
+        case 'skip':
+          vrSkipRef.current();
+          break;
+        case 'confirm':
+          vrConfirmNoMicRef.current();
+          break;
+        case 'connectMic':
+          vrConnectMicRef.current();
+          break;
+        case 'continue':
+          vrContinueRef.current();
+          break;
+      }
+      return true;
+    }
+
+    function onUiSelectEnd() {
+      // Release of a hold-to-speak press stops the recording.
+      if (vrRecordingRef.current) {
+        vrRecordingRef.current = false;
+        vrStopVoiceRef.current();
+      }
+    }
+
+    // VR controllers + comfort locomotion. Inert until a session presents; the
+    // trigger reuses handleWorldPick (world) and onUiSelectStart (HUD) so VR
+    // interaction matches flat clicks.
+    const xrControls = createXRControls({
+      renderer,
+      playerRig,
+      camera,
+      floor,
+      onPick: handleWorldPick,
+      onUiSelectStart,
+      onUiSelectEnd,
+      roomBounds: ROOM_BOUNDS,
+    });
+    refs.xrControls = xrControls;
+
+    // --- WebXR session lifecycle ---
+    // The flat-screen camera pose is captured so it can be restored when the
+    // player exits VR (the headset mutates camera.position while presenting).
+    const flatCameraPosition = camera.position.clone();
+    let controlsEnabledBeforeXR = controls.enabled;
+    function onXRSessionStart() {
+      controlsEnabledBeforeXR = controls.enabled;
+      controls.enabled = false;
+      // Stand the player on the floor a few metres back from the characters
+      // (who cluster around z≈0), facing -Z — the headset's default forward.
+      playerRig.position.set(0, 0, 6.5);
+      playerRig.rotation.set(0, 0, 0);
+      xrHud.group.visible = true;
+    }
+    function onXRSessionEnd() {
+      // Restore the flat-screen camera + rig so OrbitControls resumes exactly
+      // where it left off.
+      playerRig.position.set(0, 0, 0);
+      playerRig.rotation.set(0, 0, 0);
+      camera.position.copy(flatCameraPosition);
+      controls.enabled = controlsEnabledBeforeXR;
+      xrHud.group.visible = false;
+    }
+    renderer.xr.addEventListener('sessionstart', onXRSessionStart);
+    renderer.xr.addEventListener('sessionend', onXRSessionEnd);
+
     let lastTime = performance.now();
-    let animationFrameId = 0;
+    const npcFacingTarget = new THREE.Vector3();
+    const nextPlayerPosition = new THREE.Vector3();
+    const arrivalFacingTarget = new THREE.Vector3();
+    const conversationTarget = new THREE.Vector3();
+    const cameraFollowTarget = new THREE.Vector3();
+
     function animate(now: number) {
       if (disposed) return;
+      // In an immersive XR session the headset owns the camera pose, so all the
+      // OrbitControls-driven camera logic below is suspended; only the world
+      // simulation (mixers, movement, decor) keeps running. EffectComposer
+      // post-processing can't render per-eye, so VR renders the scene directly.
+      const presenting = renderer.xr.isPresenting;
       const delta = Math.min(0.04, (now - lastTime) / 1000);
       lastTime = now;
       mixer?.update(delta);
       refs.npcMixers.forEach((npcMixer) => npcMixer.update(delta));
       refs.npcFacingTargets.forEach(({ object, parent }) => {
-        const localTarget = refs.playerRoot.position.clone();
-        parent.worldToLocal(localTarget);
-        faceToward(object, localTarget);
+        npcFacingTarget.copy(refs.playerRoot.position);
+        parent.worldToLocal(npcFacingTarget);
+        faceToward(object, npcFacingTarget);
       });
 
-      // Update any per-frame animated children (rift portals, lanterns, particles)
-      const elapsed = now / 1000;
-      refs.roomGroup.children.forEach((child) => {
-        if (child.userData.spin) {
-          child.rotation.y += delta * (child.userData.spin as number);
-        }
-        if (child.userData.bob) {
-          const amp = child.userData.bob as number;
-          child.position.y =
-            (child.userData.baseY as number) +
-            Math.sin(elapsed * 1.4 + (child.userData.phase as number)) * amp;
-        }
-      });
+      updateAnimatedRoomDecor(refs.animatedGroups, delta, now / 1000);
 
       const target = refs.targetPosition;
       const player = refs.playerRoot;
       const distance = player.position.distanceTo(target);
       if (distance > 0.035) {
         const step = Math.min(distance, delta * 3.2);
-        const next = player.position.clone().lerp(target, step / distance);
+        nextPlayerPosition.copy(player.position).lerp(target, step / distance);
         // Resolve collision BEFORE committing the new position. If the desired
         // step would land inside an obstacle, the resolver slides Patrick along
         // it; the original `target` stays put so he keeps trying to reach it
         // from a different angle as the player moves the camera.
-        resolveCircleCollision(next, PLAYER_COLLISION_RADIUS, refs.colliders, ROOM_BOUNDS);
+        resolveCircleCollision(nextPlayerPosition, PLAYER_COLLISION_RADIUS, refs.colliders, ROOM_BOUNDS);
         faceToward(player, target);
-        player.position.copy(next);
+        player.position.copy(nextPlayerPosition);
         targetMarker.visible = true;
         targetMarker.position.set(target.x, 0.04, target.z);
         const nextTravelActionId: PatrickAnimationId = distance > 3.1 ? 'run' : 'walk';
@@ -881,63 +1044,26 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         // him pointing in his last travel direction (which is some
         // tangential approach vector, not the conversation partner).
         if (refs.playerArrivalFacing) {
-          const facingTarget = new THREE.Vector3(refs.playerArrivalFacing.x, 0, refs.playerArrivalFacing.z);
-          faceToward(player, facingTarget);
+          arrivalFacingTarget.set(refs.playerArrivalFacing.x, 0, refs.playerArrivalFacing.z);
+          faceToward(player, arrivalFacingTarget);
           refs.playerArrivalFacing = null;
         }
       }
-      // Publish Patrick's live state every frame (including idle frames so
-      // the arrival-facing rotation is observable from the dev probe).
-      if (import.meta.env.DEV) {
-        (window as unknown as Record<string, unknown>).__patrickPos = {
-          x: player.position.x,
-          y: player.position.y,
-          z: player.position.z,
-          ry: player.rotation.y,
-          action: currentPatrickActionId,
-          standUpStarted: standUpIntroStartedRef.current,
-          colliders: refs.colliders.length,
-        };
-      }
-      if (import.meta.env.DEV) {
-        const projectScreen = (world: THREE.Vector3) => {
-          const ndc = world.clone().project(camera);
-          return { x: ndc.x, y: ndc.y };
-        };
-        const npcPositions: Record<string, unknown> = {};
-        refs.hotspotGroup.children.forEach((child) => {
-          const id = child.userData.hotspotId;
-          if (typeof id !== 'string') return;
-          const npcModel = child.children.find((c) => c.type === 'Group') ?? child;
-          npcPositions[id] = {
-            groupX: child.position.x,
-            groupZ: child.position.z,
-            modelX: npcModel.position.x,
-            modelZ: npcModel.position.z,
-            modelRy: npcModel.rotation.y,
-            ndc: projectScreen(new THREE.Vector3(child.position.x, 1.5, child.position.z)),
-            childTypes: child.children.map((c) => c.type).join(','),
-          };
-        });
-        (window as unknown as Record<string, unknown>).__sceneDebug = {
-          cameraPos: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
-          target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
-          viewport: {
-            width: renderer.domElement.clientWidth || window.innerWidth,
-            height: renderer.domElement.clientHeight || window.innerHeight,
-            portraitPhone: isPhonePortraitViewport(
-              renderer.domElement.clientWidth || window.innerWidth,
-              renderer.domElement.clientHeight || window.innerHeight,
-            ),
-            landscapePhone: isPhoneLandscapeViewport(
-              renderer.domElement.clientWidth || window.innerWidth,
-              renderer.domElement.clientHeight || window.innerHeight,
-            ),
-          },
-          cinematicActive: Boolean(cinematic),
-          patrickNdc: projectScreen(new THREE.Vector3(player.position.x, 1.5, player.position.z)),
-          npcs: npcPositions,
-        };
+      publishStage3DDevState({
+        refs,
+        camera,
+        controls,
+        renderer,
+        cinematicActive: Boolean(cinematic),
+        currentPatrickActionId,
+        standUpStarted: standUpIntroStartedRef.current,
+      });
+      if (presenting) {
+        // VR: process controller locomotion/turn, then render the scene
+        // directly (headset owns the camera; no EffectComposer per-eye).
+        xrControls.update();
+        renderer.render(scene, camera);
+        return;
       }
       if (orbitConfig && orbitCenter) {
         // Trailer beauty-orbit mode overrides all auto-follow. The camera
@@ -945,24 +1071,13 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         // chosen hotspot, looking at it the whole time. speed===0 freezes
         // the camera on its initial angle (used for locked-off beauty shots
         // like the lantern dust loop).
-        const angle = (now / 1000) * orbitConfig.speed;
-        camera.position.set(
-          orbitCenter.x + Math.cos(angle) * orbitConfig.radius,
-          orbitCenter.y + 0.55,
-          orbitCenter.z + Math.sin(angle) * orbitConfig.radius,
-        );
-        controls.target.copy(orbitCenter);
+        applyTrailerOrbitCamera(camera, controls, orbitCenter, orbitConfig, now);
       } else if (cinematic) {
         // Cinematic two-shot is in flight. Drive camera + target along the
         // pre-computed lerp; the auto-bias below is skipped so it doesn't
         // fight the motion. Ease-in-out cubic gives a film-style move that
         // settles smoothly on the framing.
-        const elapsed = now - cinematic.startTime;
-        const t = Math.min(1, elapsed / cinematic.duration);
-        const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-        camera.position.lerpVectors(cinematic.startPos, cinematic.endPos, eased);
-        controls.target.lerpVectors(cinematic.startTarget, cinematic.endTarget, eased);
-        if (t >= 1) cinematic = null;
+        cinematic = advanceCinematicCamera(camera, controls, cinematic, now);
       } else if (refs.conversationAnchor) {
         // Conversation is in progress — anchor the auto-bias to the midpoint
         // of Patrick and the NPC he's talking to, at chest height. Otherwise
@@ -971,7 +1086,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         // camera (which OrbitControls keeps positionally fixed and only
         // rotates) would end up pointing at empty space with both
         // characters skewed to one edge of the screen.
-        const conversationTarget = new THREE.Vector3(
+        conversationTarget.set(
           (player.position.x + refs.conversationAnchor.x) / 2,
           1.55,
           (player.position.z + refs.conversationAnchor.z) / 2,
@@ -989,38 +1104,35 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
           player.position,
           width,
           height,
+          cameraFollowTarget,
         );
         controls.target.lerp(target, isPortraitPhone || isLandscapePhone ? 0.035 : 0.022);
       }
       controls.update();
-      renderer.render(scene, camera);
-      animationFrameId = requestAnimationFrame(animate);
+      postFx.composer.render();
     }
 
     window.addEventListener('resize', onResize);
     renderer.domElement.addEventListener('pointerup', onPointerUp);
-    animationFrameId = requestAnimationFrame(animate);
+    // setAnimationLoop drives both the flat path and the XR path: the WebXR
+    // manager swaps the loop onto the headset's frame callback while presenting
+    // and back to rAF on exit, with no change needed here.
+    renderer.setAnimationLoop(animate);
 
     return () => {
       disposed = true;
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = 0;
-      }
+      renderer.setAnimationLoop(null);
+      renderer.xr.removeEventListener('sessionstart', onXRSessionStart);
+      renderer.xr.removeEventListener('sessionend', onXRSessionEnd);
       window.removeEventListener('resize', onResize);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
-      controls.dispose();
-      renderer.dispose();
-      scene.traverse((object) => {
-        const mesh = object as THREE.Mesh;
-        mesh.geometry?.dispose?.();
-        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
-        if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
-        else material?.dispose?.();
-      });
-      if (renderer.domElement.parentElement === mount) {
-        mount.removeChild(renderer.domElement);
+      if (vrButton.parentElement === mount) {
+        mount.removeChild(vrButton);
       }
+      xrControls.dispose();
+      playerRig.remove(xrHud.group);
+      xrHud.dispose();
+      disposeMountedStageScene({ scene, renderer, controls, mount, postFx });
       standUpIntroTriggerRef.current = null;
       sceneRefs.current = null;
     };
@@ -1028,78 +1140,70 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // --- Mirror the HUD-relevant React state into the in-world VR panel ---
+  // Builds a plain snapshot from the same state the DOM HUD renders and pushes
+  // it to the canvas-backed VR panel. Only redraws when a dependency changes,
+  // so it costs nothing on idle frames. No-op until the bootstrap effect has
+  // created refs.xrHud.
+  useEffect(() => {
+    const hud = sceneRefs.current?.xrHud;
+    if (!hud) return;
+    const promptActive = Boolean(activeCommand || activeConversation) && !stageComplete;
+    const micRow: XRHudSnapshot['micRow'] = !promptActive
+      ? 'none'
+      : voiceMode === 'no-mic'
+        ? 'confirm'
+        : !hasVoiceCoach
+          ? 'connect'
+          : 'record';
+    const snapshot: XRHudSnapshot = {
+      objective: message,
+      status: playbackCaption || voiceStatus,
+      selectedLabel: selectedHotspot?.label ?? null,
+      verbs: adventureVerbs.map((verb) => ({
+        id: verb.id,
+        label: verb.label,
+        enabled: Boolean(selectedHotspot?.commands[verb.id]),
+      })),
+      promptActive,
+      micRow,
+      recording: isRecording,
+      verdict: verdict ? `${verdict.pass ? '✓' : '✗'} ${verdict.feedback}` : null,
+      stageComplete,
+    };
+    hud.update(snapshot);
+  }, [
+    message,
+    playbackCaption,
+    voiceStatus,
+    selectedHotspot,
+    activeCommand,
+    activeConversation,
+    voiceMode,
+    hasVoiceCoach,
+    isRecording,
+    verdict,
+    stageComplete,
+  ]);
+
   // --- Rebuild room geometry & hotspots when roomId changes ---
   useEffect(() => {
     const refs = sceneRefs.current;
     if (!refs) return;
     const currentRoom = config.rooms.find((entry) => entry.id === roomId) ?? config.rooms[0];
-    disposeObjectTree(refs.roomGroup);
-    refs.roomGroup.clear();
-    disposeObjectTree(refs.hotspotGroup);
-    refs.hotspotGroup.clear();
-    refs.npcMixers.length = 0;
-    refs.npcFacingTargets.length = 0;
-    refs.npcControllers.clear();
-    refs.objectsByHotspot.clear();
-
-    currentRoom.build(refs.roomGroup, currentRoom.palette);
-    // Geometry is in place — flip the milestone so the load overlay
+    const rebuiltRoom = rebuildAdventureRoom({
+      refs,
+      room: currentRoom,
+      defaultAmbiance: config.ambiance,
+      isCurrent: (rebuiltRoomId) => sceneRefs.current === refs && roomRef.current === rebuiltRoomId,
+    });
+    // Geometry and hotspots are in place - flip the milestone so the load overlay
     // checklist crosses off "Building room" and the overlay can hide
     // once the min-display timer also elapses.
     setRoomBuilt(true);
 
-    const textureLoader = new THREE.TextureLoader();
-    currentRoom.hotspots.forEach((hotspot) => {
-      const object = createHotspotObject(
-        textureLoader,
-        new GLTFLoader(),
-        hotspot,
-        refs.npcMixers,
-        refs.npcFacingTargets,
-        refs.npcControllers,
-      );
-      refs.objectsByHotspot.set(hotspot.id, object);
-      refs.hotspotGroup.add(object);
-    });
-
-    // Collision: collect colliders from the freshly-built room + hotspots.
-    // NPC GLTF models load asynchronously, so re-collect a few times over the
-    // next couple of seconds — once an NPC's geometry resolves, its bounding
-    // box will appear and the synthetic placeholder rect (set on the hotspot
-    // root via colliderRadius) gets superseded by the real footprint on the
-    // next collection pass.
-    const recollect = () => {
-      const live = sceneRefs.current;
-      if (!live || live !== refs) return;
-      live.colliders = collectColliders([live.roomGroup, live.hotspotGroup]);
-    };
-    recollect();
-    const recollectTimers = [400, 1000, 2000, 3500].map((ms) => window.setTimeout(recollect, ms));
-
-    // Apply per-room ambiance overrides if any. Hoist `refs.scene.fog` into a
-    // local so the `instanceof Fog` narrowing actually applies to subsequent
-    // member access (TS won't re-narrow `refs.scene.fog` across statements).
-    const fog = refs.scene.fog;
-    if (currentRoom.ambianceOverride) {
-      const o = currentRoom.ambianceOverride;
-      if (typeof o.background === 'number') refs.scene.background = new THREE.Color(o.background);
-      if (fog instanceof THREE.Fog) {
-        if (typeof o.fogColor === 'number') fog.color = new THREE.Color(o.fogColor);
-        if (typeof o.fogNear === 'number') fog.near = o.fogNear;
-        if (typeof o.fogFar === 'number') fog.far = o.fogFar;
-      }
-    } else {
-      // restore stage defaults
-      refs.scene.background = new THREE.Color(config.ambiance.background);
-      if (fog instanceof THREE.Fog) {
-        fog.color = new THREE.Color(config.ambiance.fogColor);
-        fog.near = config.ambiance.fogNear;
-        fog.far = config.ambiance.fogFar;
-      }
-    }
-
     return () => {
-      recollectTimers.forEach((id) => window.clearTimeout(id));
+      rebuiltRoom.dispose();
     };
   }, [roomId, config]);
 
@@ -1266,6 +1370,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     setSelectedHotspotId(null);
     setActiveCommand(null);
     setActiveConversation(null);
+    setIsHudMenuOpen(false);
     setReviewTurnIndex(null);
     setVerdict(null);
     setVoiceError('');
@@ -1297,6 +1402,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     setSelectedHotspotId(hotspot.id);
     setActiveCommand(null);
     setActiveConversation(null);
+    setIsHudMenuOpen(true);
     setReviewTurnIndex(null);
     setVerdict(null);
     setVoiceError('');
@@ -1700,6 +1806,22 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       if (loaded) refs.playPatrickAction('victory', 0.16);
     });
   }
+
+  // Re-point the VR HUD dispatch refs at the current-render closures every
+  // render, so a controller-ray button press runs the same handler the DOM HUD
+  // would — with the latest state captured. (Bridge pattern, like
+  // selectHotspotRef/moveToRef above.)
+  vrSelectCommandRef.current = selectCommand;
+  vrStartVoiceRef.current = () => {
+    // Mirror the pointer-capture press: yield Su's voice, then record.
+    stopSuPlayback();
+    startVoiceAttempt();
+  };
+  vrStopVoiceRef.current = stopVoiceAttempt;
+  vrSkipRef.current = skipActivePrompt;
+  vrConfirmNoMicRef.current = confirmNoMicPrompt;
+  vrConnectMicRef.current = () => void connectVoiceCoach();
+  vrContinueRef.current = () => onComplete?.();
 
   function advanceConversation(conversation: ActiveConversation) {
     const turns = conversation.command.conversation ?? [];

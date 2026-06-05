@@ -4,10 +4,16 @@ import {
   addCeilingLights,
   addCylinder,
   addEmissiveBox,
+  addFoliage,
   addParticleField,
+  addPottedPlant,
   addRoomShell,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
+import {
+  makePlasterWallMaterial,
+  makeTileFloorMaterial,
+} from '../../components/three/proceduralTextures';
 import { clinicPharmacistReactions } from '../clinicPharmacistReactions';
 import { lessonScenarios } from '../lessonScenarios';
 import type { AdventureRoom3D, AdventureSceneConfig, SceneAmbiance } from './types';
@@ -33,7 +39,11 @@ const counterPalette: RoomPalette = {
 };
 
 function buildWaitingRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: true });
+  addRoomShell(group, palette, {
+    ceilingTrim: true,
+    floorMaterial: makeTileFloorMaterial(0xeef3f4, 5, 4),
+    wallMaterial: makePlasterWallMaterial(palette.wall, 4, 1.5),
+  });
   addCeilingLights(group, palette, [-5, -1.5, 2, 5.5], -2.3);
   addCeilingLights(group, palette, [-5, -1.5, 2, 5.5], 1);
 
@@ -65,10 +75,37 @@ function buildWaitingRoom(group: THREE.Group, palette: RoomPalette) {
   // Hand sanitizer station
   addCylinder(group, 0.16, 0.7, [5.8, 0.35, -1.8], 0xf1f5f9, { segments: 16 });
   addEmissiveBox(group, [0.18, 0.06, 0.18], [5.8, 0.72, -1.8], 0x60a5fa, 0.9);
+
+  // Cool fluorescent ceiling strips — the clinical light source
+  for (let i = -1; i <= 1; i++) {
+    addEmissiveBox(group, [3.4, 0.08, 0.32], [i * 4.2, 4.0, -2.0], 0xdbeafe, 1.0);
+    addEmissiveBox(group, [3.4, 0.08, 0.32], [i * 4.2, 4.0, 2.0], 0xdbeafe, 1.0);
+  }
+
+  // Warm rift glow leaking into the far corner — contrast to cool clinic light
+  addEmissiveBox(group, [0.5, 2.4, 0.5], [-6.6, 1.4, -5.4], 0xd946ef, 1.4);
+  addCylinder(group, 0.5, 0.04, [-6.4, 0.05, -5.2], 0xa855f7, {
+    segments: 20,
+    emissive: 0xa855f7,
+    emissiveIntensity: 0.9,
+  });
+
+  // Storage cabinet against the side wall
+  addBox(group, [1.0, 1.9, 0.6], [6.6, 0.95, -3.8], 0xe2e8f0);
+  addBox(group, [1.04, 0.06, 0.64], [6.6, 1.95, -3.8], 0xf8fafc);
+  addEmissiveBox(group, [0.5, 0.05, 0.12], [6.6, 1.4, -3.5], 0x22d3ee, 0.8);
+
+  // Softer planted corner
+  addPottedPlant(group, -6.4, 3.6);
+  addFoliage(group, 6.4, 3.6, 0.9);
 }
 
 function buildCounterRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, { ceilingTrim: true });
+  addRoomShell(group, palette, {
+    ceilingTrim: true,
+    floorMaterial: makeTileFloorMaterial(0xeef3f4, 5, 4),
+    wallMaterial: makePlasterWallMaterial(palette.wall, 4, 1.5),
+  });
   addCeilingLights(group, palette, [-4.5, 0, 4.5], -2.3);
 
   // Pharmacy counter
@@ -115,6 +152,32 @@ function buildCounterRoom(group: THREE.Group, palette: RoomPalette) {
     emissiveIntensity: 0.5,
   });
   addBox(group, [0.4, 0.6, 0.1], [3.6, 1.4, 2.4], 0xf8fafc);
+
+  // Cool fluorescent ceiling strips — clinical light
+  for (let i = -1; i <= 1; i++) {
+    addEmissiveBox(group, [3.6, 0.08, 0.34], [i * 4.4, 4.0, -1.0], 0xdbeafe, 1.0);
+    addEmissiveBox(group, [3.6, 0.08, 0.34], [i * 4.4, 4.0, 2.4], 0xdbeafe, 1.0);
+  }
+
+  // Warm rift glow in the corner contrasting the cool light
+  addEmissiveBox(group, [0.5, 2.6, 0.5], [6.6, 1.5, -5.4], 0xd946ef, 1.4);
+  addCylinder(group, 0.5, 0.04, [6.4, 0.05, -5.2], 0xa855f7, {
+    segments: 20,
+    emissive: 0xa855f7,
+    emissiveIntensity: 0.9,
+  });
+
+  // Supply cabinet against the right wall
+  addBox(group, [1.0, 1.8, 0.6], [6.6, 0.9, -3.6], 0xe2e8f0);
+  addBox(group, [1.04, 0.06, 0.64], [6.6, 1.85, -3.6], 0xf8fafc);
+  addEmissiveBox(group, [0.5, 0.05, 0.12], [6.6, 1.3, -3.3], 0x22d3ee, 0.8);
+
+  // Equipment monitor on the counter glowing cyan
+  addBox(group, [0.7, 0.5, 0.1], [4.0, 1.45, -3.2], 0x1e293b);
+  addEmissiveBox(group, [0.58, 0.38, 0.04], [4.0, 1.45, -3.14], 0x67e8f9, 0.9);
+
+  // Softer planted corner
+  addPottedPlant(group, -6.4, 3.4);
 
   addParticleField(group, 30, { x: [-6, 6], y: [2.5, 4.0], z: [-4, 1] }, 0xa7f3d0, 0.04);
 }

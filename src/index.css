@@ -1275,7 +1275,7 @@ canvas {
 
   .adventure-3d-load-overlay--hidden {
     opacity: 0;
-    transform: scale(1.04);
+    transform: scale(1);
     backdrop-filter: blur(0px);
     visibility: hidden;
   }
