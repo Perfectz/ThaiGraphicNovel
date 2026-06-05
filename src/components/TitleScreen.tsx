@@ -1,13 +1,13 @@
-import { lazy, Suspense, useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useActiveScenarioIndex, useHasSavedGame, useNavigationActions } from '../store/selectors';
 import { getScenarioByIndex } from '../domain/scenarioRules';
-import { TECH_DEMO_PLAYABLE_STAGE_COUNT } from '../data/techDemoConfig';
 import { getBrowserAdvisory } from '../services/browserCapabilities';
 import logoUrl from '../assets/branding/isekai-thai-quest-logo.svg';
 import {
   GearIcon,
   GridIcon,
   InfoIcon,
+  MoreIcon,
   PlayIcon,
   SwordsIcon,
   TargetIcon,
@@ -38,11 +38,39 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
   const { startAdventure, continueAdventure } = useNavigationActions();
   const [levelSelectOpen, setLevelSelectOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement | null>(null);
 
   const openLevelSelect = useCallback(() => setLevelSelectOpen(true), []);
   const closeLevelSelect = useCallback(() => setLevelSelectOpen(false), []);
   const openAbout = useCallback(() => setAboutOpen(true), []);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
+
+  // Secondary actions (About, Battle Demo, Microgames) live behind a single
+  // "More" disclosure so the title's primary flow stays to three buttons.
+  // Close it on outside-click or Escape so it never lingers over the scene.
+  useEffect(() => {
+    if (!moreOpen) return;
+    function handlePointer(event: MouseEvent) {
+      if (moreRef.current && !moreRef.current.contains(event.target as Node)) {
+        setMoreOpen(false);
+      }
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMoreOpen(false);
+    }
+    window.addEventListener('mousedown', handlePointer);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('mousedown', handlePointer);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [moreOpen]);
+
+  const goToRoute = useCallback((route: string) => {
+    const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+    window.location.href = `${basePath}${route}`;
+  }, []);
 
   const resumeScenario = hasSavedGame ? getScenarioByIndex(activeScenarioIndex) : null;
 
@@ -61,21 +89,11 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
           full width. */}
       <section className="relative z-10 mx-auto grid min-h-full w-full max-w-7xl grid-cols-1 items-center px-6 py-6 sm:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] sm:px-12 sm:py-8">
         <div className="relative z-10 flex min-w-0 flex-col gap-7">
-          {/* Eyebrow above the logo as a single typographic cluster.
-              The tech-demo chip sits beside the episode label so first-time
-              players see the scope ("3 stages, not 10") before they click
-              Start — sets the right expectation. */}
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-display text-[10px] font-bold uppercase tracking-[0.32em] text-[#67E8F9]">
-              Bangkok Rift · Episode 01
-            </p>
-            <span
-              className="rounded-full border border-[#67E8F9]/40 bg-[#67E8F9]/10 px-2.5 py-0.5 font-display text-[9px] font-bold uppercase tracking-[0.24em] text-[#67E8F9]"
-              title="This build ships the first 3 of 10 planned stages."
-            >
-              Tech demo · {TECH_DEMO_PLAYABLE_STAGE_COUNT} stages
-            </span>
-          </div>
+          {/* Eyebrow — one short orienting line. Scope ("3-stage demo") now
+              lives in the tagline, so the redundant tech-demo chip is gone. */}
+          <p className="font-display text-[10px] font-bold uppercase tracking-[0.32em] text-[#67E8F9]">
+            Bangkok Rift · Episode 01
+          </p>
 
           {/* Hero cluster — logo + tagline */}
           <div className="flex min-w-0 flex-col gap-5">
@@ -86,9 +104,8 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
               draggable={false}
             />
             <p className="max-w-lg text-base font-medium leading-relaxed text-[#F4F1EB]/85 sm:text-lg">
-              Patrick falls through a magic rift into Bangkok and learns survival Thai with Su, an AI tutor
-              princess. <span className="text-[#67E8F9]">3-stage demo, about 20 minutes.</span> Mic optional —
-              read &amp; tap mode included.
+              Learn survival Thai in Bangkok with Su, your AI tutor.{' '}
+              <span className="text-[#67E8F9]">3-stage demo, ~20 min.</span> Mic optional.
             </p>
           </div>
 
@@ -154,44 +171,59 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
                   New Game
                 </button>
               ) : null}
-              <button
-                type="button"
-                onClick={openAbout}
-                className="title-modern-button title-modern-button--ghost"
-              >
-                <InfoIcon />
-                <span>About</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-                  window.location.href = `${basePath}/battle-demo`;
-                }}
-                className="title-modern-button title-modern-button--ghost"
-              >
-                <SwordsIcon />
-                <span>Battle Demo</span>
-              </button>
-              {/* Microgames — WarioWare-style bonus mode for stages 1-3. Hard
-                  nav so the App's route detector mounts the hub on first paint. */}
-              <button
-                type="button"
-                onClick={() => {
-                  const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-                  window.location.href = `${basePath}/microgames`;
-                }}
-                className="title-modern-button title-modern-button--ghost"
-              >
-                <TargetIcon />
-                <span>Microgames</span>
-              </button>
+
+              {/* Secondary actions — About + the two bonus modes — tucked
+                  behind a single disclosure so the primary row stays short. */}
+              <div ref={moreRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen((open) => !open)}
+                  aria-haspopup="menu"
+                  aria-expanded={moreOpen}
+                  className="title-modern-button title-modern-button--ghost"
+                >
+                  <MoreIcon />
+                  <span>More</span>
+                </button>
+                {moreOpen ? (
+                  <div
+                    role="menu"
+                    className="absolute left-0 top-full z-30 mt-2 flex min-w-[12rem] flex-col gap-1 rounded-lg border border-[#3A3D44] bg-[#15171B]/95 p-1.5 shadow-2xl backdrop-blur-sm"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        openAbout();
+                      }}
+                      className="flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-[#F4F1EB]/85 transition hover:bg-[#67E8F9]/10 hover:text-[#67E8F9]"
+                    >
+                      <InfoIcon />
+                      <span>About</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => goToRoute('/battle-demo')}
+                      className="flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-[#F4F1EB]/85 transition hover:bg-[#67E8F9]/10 hover:text-[#67E8F9]"
+                    >
+                      <SwordsIcon />
+                      <span>Battle Demo</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => goToRoute('/microgames')}
+                      className="flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-[#F4F1EB]/85 transition hover:bg-[#67E8F9]/10 hover:text-[#67E8F9]"
+                    >
+                      <TargetIcon />
+                      <span>Microgames</span>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
-            {resumeScenario ? null : (
-              <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#F4F1EB]/55">
-                Chapter 1 · Chao Phraya Star Hotel
-              </p>
-            )}
           </nav>
         </div>
 

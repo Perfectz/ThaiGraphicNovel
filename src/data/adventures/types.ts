@@ -177,4 +177,28 @@ export type AdventureSceneConfig = {
    * to a generic "Bringing the scene online…".
    */
   loadingTagline?: string;
+  /**
+   * Optional HDRI (equirectangular `.exr`/`.hdr`) used as the scene's
+   * image-based lighting environment. When set, the runtime loads it through a
+   * PMREMGenerator and assigns `scene.environment`, so every PBR material
+   * (the GLB props + character rigs) picks up realistic reflections and
+   * ambient bounce. Does NOT touch `scene.background` — the flat colour + sky
+   * dome art direction stays intact. Stage 1 uses the "Royal Esplanade" hall
+   * HDRI to ground the marble/brass lobby.
+   */
+  environmentMapUrl?: string;
+  /**
+   * Multiplier on the environment map's contribution (`scene.environmentIntensity`).
+   * Defaults to 1. Lower it (e.g. 0.6) so IBL flatters the scene without
+   * washing out the authored per-stage key/rim lighting.
+   */
+  environmentIntensity?: number;
+  /**
+   * Per-stage UnrealBloom overrides. Omitted → the global defaults
+   * (strength 0.62 desktop / 0.45 low-end, threshold 0.85). Stage 1 raises the
+   * threshold and lowers the strength so the daylit lobby doesn't bloom-clip,
+   * while the night-market showpiece keeps the punchy global default.
+   */
+  bloomStrength?: number;
+  bloomThreshold?: number;
 };

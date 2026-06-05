@@ -129,6 +129,7 @@ export function createStagePostFX(
   camera: THREE.PerspectiveCamera,
   width: number,
   height: number,
+  bloomOverrides?: { strength?: number; threshold?: number },
 ): StagePostFX {
   const caps = getBrowserCapabilities();
   // The composer's default render target has no MSAA, so rendering through it
@@ -146,9 +147,9 @@ export function createStagePostFX(
 
   const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(width, height),
-    caps.isLowEndDevice ? 0.45 : 0.62, // strength
+    bloomOverrides?.strength ?? (caps.isLowEndDevice ? 0.45 : 0.62), // strength
     0.4, // radius
-    0.85, // luminance threshold — only bright emissives bloom
+    bloomOverrides?.threshold ?? 0.85, // luminance threshold — only bright emissives bloom
   );
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());

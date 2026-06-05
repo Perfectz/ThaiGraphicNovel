@@ -1,10 +1,14 @@
 # VR Wormhole Storyboard
 
-Visual board: [vr-wormhole-thai-quest-storyboard-v2.png](./vr-wormhole-thai-quest-storyboard-v2.png)
+Visual board: [vr-wormhole-thai-quest-storyboard-v4-game-style.png](./vr-wormhole-thai-quest-storyboard-v4-game-style.png)
+
+Model reference: [vr-wormhole-model-reference.png](./vr-wormhole-model-reference.png)
 
 ## Intent
 
 Create a VR-first wormhole sequence where the player feels carried alongside the game's Patrick and Su through time, memory, and space. Patrick is the bald player character in the red rift jacket, sunglasses, and goatee. Su is the main female AI tutor princess companion in the coral cyber-magic jacket. The portal should not read as a flat doorway ahead of the player. It should wrap the player in 360 degrees, with discoverable details above, below, beside, and behind.
+
+Art direction: match the current Thai Quest storyboard/key-art style: polished anime RPG game cinematics, saturated Bangkok fantasy color, crisp readable character silhouettes, and character designs derived from the shipped Patrick and Su 3D rigs. Avoid photorealism, parody/cartoon franchise styling, and gritty movie realism.
 
 ## Panels
 

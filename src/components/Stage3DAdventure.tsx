@@ -9,11 +9,14 @@ import {
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import { addSkyDome, lighten } from './three/sceneHelpers';
 import { resolveCircleCollision, PLAYER_COLLISION_RADIUS } from './three/collision';
 import { createXRControls } from './three/xrControls';
 import { createXRHud, type XRHudSnapshot } from './three/xrHud';
+import { createXRCinema } from './three/xrCinema';
+import { createXRMenu } from './three/xrMenu';
 import { patrickAnimationSources, patrickModelAssetUrl, type PatrickAnimationId } from './three/patrickRig';
 import type {
   AdventureCommand,
@@ -22,11 +25,16 @@ import type {
   AdventureVerb,
 } from '../data/adventures/types';
 import {
+  getTutoringLevel,
   getVoiceJudgeMode,
+  saveTutoringLevel,
   saveVoiceJudgeMode,
   VOICE_JUDGE_MODE_CHANGED_EVENT,
+  type TutoringLevel,
   type VoiceJudgeMode,
 } from '../services/openAiSettings';
+import { getSoundSettings, saveSoundSettings } from '../services/soundSettings';
+import { useGameStore } from '../store/gameStore';
 import {
   createPronunciationSession,
   type PronunciationPrompt,
@@ -148,11 +156,27 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   const vrConfirmNoMicRef = useRef<() => void>(() => {});
   const vrConnectMicRef = useRef<() => void>(() => {});
   const vrContinueRef = useRef<() => void>(() => {});
+  // Intro (VN) + menu bridges — same pattern, routed to the in-world panels.
+  const vrAdvanceIntroRef = useRef<() => void>(() => {});
+  const vrToggleMusicRef = useRef<() => void>(() => {});
+  const vrCycleVoiceRef = useRef<() => void>(() => {});
+  const vrCycleTutorRef = useRef<() => void>(() => {});
+  const vrReturnTitleRef = useRef<() => void>(() => {});
+  const vrSkipIntroMovieRef = useRef<() => void>(() => {});
   // Tracks whether the current HUD trigger-hold started a recording, so the
   // release knows to stop it (hold-to-speak).
   const vrRecordingRef = useRef(false);
+  // The live <video> element of the flat pre-roll, handed to the VR cinema
+  // screen so the headset can show the same playing footage.
+  const introVideoElRef = useRef<HTMLVideoElement | null>(null);
+  // In-VR UI bookkeeping read by the once-bound session/controller closures.
+  const menuOpenRef = useRef(false);
+  const xrPresentingRef = useRef(false);
+  const isIntroMovieActiveRef = useRef(false);
+  const syncXRSurfacesRef = useRef<() => void>(() => {});
   const stageIntroAudioRef = useRef<HTMLAudioElement | null>(null);
   const soundSettings = useSoundSettings();
+  const returnToTitle = useGameStore((state) => state.returnToTitle);
   // Su's recorded VO for each conversation turn — plays her prompt then her
   // coaching line in sequence. Each entry in stageOneConversationDeck is
   // keyed by the same phrase id used in the turn data, so the lookup below
@@ -252,6 +276,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   // line.
   const [playbackCaption, setPlaybackCaption] = useState('');
   const [voiceMode, setVoiceMode] = useState<VoiceJudgeMode>(() => getVoiceJudgeMode());
+  const [tutorLevel, setTutorLevel] = useState<TutoringLevel>(() => getTutoringLevel());
   const [verdict, setVerdict] = useState<PronunciationVerdict | null>(null);
   // Review mode — when set, the cue card + voice judge target a PRIOR turn
   // of the active conversation instead of the current one. Lets the player
@@ -305,6 +330,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   const hasIntroMovie = Boolean(config.introVideoUrl) && !getBrowserCapabilities().prefersReducedMotion;
   const [isIntroMovieDone, setIsIntroMovieDone] = useState(!hasIntroMovie);
   const isIntroMovieActive = hasIntroMovie && !isIntroMovieDone;
+  isIntroMovieActiveRef.current = isIntroMovieActive;
   const canShowIntroDialogue = isIntroMovieDone && sceneReady;
   const currentIntroLine = introLines[introIndex] ?? introLines[introLines.length - 1];
   const isFinalIntroLine = introIndex >= introLines.length - 1;
@@ -503,7 +529,10 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     vrButton.style.left = 'auto';
     vrButton.style.right = '7.5rem';
     vrButton.style.transform = 'none';
-    vrButton.style.zIndex = '60';
+    // Above the pre-roll overlay (z-80) so the player can put the headset on and
+    // tap "Enter VR" while the intro is still playing — the intro then continues
+    // on the in-world cinema screen instead of being skipped.
+    vrButton.style.zIndex = '90';
     mount.appendChild(vrButton);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -576,9 +605,44 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       camera,
       mount.clientWidth || window.innerWidth || 1,
       mount.clientHeight || window.innerHeight || 1,
+      { strength: config.bloomStrength, threshold: config.bloomThreshold },
     );
 
     let disposed = false;
+
+    // --- Image-based lighting (optional per-stage HDRI) --------------------
+    // When the stage config supplies an equirectangular .exr/.hdr, run it
+    // through a PMREMGenerator and assign it as `scene.environment` only — the
+    // flat background + sky dome art direction is left untouched. This gives
+    // the GLB props and character rigs real reflections + ambient bounce.
+    // The generated render target is disposed in the effect cleanup below.
+    let environmentRT: THREE.WebGLRenderTarget | null = null;
+    if (config.environmentMapUrl) {
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      pmrem.compileEquirectangularShader();
+      new EXRLoader().load(
+        config.environmentMapUrl,
+        (texture) => {
+          if (disposed) {
+            texture.dispose();
+            pmrem.dispose();
+            return;
+          }
+          texture.mapping = THREE.EquirectangularReflectionMapping;
+          environmentRT = pmrem.fromEquirectangular(texture);
+          scene.environment = environmentRT.texture;
+          scene.environmentIntensity = config.environmentIntensity ?? 1;
+          texture.dispose();
+          pmrem.dispose();
+        },
+        undefined,
+        (err) => {
+          console.warn('[Stage3DAdventure] HDRI environment load failed', err);
+          pmrem.dispose();
+        },
+      );
+    }
+
     let mixer: THREE.AnimationMixer | null = null;
     let modelRoot: THREE.Object3D | null = null;
     let currentAction: THREE.AnimationAction | null = null;
@@ -619,6 +683,8 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       playerRig,
       xrControls: null,
       xrHud: null,
+      xrCinema: null,
+      xrMenu: null,
       renderer,
       controls,
       floor,
@@ -908,10 +974,53 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     xrHud.group.visible = false;
     refs.xrHud = xrHud;
 
-    // A controller trigger first asks the HUD whether it hit a button; if so we
-    // route to the matching DOM handler (via the dispatch refs) instead of the
-    // world pick. Returns true when the press is consumed by the HUD.
+    // In-world VR menu — summoned over the HUD by the menu button or a face
+    // button. Hidden until opened.
+    const xrMenu = createXRMenu();
+    playerRig.add(xrMenu.group);
+    refs.xrMenu = xrMenu;
+
+    function setMenuOpen(open: boolean) {
+      menuOpenRef.current = open;
+      xrMenu.setOpen(open);
+    }
+
+    // A controller trigger first asks the active panel whether it hit a button;
+    // if so we route to the matching handler (via the dispatch refs) instead of
+    // the world pick. Returns true when the press is consumed by a panel.
     function onUiSelectStart(raycaster: THREE.Raycaster): boolean {
+      // While the pre-roll cinema is playing, any trigger skips it (and never
+      // falls through to a world pick behind the screen).
+      if (xrPresentingRef.current && isIntroMovieActiveRef.current) {
+        vrSkipIntroMovieRef.current();
+        return true;
+      }
+      // The menu is modal: while it's open it eats every trigger so a press on
+      // empty space can't fall through to a world pick behind it.
+      if (menuOpenRef.current) {
+        const menuAction = xrMenu.hitTest(raycaster);
+        if (menuAction) {
+          switch (menuAction.kind) {
+            case 'resume':
+              setMenuOpen(false);
+              break;
+            case 'toggleMusic':
+              vrToggleMusicRef.current();
+              break;
+            case 'cycleVoice':
+              vrCycleVoiceRef.current();
+              break;
+            case 'cycleTutor':
+              vrCycleTutorRef.current();
+              break;
+            case 'returnToTitle':
+              vrReturnTitleRef.current();
+              break;
+          }
+        }
+        return true;
+      }
+
       const action = xrHud.hitTest(raycaster);
       if (!action) return false;
       switch (action.kind) {
@@ -934,6 +1043,12 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         case 'continue':
           vrContinueRef.current();
           break;
+        case 'introNext':
+          vrAdvanceIntroRef.current();
+          break;
+        case 'openMenu':
+          setMenuOpen(true);
+          break;
       }
       return true;
     }
@@ -947,8 +1062,9 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     }
 
     // VR controllers + comfort locomotion. Inert until a session presents; the
-    // trigger reuses handleWorldPick (world) and onUiSelectStart (HUD) so VR
-    // interaction matches flat clicks.
+    // trigger reuses handleWorldPick (world) and onUiSelectStart (panel) so VR
+    // interaction matches flat clicks. Hover/select route to whichever panel is
+    // active — the menu when open, otherwise the HUD.
     const xrControls = createXRControls({
       renderer,
       playerRig,
@@ -957,6 +1073,13 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       onPick: handleWorldPick,
       onUiSelectStart,
       onUiSelectEnd,
+      onUiPeekHover: (raycaster) =>
+        menuOpenRef.current ? xrMenu.peekHover(raycaster) : xrHud.peekHover(raycaster),
+      onUiApplyHover: (raycaster) =>
+        menuOpenRef.current ? xrMenu.setHover(raycaster) : xrHud.setHover(raycaster),
+      onMenuToggle: () => setMenuOpen(!menuOpenRef.current),
+      // Freeze locomotion while the menu is open OR the pre-roll is playing.
+      isMenuOpen: () => menuOpenRef.current || (xrPresentingRef.current && isIntroMovieActiveRef.current),
       getColliders: () => refs.colliders,
       roomBounds: ROOM_BOUNDS,
     });
@@ -978,13 +1101,13 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       playerRig.rotation.set(0, 0, 0);
       playerRoot.visible = false;
       refs.targetPosition.copy(playerRoot.position);
-      // The DOM intro (pre-roll video + tap-through dialogue) is invisible and
-      // un-tappable inside an immersive session, and it gates all world input.
-      // Force it complete on VR entry so the player drops straight into play.
-      setIsIntroMovieDone(true);
-      setIsIntroComplete(true);
+      // The DOM intro is invisible in a session, but instead of force-skipping
+      // it we now mirror it into the world: the pre-roll plays on the cinema
+      // screen and the VN dialogue routes through the HUD panel. syncXRSurfaces
+      // shows the right surface for the current intro phase.
+      xrPresentingRef.current = true;
+      syncXRSurfacesRef.current();
       xrControls.startWakeUp();
-      xrHud.group.visible = true;
     }
     function onXRSessionEnd() {
       // Restore the flat-screen camera + rig + avatar so OrbitControls resumes
@@ -994,7 +1117,9 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       camera.position.copy(flatCameraPosition);
       playerRoot.visible = true;
       controls.enabled = controlsEnabledBeforeXR;
-      xrHud.group.visible = false;
+      xrPresentingRef.current = false;
+      setMenuOpen(false);
+      syncXRSurfacesRef.current();
     }
     renderer.xr.addEventListener('sessionstart', onXRSessionStart);
     renderer.xr.addEventListener('sessionend', onXRSessionEnd);
@@ -1149,6 +1274,16 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       xrControls.dispose();
       playerRig.remove(xrHud.group);
       xrHud.dispose();
+      playerRig.remove(xrMenu.group);
+      xrMenu.dispose();
+      if (refs.xrCinema) {
+        playerRig.remove(refs.xrCinema.group);
+        refs.xrCinema.dispose();
+        refs.xrCinema = null;
+      }
+      scene.environment = null;
+      environmentRT?.dispose();
+      environmentRT = null;
       disposeMountedStageScene({ scene, renderer, controls, mount, postFx });
       standUpIntroTriggerRef.current = null;
       sceneRefs.current = null;
@@ -1173,6 +1308,10 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         : !hasVoiceCoach
           ? 'connect'
           : 'record';
+    // While the per-stage VN intro is mid-flight, route it through the panel so
+    // the headset can read + advance it (the DOM DialoguePanel is invisible in
+    // a session). Takes priority over the verb/mic rows inside the painter.
+    const introActive = canShowIntroDialogue && !isIntroComplete && Boolean(currentIntroLine);
     const snapshot: XRHudSnapshot = {
       objective: message,
       status: playbackCaption || voiceStatus,
@@ -1187,6 +1326,9 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       recording: isRecording,
       verdict: verdict ? `${verdict.pass ? '✓' : '✗'} ${verdict.feedback}` : null,
       stageComplete,
+      intro: introActive
+        ? { speaker: currentIntroLine.speaker, line: currentIntroLine.text, canAdvance: true }
+        : null,
     };
     hud.update(snapshot);
   }, [
@@ -1201,7 +1343,23 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     isRecording,
     verdict,
     stageComplete,
+    canShowIntroDialogue,
+    isIntroComplete,
+    currentIntroLine,
   ]);
+
+  // Re-sync the VR surfaces (cinema vs HUD visibility) whenever the pre-roll
+  // transitions between playing and done.
+  useEffect(() => {
+    syncXRSurfacesRef.current();
+  }, [isIntroMovieActive]);
+
+  // Mirror the menu-relevant settings onto the in-world menu panel.
+  useEffect(() => {
+    const menu = sceneRefs.current?.xrMenu;
+    if (!menu) return;
+    menu.update({ musicEnabled: soundSettings.musicEnabled, voiceMode, tutorLevel });
+  }, [soundSettings.musicEnabled, voiceMode, tutorLevel]);
 
   // --- Rebuild room geometry & hotspots when roomId changes ---
   useEffect(() => {
@@ -1839,6 +1997,49 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   vrConfirmNoMicRef.current = confirmNoMicPrompt;
   vrConnectMicRef.current = () => void connectVoiceCoach();
   vrContinueRef.current = () => onComplete?.();
+  vrAdvanceIntroRef.current = () => advanceStageIntro();
+  vrToggleMusicRef.current = () => {
+    const current = getSoundSettings();
+    saveSoundSettings({ ...current, musicEnabled: !current.musicEnabled });
+  };
+  vrCycleVoiceRef.current = () => {
+    // VR keeps it to the two key-free modes; Realtime needs a pasted API key
+    // that there's no way to enter in-headset.
+    const next: VoiceJudgeMode = voiceMode === 'no-mic' ? 'whisper' : 'no-mic';
+    setVoiceMode(next);
+    saveVoiceJudgeMode(next);
+  };
+  vrCycleTutorRef.current = () => {
+    const order: TutoringLevel[] = ['easy', 'medium', 'hard'];
+    const next = order[(order.indexOf(tutorLevel) + 1) % order.length];
+    setTutorLevel(next);
+    saveTutoringLevel(next);
+  };
+  vrReturnTitleRef.current = () => {
+    void sceneRefs.current?.renderer.xr.getSession()?.end();
+    returnToTitle();
+  };
+  vrSkipIntroMovieRef.current = () => dismissIntroMovie();
+
+  // Keep a stable indirection to the latest surface-sync closure so the
+  // once-bound WebXR session handlers can call it with current state.
+  syncXRSurfacesRef.current = syncXRSurfaces;
+  function syncXRSurfaces() {
+    const refs = sceneRefs.current;
+    if (!refs) return;
+    const presenting = xrPresentingRef.current;
+    // Lazily build the cinema the first time the intro <video> exists.
+    if (isIntroMovieActive && introVideoElRef.current && !refs.xrCinema) {
+      const cinema = createXRCinema(introVideoElRef.current);
+      refs.playerRig.add(cinema.group);
+      refs.xrCinema = cinema;
+    }
+    // While the pre-roll plays, the cinema owns the view and the HUD hides so
+    // its near panel can't overlap the screen. Once the movie is done, the HUD
+    // takes over (and carries the VN intro line).
+    refs.xrCinema?.setVisible(presenting && isIntroMovieActive);
+    if (refs.xrHud) refs.xrHud.group.visible = presenting && !isIntroMovieActive;
+  }
 
   function advanceConversation(conversation: ActiveConversation) {
     const turns = conversation.command.conversation ?? [];
@@ -2406,6 +2607,9 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
             // rejected we still show a Skip button so the player never
             // gets stranded.
             ref={(element) => {
+              // Store the element so the VR cinema screen can sample the same
+              // playing footage via a VideoTexture.
+              introVideoElRef.current = element;
               if (!element) return;
               const promise = element.play();
               if (promise && typeof promise.catch === 'function') {

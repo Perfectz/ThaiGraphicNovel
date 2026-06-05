@@ -133,6 +133,8 @@ type SurfaceCanvases = {
   color: HTMLCanvasElement;
   roughness: HTMLCanvasElement;
   normal: HTMLCanvasElement | null;
+  /** Optional metalness map — only surfaces with real metal inlays set this. */
+  metal?: HTMLCanvasElement | null;
 };
 
 const canvasCache = new Map<string, SurfaceCanvases | null>();
@@ -236,6 +238,100 @@ function buildPlasterCanvases(tint: { r: number; g: number; b: number }): Surfac
   };
 }
 
+/**
+ * Crisp panelled wall: full-height vertical panels separated by a sharp
+ * recessed reveal with a thin polished brass inlay down the centre of each
+ * seam, over a fine vertical brushed grain. Unlike the soft plaster, every
+ * feature here is hard-edged, so the normal map gives the wall real, readable
+ * relief instead of a flat tinted card. Tiles seamlessly across U (the grain is
+ * constant along V, so vertical repeats never seam). `accent` is the brass tone.
+ */
+function buildPanelWallCanvases(
+  tint: { r: number; g: number; b: number },
+  accent: { r: number; g: number; b: number },
+): SurfaceCanvases | null {
+  const colorMade = makeCanvas();
+  const roughMade = makeCanvas();
+  const metalMade = makeCanvas();
+  if (!colorMade || !roughMade || !metalMade) return null;
+  // Two fixed lattice slices sampled at constant V give brushed streaks that
+  // run straight up the wall and tile horizontally.
+  const brushedA = periodicNoise(96, 24601);
+  const brushedB = periodicNoise(192, 13577);
+  const drift = periodicFbm(2718, [4, 8, 16]);
+  const colorData = colorMade.ctx.createImageData(TEXTURE_SIZE, TEXTURE_SIZE);
+  const roughData = roughMade.ctx.createImageData(TEXTURE_SIZE, TEXTURE_SIZE);
+  const metalData = metalMade.ctx.createImageData(TEXTURE_SIZE, TEXTURE_SIZE);
+  const height = new Float32Array(TEXTURE_SIZE * TEXTURE_SIZE);
+  const panels = 4; // vertical panels per texture tile
+  const grooveW = 0.022; // recessed reveal half-width, in panel units
+  const pinW = 0.006; // brass inlay half-width
+
+  for (let y = 0; y < TEXTURE_SIZE; y += 1) {
+    for (let x = 0; x < TEXTURE_SIZE; x += 1) {
+      const u = x / TEXTURE_SIZE;
+      const v = y / TEXTURE_SIZE;
+      const pf = u * panels;
+      const panel = Math.floor(pf);
+      const inPanel = pf - panel;
+      const edge = Math.min(inPanel, 1 - inPanel); // 0 at a seam, 0.5 mid-panel
+      const groove = 1 - smoothstep(Math.min(1, edge / grooveW));
+      const pin = 1 - smoothstep(Math.min(1, edge / pinW));
+
+      const brushed = brushedA(u, 0.5) * 0.6 + brushedB(u, 0.5) * 0.4;
+      const panelTone = (hash01(panel * 4.7) - 0.5) * 0.06;
+      const shade = 0.92 + (brushed - 0.5) * 0.16 + panelTone + (drift(u, v) - 0.5) * 0.06;
+
+      // Panel face → recess (darkened) → brass inlay at the very seam centre.
+      let r = tint.r * shade;
+      let g = tint.g * shade;
+      let b = tint.b * shade;
+      r = lerp(r, tint.r * 0.32, groove);
+      g = lerp(g, tint.g * 0.32, groove);
+      b = lerp(b, tint.b * 0.32, groove);
+      r = lerp(r, accent.r, pin);
+      g = lerp(g, accent.g, pin);
+      b = lerp(b, accent.b, pin);
+
+      const idx = (y * TEXTURE_SIZE + x) * 4;
+      colorData.data[idx] = Math.min(255, r);
+      colorData.data[idx + 1] = Math.min(255, g);
+      colorData.data[idx + 2] = Math.min(255, b);
+      colorData.data[idx + 3] = 255;
+
+      // Lacquered panel (semi-gloss) → matte recess → glossy brass inlay.
+      let rough = 0.5 + (brushed - 0.5) * 0.08;
+      rough = lerp(rough, 0.82, groove);
+      rough = lerp(rough, 0.26, pin);
+      const rv = Math.round(Math.max(0, Math.min(1, rough)) * 255);
+      roughData.data[idx] = rv;
+      roughData.data[idx + 1] = rv;
+      roughData.data[idx + 2] = rv;
+      roughData.data[idx + 3] = 255;
+
+      // Only the inlay is metallic, and only moderately so it still reads gold
+      // under the lobby's deliberately low environment lighting.
+      const mv = Math.round(pin * 0.6 * 255);
+      metalData.data[idx] = mv;
+      metalData.data[idx + 1] = mv;
+      metalData.data[idx + 2] = mv;
+      metalData.data[idx + 3] = 255;
+
+      // Panels proud, reveal recessed, inlay slightly raised → crisp relief.
+      height[y * TEXTURE_SIZE + x] = 1 - groove * 0.85 + pin * 0.4 + (brushed - 0.5) * 0.04;
+    }
+  }
+  colorMade.ctx.putImageData(colorData, 0, 0);
+  roughMade.ctx.putImageData(roughData, 0, 0);
+  metalMade.ctx.putImageData(metalData, 0, 0);
+  return {
+    color: colorMade.canvas,
+    roughness: roughMade.canvas,
+    normal: heightToNormalCanvas(height, 2.4),
+    metal: metalMade.canvas,
+  };
+}
+
 function getCached(key: string, build: () => SurfaceCanvases | null): SurfaceCanvases | null {
   if (canvasCache.has(key)) return canvasCache.get(key) ?? null;
   const built = build();
@@ -284,6 +380,45 @@ export function makePlasterWallMaterial(color: number, repeatX = 4, repeatY = 1.
   if (c.normal) {
     material.normalMap = toDataTexture(c.normal, repeatX, repeatY);
     material.normalScale.set(0.5, 0.5);
+  }
+  return material;
+}
+
+/**
+ * Crisp panelled wall tinted to `color`, with brass-inlay seams in `accent`.
+ * A sharper, more architectural alternative to `makePlasterWallMaterial` for
+ * formal interiors (hotel lobby, embassy). `repeatX` sets how many panel-sets
+ * span the wall; keep `repeatY` at 1 so panels read as full-height pilasters.
+ */
+export function makePaneledWallMaterial(
+  color: number,
+  accent = 0xd6a94d,
+  repeatX = 3,
+  repeatY = 1,
+): THREE.MeshStandardMaterial {
+  const tint = new THREE.Color(color);
+  const acc = new THREE.Color(accent);
+  const key = `panel-${color}-${accent}`;
+  const c = getCached(key, () =>
+    buildPanelWallCanvases(
+      { r: tint.r * 255, g: tint.g * 255, b: tint.b * 255 },
+      { r: acc.r * 255, g: acc.g * 255, b: acc.b * 255 },
+    ),
+  );
+  if (!c) return new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.05 });
+  const material = new THREE.MeshStandardMaterial({
+    map: toColorTexture(c.color, repeatX, repeatY),
+    roughnessMap: toDataTexture(c.roughness, repeatX, repeatY),
+    roughness: 1,
+    // metalness is driven by the map (0 on panels, ~0.6 on the brass inlay).
+    metalness: c.metal ? 1 : 0.05,
+  });
+  if (c.normal) {
+    material.normalMap = toDataTexture(c.normal, repeatX, repeatY);
+    material.normalScale.set(0.85, 0.85);
+  }
+  if (c.metal) {
+    material.metalnessMap = toDataTexture(c.metal, repeatX, repeatY);
   }
   return material;
 }

@@ -4,6 +4,8 @@ import type { ColliderRect } from './three/collision';
 import type { PatrickAnimationId } from './three/patrickRig';
 import type { XRControlsHandle } from './three/xrControls';
 import type { XRHudHandle } from './three/xrHud';
+import type { XRCinemaHandle } from './three/xrCinema';
+import type { XRMenuHandle } from './three/xrMenu';
 
 /**
  * Animation controller surface for any rigged NPC hosted by a hotspot. Each
@@ -40,6 +42,10 @@ export type SceneRefs = {
   xrControls: XRControlsHandle | null;
   /** In-world VR HUD panel (null until the bootstrap effect runs). */
   xrHud: XRHudHandle | null;
+  /** In-world VR pre-roll cinema screen (created lazily when the intro plays). */
+  xrCinema: XRCinemaHandle | null;
+  /** In-world VR menu panel (null until the bootstrap effect runs). */
+  xrMenu: XRMenuHandle | null;
   renderer: THREE.WebGLRenderer;
   controls: OrbitControls;
   floor: THREE.Mesh;

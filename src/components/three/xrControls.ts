@@ -74,11 +74,30 @@ type XRControlsOptions = {
   onUiSelectStart?: (raycaster: THREE.Raycaster) => boolean;
   /** Trigger released after a HUD press was consumed on the same controller. */
   onUiSelectEnd?: () => void;
+  /**
+   * Non-mutating test: is this ray currently over a pressable HUD button?
+   * Used per-frame to decide which controller (if any) owns HUD focus.
+   */
+  onUiPeekHover?: (raycaster: THREE.Raycaster) => boolean;
+  /**
+   * Apply HUD hover focus for the owning controller's ray each frame, or clear
+   * it with null when no ray is over the panel. The HUD repaints only on change.
+   */
+  onUiApplyHover?: (raycaster: THREE.Raycaster | null) => void;
+  /** Fired on a rising edge of a face button (A/X or B/Y) — toggles the menu. */
+  onMenuToggle?: () => void;
+  /** When this returns true, locomotion is frozen (menu open) for comfort. */
+  isMenuOpen?: () => boolean;
   /** Live colliders for the current room (rebuilt per room — read each frame). */
   getColliders: () => ColliderRect[];
   /** XZ clamp so the player can't walk out of the room. */
   roomBounds: ColliderBounds;
 };
+
+// Pointer-ray colours: a calm cyan at rest, a bright cyan when the ray is over
+// a pressable HUD button so the player gets a clear "you can press this" cue.
+const RAY_REST = new THREE.Color(0x67e8f9);
+const RAY_HOT = new THREE.Color(0xa5f3ff);
 
 function makeRayLine(): THREE.Line {
   const geometry = new THREE.BufferGeometry().setFromPoints([
@@ -86,13 +105,21 @@ function makeRayLine(): THREE.Line {
     new THREE.Vector3(0, 0, -RAY_LENGTH),
   ]);
   const material = new THREE.LineBasicMaterial({
-    color: 0x67e8f9,
+    color: RAY_REST.getHex(),
     transparent: true,
-    opacity: 0.75,
+    opacity: 0.55,
   });
   const line = new THREE.Line(geometry, material);
   line.name = 'xr-pointer-ray';
   return line;
+}
+
+function setRayActive(controller: THREE.Group, active: boolean) {
+  const line = controller.getObjectByName('xr-pointer-ray') as THREE.Line | undefined;
+  const material = line?.material as THREE.LineBasicMaterial | undefined;
+  if (!material) return;
+  material.color.copy(active ? RAY_HOT : RAY_REST);
+  material.opacity = active ? 0.95 : 0.55;
 }
 
 export function createXRControls({
@@ -103,6 +130,10 @@ export function createXRControls({
   onPick,
   onUiSelectStart,
   onUiSelectEnd,
+  onUiPeekHover,
+  onUiApplyHover,
+  onMenuToggle,
+  isMenuOpen,
   getColliders,
   roomBounds,
 }: XRControlsOptions): XRControlsHandle {
@@ -253,12 +284,18 @@ export function createXRControls({
     if (!renderer.xr.isPresenting) return;
     applyWakeUp(performance.now());
 
-    const { moveX, moveZ, turn } = readSticks();
-    if (Math.abs(moveX) > DEADZONE || Math.abs(moveZ) > DEADZONE) {
-      moveBy(moveX, moveZ, delta);
-    }
-    if (Math.abs(turn) > DEADZONE) {
-      turnBy(turn, delta);
+    pollMenuButton();
+
+    // Comfort: freeze locomotion while the menu is open so the world can't drift
+    // out from under a panel the player is reading/pointing at.
+    if (!isMenuOpen?.()) {
+      const { moveX, moveZ, turn } = readSticks();
+      if (Math.abs(moveX) > DEADZONE || Math.abs(moveZ) > DEADZONE) {
+        moveBy(moveX, moveZ, delta);
+      }
+      if (Math.abs(turn) > DEADZONE) {
+        turnBy(turn, delta);
+      }
     }
 
     // Sync the game player (Patrick) to the head so proximity / conversation /
@@ -266,6 +303,52 @@ export function createXRControls({
     camera.getWorldPosition(headWorld);
     playerRoot.position.x = headWorld.x;
     playerRoot.position.z = headWorld.z;
+
+    updateHudHover();
+  }
+
+  // Rising-edge detection on the face buttons. On Quest-style mappings the A/X
+  // button is index 4 and B/Y is index 5; we accept either so the menu opens
+  // from whichever face button the player reaches for.
+  let menuButtonWasDown = false;
+  function pollMenuButton() {
+    if (!onMenuToggle) return;
+    let down = false;
+    for (const source of inputSources) {
+      const buttons = source?.gamepad?.buttons;
+      if (!buttons) continue;
+      if (buttons[4]?.pressed || buttons[5]?.pressed) down = true;
+    }
+    if (down && !menuButtonWasDown) onMenuToggle();
+    menuButtonWasDown = down;
+  }
+
+  // Per-frame HUD focus: find the first controller whose ray is over a HUD
+  // button, brighten that controller's pointer ray, and tell the HUD to focus
+  // the targeted button. Resolved in two passes so that when only one of the
+  // two controllers points at the panel, the non-pointing one can't clobber
+  // the focus on the same frame.
+  function updateHudHover() {
+    if (!onUiApplyHover) return;
+    let ownerIndex = -1;
+    if (onUiPeekHover) {
+      for (let i = 0; i < controllers.length; i += 1) {
+        aimRayFromController(controllers[i]);
+        if (onUiPeekHover(raycaster)) {
+          ownerIndex = i;
+          break;
+        }
+      }
+    }
+    for (let i = 0; i < controllers.length; i += 1) {
+      setRayActive(controllers[i], i === ownerIndex);
+    }
+    if (ownerIndex >= 0) {
+      aimRayFromController(controllers[ownerIndex]);
+      onUiApplyHover(raycaster);
+    } else {
+      onUiApplyHover(null);
+    }
   }
 
   function dispose() {

@@ -1,17 +1,18 @@
 import type * as THREE from 'three';
 import introOneMovieUrl from '../../assets/videos/intro1.mp4?url';
+import royalEsplanadeHdrUrl from '../../assets/hdri/royal_esplanade_4k.exr?url';
 import {
   addBox,
   addCeilingLights,
   addCylinder,
-  addPottedPlant,
   addRoomShell,
   addWallPanel,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
+import { addHouseholdProp } from '../../components/three/householdProps';
 import {
   makeMarbleFloorMaterial,
-  makePlasterWallMaterial,
+  makePaneledWallMaterial,
 } from '../../components/three/proceduralTextures';
 import { lessonScenarios } from '../lessonScenarios';
 import { stageOneConversationDeck } from '../stageOneSuVoiceLines';
@@ -68,12 +69,12 @@ const lobbyPalette: RoomPalette = {
 };
 
 function buildHotelLobbyRoom(group: THREE.Group, palette: RoomPalette) {
-  // Polished veined-marble floor + mottled teal plaster walls — restores the
-  // textured art direction the original bespoke lobby had (see file header).
+  // Polished veined-marble floor + crisp panelled teal walls with brass-inlay
+  // seams — a sharper, more architectural read than the old soft plaster.
   addRoomShell(group, palette, {
     ceilingTrim: true,
     floorMaterial: makeMarbleFloorMaterial(3, 2),
-    wallMaterial: makePlasterWallMaterial(palette.wall, 4, 1.5),
+    wallMaterial: makePaneledWallMaterial(palette.wall, palette.accent, 3, 1),
   });
   addCeilingLights(group, palette, [-4.5, 0, 4.5], -2.3);
 
@@ -105,21 +106,71 @@ function buildHotelLobbyRoom(group: THREE.Group, palette: RoomPalette) {
   addWallPanel(group, [4.6, 3.0, -5.86], [3.6, 2.8], 0x132c3f, 0xd6a94d);
 
   // ---- Foreground lounge cluster (stage left) ---------------------------
-  // Low coffee table flanked by two armchairs — establishes "lobby lounge"
-  // immediately when the player spawns.
-  addBox(group, [1.5, 0.42, 1.0], [-5.6, 0.21, 2.6], 0x4b2f24);
-  addBox(group, [1.6, 0.06, 1.1], [-5.6, 0.45, 2.6], 0x6b4a35);
-  // Armchair seats
-  addBox(group, [0.9, 0.45, 0.9], [-4.0, 0.225, 2.6], 0x7f1d1d);
-  addBox(group, [0.9, 0.9, 0.18], [-4.0, 0.6, 2.18], 0x7f1d1d);
-  addBox(group, [0.9, 0.45, 0.9], [-7.2, 0.225, 2.6], 0x7f1d1d);
-  addBox(group, [0.9, 0.9, 0.18], [-7.2, 0.6, 2.18], 0x7f1d1d);
+  // Real GLB furniture (Household Props 001) replaces the box stand-ins: a low
+  // coffee table flanked by two armchairs angled toward it. Positions match the
+  // original boxes so movement bounds + camera framing are unchanged. Each prop
+  // auto-normalizes to the target height, grounds itself, and tags a collider.
+  addHouseholdProp(group, 'table', {
+    position: [-5.6, 0, 2.6],
+    targetHeight: 0.46,
+    collider: 0.7,
+    contactShadow: true,
+  });
+  addHouseholdProp(group, 'armchair', {
+    position: [-4.0, 0, 2.6],
+    targetHeight: 0.92,
+    rotationY: -Math.PI / 2, // face stage-left toward the coffee table
+    collider: 0.5,
+    contactShadow: true,
+  });
+  addHouseholdProp(group, 'armchair', {
+    position: [-7.2, 0, 2.6],
+    targetHeight: 0.92,
+    rotationY: Math.PI / 2, // face stage-right toward the coffee table
+    collider: 0.5,
+    contactShadow: true,
+  });
+  // Couch against the stage-left wall, between the two side plants — fills the
+  // empty wall without crossing Patrick's spawn-to-Su path.
+  addHouseholdProp(group, 'couch', {
+    position: [-8.4, 0, 0.2],
+    targetSize: 1.9,
+    rotationY: Math.PI / 2, // back to the wall, seat facing into the room (+x)
+    collider: 0.7,
+    contactShadow: true,
+  });
 
   // ---- Plants — bracket the back wall and ground the lounge ------------
-  addPottedPlant(group, -8.2, -3.0);
-  addPottedPlant(group, 8.2, -3.0);
-  addPottedPlant(group, -8.2, 3.4);
-  addPottedPlant(group, 5.6, 1.4);
+  // GLB potted plants replace the two-cylinder placeholders at the same spots.
+  ([
+    [-8.2, -3.0],
+    [8.2, -3.0],
+    [-8.2, 3.4],
+    [5.6, 1.4],
+  ] as const).forEach(([px, pz]) => {
+    addHouseholdProp(group, 'pottedPlant', {
+      position: [px, 0, pz],
+      targetHeight: 1.15,
+      collider: 0.4,
+      contactShadow: true,
+    });
+  });
+
+  // ---- Lobby set-dressing props (Household Props 001) ------------------
+  // A bookshelf tucked into the back-left corner and a coat rack by the
+  // stage-right entrance columns add lived-in detail away from the play path.
+  addHouseholdProp(group, 'bookshelf', {
+    position: [-7.6, 0, -5.0],
+    targetHeight: 1.9,
+    collider: 0.6,
+    contactShadow: true,
+  });
+  addHouseholdProp(group, 'coatRack', {
+    position: [7.6, 0, 1.9],
+    targetHeight: 1.8,
+    collider: 0.4,
+    contactShadow: true,
+  });
 
   // ---- Marble lobby columns flanking the doors out --------------------
   addCylinder(group, 0.35, 4.4, [-7.4, 2.2, 0.4], 0xd8dee9, {
@@ -175,40 +226,14 @@ function buildHotelLobbyRoom(group: THREE.Group, palette: RoomPalette) {
     emissiveIntensity: 0.8,
   });
 
-  // Chandelier — brass ring with hanging cyan bulbs over the lobby center.
-  // The ring itself is a thin torus-shaped composition (cylinder pretending
-  // to be a flat plate, since sceneHelpers doesn't expose a torus). Bulbs
-  // dangle on visible filaments so the eye reads "chandelier" not "disc".
-  addCylinder(group, 1.1, 0.08, [0.6, 4.4, -0.6], 0xb98843, {
-    segments: 32,
-    metalness: 0.55,
-    roughness: 0.32,
-    emissive: 0x4a2600,
-    emissiveIntensity: 0.18,
+  // Chandelier — real GLB hung over the lobby centre, glowing warm gold so the
+  // bloom pass flatters it. No collider (it's a ceiling prop). Sits under the
+  // chandelier floor-inlay below so the two compose vertically.
+  addHouseholdProp(group, 'chandelier', {
+    position: [0.6, 3.05, -0.6],
+    targetHeight: 1.35,
+    glow: { color: 0xffd98a, intensity: 0.55 },
   });
-  // Inner ring
-  addCylinder(group, 0.68, 0.06, [0.6, 4.35, -0.6], 0xf5c96b, {
-    segments: 28,
-    metalness: 0.6,
-    roughness: 0.28,
-    emissive: 0xb98843,
-    emissiveIntensity: 0.22,
-  });
-  // Hanging bulbs around the ring perimeter
-  for (let i = 0; i < 8; i += 1) {
-    const theta = (i / 8) * Math.PI * 2;
-    const radius = 0.92;
-    const bx = 0.6 + Math.cos(theta) * radius;
-    const bz = -0.6 + Math.sin(theta) * radius;
-    // Filament
-    addCylinder(group, 0.012, 0.35, [bx, 4.16, bz], 0x111827, { segments: 6 });
-    // Bulb
-    addCylinder(group, 0.085, 0.16, [bx, 3.92, bz], 0xfde68a, {
-      segments: 16,
-      emissive: 0xfacc15,
-      emissiveIntensity: 0.95,
-    });
-  }
 
   // Wall sconces — bracket-style emissive panels at chest height on the
   // back wall, one per panel gap. Frames the wall art rhythm without
@@ -255,18 +280,16 @@ function buildHotelLobbyRoom(group: THREE.Group, palette: RoomPalette) {
     emissive: 0x67e8f9,
     emissiveIntensity: 0.55,
   });
-  // Flower vase
-  addCylinder(group, 0.1, 0.28, [1.4, 1.27, -3.6], 0xd8dee9, {
-    segments: 18,
-    metalness: 0.35,
-    roughness: 0.4,
+  // Flower arrangement on the counter — GLB prop replacing the primitive vase.
+  // Desk dressing, so no collider/contact shadow.
+  addHouseholdProp(group, 'flowers', {
+    position: [1.4, 1.13, -3.6],
+    targetHeight: 0.5,
   });
-  // Stem cluster (single emissive bloom block reads from camera distance)
-  addCylinder(group, 0.04, 0.22, [1.4, 1.5, -3.6], 0x166534, { segments: 8 });
-  addCylinder(group, 0.16, 0.14, [1.4, 1.66, -3.6], 0xff7eb6, {
-    segments: 14,
-    emissive: 0xff7eb6,
-    emissiveIntensity: 0.55,
+  // Reception computer on the guest side of the counter, screen facing out.
+  addHouseholdProp(group, 'computer', {
+    position: [-1.4, 1.13, -3.6],
+    targetHeight: 0.42,
   });
 
   // Brochure stack on the desk — small layered cubes near Patrick's
@@ -487,18 +510,22 @@ const ambiance: SceneAmbiance = {
   fogColor: 0x0c1827,
   fogNear: 16,
   fogFar: 30,
-  hemiSky: 0xcde0f0,
+  // Dusk-blue sky tint (was a near-white 0xcde0f0). It feeds both the
+  // hemisphere fill AND the gradient sky dome behind the lobby windows; at the
+  // old brightness the dome bloom-clipped into a white halo through the glass.
+  // A dimmer dusk tone tames the windows and matches the night-time rift mood.
+  hemiSky: 0x46586e,
   hemiGround: 0x2a1f30,
-  hemiIntensity: 0.95,
+  hemiIntensity: 0.6,
   // Key light pulled to a warmer gold to match the chandelier — was almost
   // pure white before which fought the brass palette.
   keyColor: 0xfde6c0,
-  keyIntensity: 1.55,
+  keyIntensity: 1.0,
   keyPosition: [2.4, 6.4, 3.2],
   // Rim is now a complementary teal that mirrors the wall panels — gives
   // the lobby a cool/warm split-tone look without going neon.
   rimColor: 0x6ec6e7,
-  rimIntensity: 1.85,
+  rimIntensity: 1.1,
   rimPosition: [-4, 2.5, -3],
 };
 
@@ -515,6 +542,16 @@ export const stageOneAdventure: AdventureSceneConfig = {
   ambiance,
   completionMessage: 'Stage 1 clear. Patrick can talk politely in Bangkok.',
   loadingTagline: 'Tuning the Bangkok rift…',
+  // "Royal Esplanade" hall HDRI drives image-based lighting so the marble
+  // floor, brass trim, and GLB furniture pick up real reflections. Background
+  // stays the authored flat colour + sky dome — only reflections/ambient use it.
+  environmentMapUrl: royalEsplanadeHdrUrl,
+  environmentIntensity: 0.08,
+  // Gentle bloom for the lobby — higher threshold + lower strength than the
+  // global default so the marble/windows stop blooming into white halos. The
+  // night-market stage keeps the punchy global default.
+  bloomStrength: 0.28,
+  bloomThreshold: 0.95,
   // Pre-roll rift-arrival cinematic. Originally bundled with the deleted
   // CharacterDebugPage; restored here so Stage 1 still opens with the
   // movie before handing off to the in-room VN dialogue and stand-up

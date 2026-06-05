@@ -344,11 +344,8 @@ export function LevelSelect({ isOpen, onClose }: LevelSelectProps) {
     >
       <header className="flex items-baseline justify-between gap-4 border-b border-[#3A3D44]/70 px-6 py-4 sm:px-10">
         <div>
-          <p className="flex flex-wrap items-center gap-2 font-display text-[10px] font-bold uppercase tracking-[0.32em] text-[#67E8F9] sm:text-xs">
-            <span>Bangkok Rift · Episodes</span>
-            <span className="rounded-full border border-[#F59E0B]/70 px-2 py-0.5 text-[9px] tracking-[0.22em] text-[#F59E0B]">
-              Tech demo · {TECH_DEMO_PLAYABLE_STAGE_COUNT} stages playable
-            </span>
+          <p className="font-display text-[10px] font-bold uppercase tracking-[0.32em] text-[#67E8F9] sm:text-xs">
+            Bangkok Rift
           </p>
           <h2 className="mt-1 font-display text-2xl font-black uppercase tracking-tight text-[#F4F1EB] sm:text-3xl">
             Level Select
