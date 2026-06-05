@@ -17,6 +17,8 @@ temp_analysis.txt
 tmp-*.png
 linkedin-trailer/
 linkedin-trailer-v2/
+linkedin-trailer-v2b/
+combined/
 thai-quest-comparison-clips/
 thai-quest-trailer-v2/
 .agents/
@@ -32,4 +34,17 @@ humandropbox/*.fbx
 humandropbox/*.msi
 humandropbox/*.png
 humandropbox/*.mp4
+humandropbox/*.exr
 humandropbox/meshywithanimationrigpatrick/
+
+# Local VR-session reference art / critique (kept local, not tracked).
+docs/vr-mvp-critique.md
+docs/storyboards/su-ai-video-reference-sheet.png
+docs/storyboards/vr-wormhole-character-guide-patrick.png
+docs/storyboards/vr-wormhole-character-guide-su.png
+docs/storyboards/vr-wormhole-intro-storyboard-v1-first-person.png
+docs/storyboards/vr-wormhole-intro-storyboard-v2-character-led.png
+docs/storyboards/vr-wormhole-intro-storyboard-v3-transformation.png
+docs/storyboards/vr-wormhole-model-reference.png
+docs/storyboards/vr-wormhole-thai-quest-storyboard-v3-realistic.png
+docs/storyboards/vr-wormhole-thai-quest-storyboard-v4-game-style.png
