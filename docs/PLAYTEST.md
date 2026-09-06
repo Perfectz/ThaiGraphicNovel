@@ -14,6 +14,8 @@ Both main-story battles use the travelling party's health, provisions and talent
 
 The Murmur you meet in Lumphini keeps its floating porcelain form in battle. The River Keeper has a separate ceremonial guardian model; both encounters include the flowerlike Lantern Echo.
 
+The town map now charts the actual streets, buildings, park pond, pier and archive rooms. Choose a district for a closer view or use Whole city to see how the neighbourhoods connect. Tap an open path to preview a route, then choose Walk this route. The party follows it through the 3D city. Blocked ground is marked before departure. Keyboard users can focus the chart and move the destination with arrow keys (Shift moves farther). Unknown discoveries remain hidden until found in the world.
+
 Report the device/browser, what you tried, what you expected, and what happened in the repository's Issues tab. Useful feedback includes confusing navigation, unreadable dialogue, audio problems, difficult controls, and whether speaking felt useful.
 
 The public snapshot uses local microphone recording and prerecorded reference voices. The optional local Whisper/Realtime coaching services are not deployed. No visitor needs an OpenAI key. Audio is AI-generated; a fluent Thai speaker has not reviewed the full pack. Physical-device performance and an hour-long learning session remain playtest questions.

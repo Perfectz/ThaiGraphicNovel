@@ -3,6 +3,8 @@ import {
   cityAreaAt,
   cityWalkable,
   cityObstacles,
+  riversideFloors,
+  riversideBenches,
   inside,
   hotelStart,
   recoverCityPosition,
@@ -349,15 +351,8 @@ export function walkable(p: Point): boolean {
   if (![p.x, p.z].every(Number.isFinite)) return false;
   if (cityObstacles.some((r) => inside(p, r))) return false;
   if (cityWalkable(p)) return true;
-  if (
-    !(p.x >= -11 && p.x <= 11 && p.z >= -0.55 && p.z <= 6) &&
-    !(p.x >= 0.1 && p.x <= 1.9 && p.z >= -6.5 && p.z <= 6)
-  )
-    return false;
-  return ![
-    [-8.95, -7.05, 1.35, 3.05],
-    [-0.95, 0.95, 1.35, 3.05],
-  ].some(([x1, x2, z1, z2]) => p.x > x1 && p.x < x2 && p.z > z1 && p.z < z2);
+  if (!riversideFloors.some(r => inside(p, r))) return false;
+  return !riversideBenches.some(([x1, x2, z1, z2]) => p.x > x1 && p.x < x2 && p.z > z1 && p.z < z2);
 }
 export function stepPlayer(p: Point, dx: number, dz: number): Point {
   const next = { ...p };

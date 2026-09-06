@@ -13,7 +13,7 @@ The standard is a coherent Thai-learning adventure, not the number of menus or l
 | Requirement | Evidence | Remaining gap |
 | --- | --- | --- |
 | Start at a Sukhumvit hotel | Fresh campaign browser run begins with Su and Mali | More ambient life and personal reasons to return |
-| Travel continuously among Bangkok-inspired places | Collision/path checks cover every district and contact; campaign walks through five districts | Compact fictional geography; transitions and district scale still need expansion |
+| Travel continuously among Bangkok-inspired places | Collision/path checks cover every district and contact; the chart uses actual streets and obstacle-aware routes to freely selected walking points | Compact fictional geography; transitions and district scale still need expansion |
 | Battles belong to the main story | Fresh local and public campaign runs beat Murmur and Keeper and board the ferry without practice; Murmur now retains its own Blender silhouette from exploration into combat | More encounters and contextual tactics; greater animation variety |
 | Exploration beyond errands | Archive adds five connected rooms, three records, a deduction and permission-based dialogue | Local desktop and phone browser runs passed the complete quest, microphone flow and reloads; model fallback was confirmed off |
 | Speak with understood intent | English previews, reference audio and optional recorded replies | Full phrase pack needs fluent-speaker review; live pronunciation coaching is not deployed |
@@ -23,3 +23,7 @@ The standard is a coherent Thai-learning adventure, not the number of menus or l
 ## Archive verification contract
 
 Verify a real walk from the hotel, permission and cancellation, both directions around the rooms, all three clues, a wrong deduction, recorded document/thank-you replies, roof cutaways, one-time rewards, reload persistence and phone layout. The generated model must load, not silently use its fallback. Record actual results under `artifacts/archive/`.
+
+## City chart verification contract
+
+`cityAtlas.ts` routes with the same `walkable` and `findPath` functions as the world. The SVG draws the shared district, road, archive, riverside and obstacle geometry. Verify routes from the hotel to every district, rejected water/furniture/wall targets, keyboard selection, chart-to-world travel through Lumphini and the archive, reload persistence and unchanged quest flags. Run `node --test tests/cityAtlas.test.ts tests/city.test.ts tests/archive.test.ts`, build, and `node scripts/test-city-atlas.mjs` (also `--phone`). Evidence goes in `artifacts/city-atlas/`. This proves navigation behavior; it does not establish parity with the reference games or long-term learning outcomes.

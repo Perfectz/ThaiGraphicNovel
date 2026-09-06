@@ -6,6 +6,11 @@ export const hotelStart = { x: -57, z: 29 };
 export const cityMapBounds = { x: -65, z: -8, w: 163, d: 50 };
 // Inset from the timber deck edges; the river itself is never walkable.
 export const riverPier: Rect = { x: -0.3, z: -11.45, w: 2.6, d: 5.45 };
+export const riversideFloors: Rect[] = [
+  { x: -11, z: -.55, w: 22, d: 6.55 },
+  { x: .1, z: -6.5, w: 1.8, d: 12.5 },
+];
+export const riversideBenches = [[-8.95, -7.05, 1.35, 3.05], [-.95, .95, 1.35, 3.05]];
 export const cityAreas: {
   id: CityArea;
   name: string;

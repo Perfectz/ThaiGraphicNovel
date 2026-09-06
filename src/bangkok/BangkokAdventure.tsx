@@ -1,10 +1,11 @@
+import CityTravelMap from './CityTravelMap';
 import ArchivePanel from './ArchivePanel';
 import { archiveSite, archiveRooms, type ArchiveActor } from './archiveLayout';
 import { advanceArchive } from './archiveQuest';
 import ReunionPanel from './ReunionPanel';
 import { storyEncounters } from './storyEncounters';
 import { advanceReunion, reunionReason, reunionStatus, reunionStep, type ReunionStep } from './reunion';
-import { cityMapBounds, cityAreas, cityAreaAt, cityWalkways, inside, canalWalk, type CityArea } from './city';
+import { cityAreas, cityAreaAt, cityWalkways, inside, canalWalk, type CityArea } from './city';
 import { useEffect, useRef, useState } from 'react';
 import { BangkokWorld } from './BangkokWorld';
 import FerryCrossing from './FerryCrossing';
@@ -1551,50 +1552,32 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
           isOpen={map}
           onClose={() => setMap(false)}
           title="Bangkok · the city of returning words"
-          eyebrow={`${save.visited.length} / 6 DISTRICTS DISCOVERED`}
+          eyebrow={`${save.visited.length} / ${cityAreas.length} PLACES DISCOVERED`}
           className="bk-modal rpg-modal city-map-modal"
         >
           <p>Walk the city with Su. Select a district, then choose a person or a route.</p>
-          <div className="rpg-map city-map">
-            <svg
-              viewBox={`${cityMapBounds.x} ${cityMapBounds.z} ${cityMapBounds.w} ${cityMapBounds.d}`}
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M-45 13H43 M-20 13V39 M1 13V0 M36 13V39 M-54 28V14 M-54 28H-44V39H37 M-9 13V39 M37 32H84 M70 32V18H84V32"
-                fill="none"
-                stroke="#729591"
-                strokeWidth="1.2"
-                strokeDasharray="1 1"
-              />
-            </svg>
-            {cityAreas.map((a) => (
-              <button
-                key={a.id}
-                data-area={a.id}
-                className={mapArea === a.id ? 'current' : ''}
-                style={{
-                  left: `${(((a.id === 'archive' ? 79 : a.center.x) - cityMapBounds.x) / cityMapBounds.w) * 100}%`,
-                  top: `${(((a.id === 'archive' ? 18 : a.center.z) + 8) / 50) * 100}%`,
-                }}
-                onClick={() => setMapArea(a.id)}
-              >
-                <b>{save.visited.includes(a.id) ? '◆' : '◇'}</b>
-                <span>{a.name}</span>
-              </button>
-            ))}
-            <i
-              className="city-you"
-              title="Your position"
-              style={{
-                left: `${((save.position.x - cityMapBounds.x) / cityMapBounds.w) * 100}%`,
-                top: `${((save.position.z + 8) / 50) * 100}%`,
+          {map && (
+            <CityTravelMap
+              save={save}
+              area={mapArea}
+              selectArea={setMapArea}
+              walk={(point) => {
+                setMap(false);
+                requestAnimationFrame(() => {
+                  world.current?.configureAdventure(
+                    saveRef.current,
+                    {
+                      interact: (id) => interactRef.current(id),
+                      near: setNear,
+                      move: reportWorldMove,
+                    },
+                    false,
+                  );
+                  world.current?.travelPoint(point);
+                });
               }}
-            >
-              ●
-            </i>
-          </div>
+            />
+          )}
           <section className="city-map-details">
             <h3>{cityAreas.find((a) => a.id === mapArea)?.name}</h3>
             <p>{cityAreas.find((a) => a.id === mapArea)?.hint}</p>
