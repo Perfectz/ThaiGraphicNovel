@@ -6,6 +6,11 @@ import {
   type ColliderRect,
   type ColliderBounds,
 } from './collision';
+import {
+  type XRComfortSettings,
+  snapTurnRadians,
+  vignetteStrength,
+} from './xrComfort';
 
 /**
  * WebXR controller + FIRST-PERSON locomotion layer for the Stage 3D adventure.
@@ -35,6 +40,27 @@ const RAY_LENGTH = 8;
 const WAKE_DROP = 1.1; // metres the view starts below standing height
 const WAKE_MS = 2400; // duration of the "getting up off the floor" rise
 
+// Snap-turn edge thresholds: fire a discrete turn once the stick pushes past
+// SNAP_TRIGGER, then refuse to fire again until it falls back below SNAP_REARM.
+// The hysteresis gap prevents a held stick from machine-gunning snap turns.
+const SNAP_TRIGGER = 0.7;
+const SNAP_REARM = 0.35;
+// A snap turn briefly blinks the comfort vignette closed to mask the jump.
+const SNAP_BLINK_MS = 120;
+
+// Haptic pulse presets (intensity 0..1, duration ms).
+const HAPTIC_UI = { intensity: 0.35, ms: 18 } as const;
+const HAPTIC_PICK = { intensity: 0.55, ms: 28 } as const;
+const HAPTIC_MENU = { intensity: 0.3, ms: 14 } as const;
+
+/**
+ * The WebXR gamepad haptic actuator exposes `pulse(value, duration)` on the
+ * headsets we target (Quest et al.), but lib.dom types only guarantee
+ * `playEffect`. This loosened shape lets us call `pulse` where present without
+ * `as never` gymnastics.
+ */
+type XRHapticActuator = { pulse?: (value: number, duration: number) => Promise<boolean> };
+
 /**
  * three's typed `Object3DEventMap` doesn't include the WebXR controller events
  * ('selectstart', 'connected', …), so we address the controller through this
@@ -53,6 +79,12 @@ export type XRControlsHandle = {
   update: (delta: number) => void;
   /** Kick off the one-shot "wake up off the floor" rise (call on session start). */
   startWakeUp: () => void;
+  /**
+   * Fire a haptic pulse on a controller (0 = first, 1 = second), or on both
+   * when index is omitted. Safe to call from higher-level feedback (e.g. a
+   * pronunciation verdict). No-op where haptics are unavailable.
+   */
+  pulse: (intensity: number, ms: number, index?: number) => void;
   dispose: () => void;
 };
 
@@ -92,6 +124,17 @@ type XRControlsOptions = {
   getColliders: () => ColliderRect[];
   /** XZ clamp so the player can't walk out of the room. */
   roomBounds: ColliderBounds;
+  /**
+   * Live comfort settings, read every frame. Drives snap-vs-smooth turning,
+   * vignette strength, and which hand moves vs. turns.
+   */
+  getComfort: () => XRComfortSettings;
+  /**
+   * Per-frame comfort-vignette amount (0 = open, 1 = tight tunnel). Called
+   * every presenting frame so the caller can drive the vignette mesh. Fed by
+   * locomotion speed, smooth-turn rate, snap-turn blinks, and the wake-up rise.
+   */
+  onVignette?: (amount: number) => void;
 };
 
 // Pointer-ray colours: a calm cyan at rest, a bright cyan when the ray is over
@@ -136,6 +179,8 @@ export function createXRControls({
   isMenuOpen,
   getColliders,
   roomBounds,
+  getComfort,
+  onVignette,
 }: XRControlsOptions): XRControlsHandle {
   const controllerModelFactory = new XRControllerModelFactory();
   const controllers: THREE.Group[] = [];
@@ -156,6 +201,28 @@ export function createXRControls({
   const desired = new THREE.Vector3();
 
   let wakeStart = -1;
+  // When true, the wake-up plays as a comfort fade (no vertical motion); the
+  // rise contributes a closing→opening vignette instead of moving the horizon.
+  let wakeComfort = false;
+  // Snap-turn edge state and the decaying blink that masks each snap.
+  let snapArmed = true;
+  let snapBlink = 0; // 0..1, decays to 0 over SNAP_BLINK_MS
+
+  // Fire a haptic pulse on one controller, swallowing unsupported runtimes.
+  function pulse(intensity: number, ms: number, index?: number) {
+    const fire = (i: number) => {
+      const actuator = (inputSources[i]?.gamepad?.hapticActuators?.[0] ?? null) as
+        | XRHapticActuator
+        | null;
+      actuator?.pulse?.(THREE.MathUtils.clamp(intensity, 0, 1), ms);
+    };
+    if (index === undefined) {
+      fire(0);
+      fire(1);
+    } else {
+      fire(index);
+    }
+  }
 
   const aimRayFromController = (controller: THREE.Group) => {
     tempMatrix.identity().extractRotation(controller.matrixWorld);
@@ -170,9 +237,13 @@ export function createXRControls({
     // HUD gets first refusal: a press on a panel button never also picks the world.
     if (onUiSelectStart && onUiSelectStart(raycaster)) {
       uiActive[index] = true;
+      // Crisp confirmation tick — the player may be looking at the NPC, not the
+      // panel, so the press needs a felt acknowledgement, not just a repaint.
+      pulse(HAPTIC_UI.intensity, HAPTIC_UI.ms, index);
       return;
     }
     onPick(raycaster);
+    pulse(HAPTIC_PICK.intensity, HAPTIC_PICK.ms, index);
   };
 
   const onSelectEnd = (event: XRControllerEvent) => {
@@ -208,24 +279,44 @@ export function createXRControls({
 
   function startWakeUp() {
     wakeStart = performance.now();
-    playerRig.position.y = -WAKE_DROP;
+    // Comfort mode (any vignette on) avoids uncommanded vertical vection in the
+    // first seconds of the session — the riskiest possible moment. Instead of
+    // physically rising off the floor, the player starts at standing height and
+    // the comfort vignette opens from black. The cinematic rise is reserved for
+    // the Intense preset (vignette off), where the player has opted into motion.
+    wakeComfort = vignetteStrength(getComfort().vignette) > 0;
+    playerRig.position.y = wakeComfort ? 0 : -WAKE_DROP;
   }
 
-  function applyWakeUp(now: number) {
-    if (wakeStart < 0) return;
+  // Returns this frame's wake-up vignette contribution (0 when not waking). In
+  // comfort mode the rig stays at standing height and the vignette opens from
+  // fully closed; in intense mode the rig physically rises and adds no vignette.
+  function applyWakeUp(now: number): number {
+    if (wakeStart < 0) return 0;
     const t = Math.min(1, (now - wakeStart) / WAKE_MS);
     const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
-    playerRig.position.y = -WAKE_DROP * (1 - ease);
+    let wakeVignette = 0;
+    if (wakeComfort) {
+      playerRig.position.y = 0;
+      wakeVignette = 1 - ease; // closed → open
+    } else {
+      playerRig.position.y = -WAKE_DROP * (1 - ease);
+    }
     if (t >= 1) {
       playerRig.position.y = 0;
       wakeStart = -1;
+      return 0;
     }
+    return wakeVignette;
   }
 
   function readSticks() {
     let moveX = 0;
     let moveZ = 0;
     let turn = 0;
+    // The comfort preference names the TURN hand; movement is the other hand.
+    const turnHand: XRHandedness = getComfort().handedness;
+    const moveHand: XRHandedness = turnHand === 'right' ? 'left' : 'right';
     for (let i = 0; i < controllers.length; i += 1) {
       const gamepad = inputSources[i]?.gamepad;
       if (!gamepad) continue;
@@ -233,12 +324,17 @@ export function createXRControls({
       // Quest-style sticks live on axes[2]/axes[3]; fall back to [0]/[1].
       const sx = (axes.length >= 4 ? axes[2] : axes[0]) ?? 0;
       const sy = (axes.length >= 4 ? axes[3] : axes[1]) ?? 0;
-      if (handedness[i] === 'right') {
-        turn += sx;
-      } else {
-        // Left controller (or unknown handedness) drives movement.
-        moveX += sx;
-        moveZ += sy;
+      // Resolve this controller's hand. When the runtime hasn't reported
+      // handedness yet (connection race), fall back to slot order: index 0 is
+      // treated as left, index 1 as right. Either way we ASSIGN rather than
+      // accumulate, so an ambiguous frame can never drive movement at 2× speed
+      // from both sticks at once (the old += bug).
+      const hand: XRHandedness = handedness[i] ?? (i === 0 ? 'left' : 'right');
+      if (hand === turnHand) {
+        turn = sx;
+      } else if (hand === moveHand) {
+        moveX = sx;
+        moveZ = sy;
       }
     }
     return { moveX, moveZ, turn };
@@ -268,9 +364,12 @@ export function createXRControls({
     playerRig.position.z += desired.z - headWorld.z;
   }
 
-  function turnBy(stick: number, delta: number) {
+  // Rotate the whole rig about the player's head by `angle` radians, keeping the
+  // head fixed in world space (so the world spins around you, not you around the
+  // rig origin). Shared by smooth turn and snap turn.
+  function rotateRigAroundHead(angle: number) {
+    if (angle === 0) return;
     camera.getWorldPosition(pivotWorld);
-    const angle = -stick * TURN_SPEED * delta;
     const sin = Math.sin(angle);
     const cos = Math.cos(angle);
     const dx = playerRig.position.x - pivotWorld.x;
@@ -280,23 +379,72 @@ export function createXRControls({
     playerRig.rotation.y += angle;
   }
 
+  function smoothTurnBy(stick: number, delta: number) {
+    rotateRigAroundHead(-stick * TURN_SPEED * delta);
+  }
+
+  // Snap turn: a single discrete rotation on a stick flick. Returns true if a
+  // snap fired this frame (so the caller can trigger the comfort blink).
+  function snapTurnStep(stick: number, stepRadians: number): boolean {
+    const magnitude = Math.abs(stick);
+    if (snapArmed && magnitude > SNAP_TRIGGER) {
+      rotateRigAroundHead(-Math.sign(stick) * stepRadians);
+      snapArmed = false;
+      return true;
+    }
+    if (magnitude < SNAP_REARM) snapArmed = true;
+    return false;
+  }
+
   function update(delta: number) {
     if (!renderer.xr.isPresenting) return;
-    applyWakeUp(performance.now());
+    const comfort = getComfort();
+    const wakeVignette = applyWakeUp(performance.now());
 
     pollMenuButton();
+
+    // Locomotion intensity this frame, used to drive the comfort vignette: 0 at
+    // rest, up to 1 at full translation / smooth turn.
+    let motion01 = 0;
 
     // Comfort: freeze locomotion while the menu is open so the world can't drift
     // out from under a panel the player is reading/pointing at.
     if (!isMenuOpen?.()) {
       const { moveX, moveZ, turn } = readSticks();
-      if (Math.abs(moveX) > DEADZONE || Math.abs(moveZ) > DEADZONE) {
+      const moveMag = Math.hypot(moveX, moveZ);
+      if (moveMag > DEADZONE) {
         moveBy(moveX, moveZ, delta);
+        motion01 = Math.max(motion01, Math.min(1, moveMag));
       }
       if (Math.abs(turn) > DEADZONE) {
-        turnBy(turn, delta);
+        if (snapTurnRadians(comfort.turn) > 0) {
+          // Snap turn: discrete step + a brief blink to mask the jump.
+          if (snapTurnStep(turn, snapTurnRadians(comfort.turn))) {
+            snapBlink = 1;
+          }
+        } else {
+          // Smooth turn: continuous yaw contributes to the vignette like motion.
+          smoothTurnBy(turn, delta);
+          motion01 = Math.max(motion01, Math.min(1, Math.abs(turn)));
+        }
+      } else {
+        // Re-arm snap when the stick is centred even if turning is disabled.
+        snapArmed = true;
       }
     }
+
+    // Decay the snap blink toward 0.
+    if (snapBlink > 0) {
+      snapBlink = Math.max(0, snapBlink - (delta * 1000) / SNAP_BLINK_MS);
+    }
+
+    // Compose the final vignette amount: locomotion flow scaled by the comfort
+    // level, plus the snap blink, plus the wake-up open. The wake-up term is
+    // already absolute (1 = black), so it's maxed in rather than scaled.
+    const level = vignetteStrength(comfort.vignette);
+    const locomotionVignette = motion01 * level;
+    const blinkVignette = snapBlink * level;
+    onVignette?.(Math.max(locomotionVignette, blinkVignette, wakeVignette));
 
     // Sync the game player (Patrick) to the head so proximity / conversation /
     // NPC-facing logic all track the real first-person position.
@@ -319,7 +467,10 @@ export function createXRControls({
       if (!buttons) continue;
       if (buttons[4]?.pressed || buttons[5]?.pressed) down = true;
     }
-    if (down && !menuButtonWasDown) onMenuToggle();
+    if (down && !menuButtonWasDown) {
+      onMenuToggle();
+      pulse(HAPTIC_MENU.intensity, HAPTIC_MENU.ms);
+    }
     menuButtonWasDown = down;
   }
 
@@ -364,5 +515,5 @@ export function createXRControls({
     }
   }
 
-  return { controllers, grips, update, startWakeUp, dispose };
+  return { controllers, grips, update, startWakeUp, pulse, dispose };
 }

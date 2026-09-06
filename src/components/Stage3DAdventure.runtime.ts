@@ -4,7 +4,9 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import type { AdventureSceneConfig } from '../data/adventures/types';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { N8AOPass } from 'n8ao';
+import type { AdventureSceneConfig, StageGrade } from '../data/adventures/types';
 import { getBrowserCapabilities } from '../services/browserCapabilities';
 import type { PatrickAnimationId } from './three/patrickRig';
 import { disposeObjectTree } from './three/sceneHelpers';
@@ -117,11 +119,74 @@ export type StagePostFX = {
   dispose: () => void;
 };
 
+// ---------------------------------------------------------------------------
+// Cinematic colour-grade pass — the final fullscreen pass after tone mapping.
+// Applies exposure, contrast around mid-grey, saturation, an optional tint and
+// a soft vignette, all driven by the stage's `grade`. Cheap (one pass), runs on
+// every device. Operates in display (sRGB) space, so contrast/saturation behave
+// the way a colourist expects.
+// ---------------------------------------------------------------------------
+const CINEMATIC_GRADE_SHADER = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
+    uTint: { value: new THREE.Color(1, 1, 1) },
+    uTintAmount: { value: 0 },
+    uContrast: { value: 1.06 },
+    uSaturation: { value: 1.06 },
+    uVignette: { value: 0.32 },
+    uExposure: { value: 1 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform vec3 uTint;
+    uniform float uTintAmount;
+    uniform float uContrast;
+    uniform float uSaturation;
+    uniform float uVignette;
+    uniform float uExposure;
+    varying vec2 vUv;
+    void main() {
+      vec4 src = texture2D(tDiffuse, vUv);
+      vec3 col = src.rgb * uExposure;
+      // Contrast around mid-grey.
+      col = (col - 0.5) * uContrast + 0.5;
+      // Saturation about luma.
+      float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+      col = mix(vec3(luma), col, uSaturation);
+      // Tint (push the image toward a mood colour).
+      col = mix(col, col * uTint, uTintAmount);
+      // Vignette — smooth radial darkening toward the edges.
+      vec2 q = vUv - 0.5;
+      float vig = smoothstep(0.85, 0.25, length(q));
+      col *= mix(1.0, vig, uVignette);
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), src.a);
+    }
+  `,
+};
+
+function applyGrade(pass: ShaderPass, grade?: StageGrade) {
+  const u = pass.uniforms;
+  if (grade?.tint) (u.uTint.value as THREE.Color).setRGB(grade.tint[0], grade.tint[1], grade.tint[2]);
+  u.uTintAmount.value = grade?.tintAmount ?? 0;
+  u.uContrast.value = grade?.contrast ?? 1.06;
+  u.uSaturation.value = grade?.saturation ?? 1.06;
+  u.uVignette.value = grade?.vignette ?? 0.32;
+  u.uExposure.value = grade?.exposure ?? 1;
+}
+
 /**
- * EffectComposer with a bloom pass so the stages' many emissives (neon signs,
- * paper lanterns, woks, the rift portal) actually glow. Strength is dialled
- * back on low-end devices; the OutputPass handles tone-map + colour-space so
- * we keep the same ACES look as a direct render.
+ * Cinematic post pipeline. RenderPass → N8AO (contact ambient occlusion that
+ * grounds props and characters) → UnrealBloom (emissive glow) → OutputPass
+ * (ACES tone-map + colour space) → colour-grade/vignette. Heavy effects (AO,
+ * MSAA) are gated on device class so phones keep a steady frame rate; the cheap
+ * grade pass runs everywhere so every stage still gets its mood.
  */
 export function createStagePostFX(
   renderer: THREE.WebGLRenderer,
@@ -130,6 +195,7 @@ export function createStagePostFX(
   width: number,
   height: number,
   bloomOverrides?: { strength?: number; threshold?: number },
+  grade?: StageGrade,
 ): StagePostFX {
   const caps = getBrowserCapabilities();
   // The composer's default render target has no MSAA, so rendering through it
@@ -145,6 +211,19 @@ export function createStagePostFX(
   composer.setSize(width, height);
   composer.addPass(new RenderPass(scene, camera));
 
+  // Ambient occlusion — the single biggest "grounding" win. Desktop/WebGL2 only
+  // (it needs MRT + extra passes); phones skip it to protect the frame budget.
+  let aoPass: N8AOPass | null = null;
+  if (!caps.isLowEndDevice && caps.hasWebGL2) {
+    aoPass = new N8AOPass(scene, camera, width, height);
+    aoPass.configuration.aoRadius = 1.1; // world units — tuned for room-scale stages
+    aoPass.configuration.distanceFalloff = 0.8;
+    aoPass.configuration.intensity = 2.2; // conservative — grounds props without crushing shadows
+    aoPass.configuration.halfRes = true; // big perf win, AO is low-frequency anyway
+    aoPass.setQualityMode('Medium');
+    composer.addPass(aoPass);
+  }
+
   const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(width, height),
     bloomOverrides?.strength ?? (caps.isLowEndDevice ? 0.45 : 0.62), // strength
@@ -154,6 +233,11 @@ export function createStagePostFX(
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
 
+  // Final grade — runs last (renderToScreen) on the tone-mapped image.
+  const gradePass = new ShaderPass(CINEMATIC_GRADE_SHADER);
+  applyGrade(gradePass, grade);
+  composer.addPass(gradePass);
+
   return {
     composer,
     bloomPass,
@@ -161,7 +245,10 @@ export function createStagePostFX(
       composer.setPixelRatio(renderer.getPixelRatio());
       composer.setSize(w, h);
     },
-    dispose: () => composer.dispose(),
+    dispose: () => {
+      aoPass?.dispose();
+      composer.dispose();
+    },
   };
 }
 

@@ -1,26 +1,24 @@
 import * as THREE from 'three';
 import introTwoMovieUrl from '../../assets/videos/intro2.mp4?url';
-import bathroomBackgroundUrl from '../../assets/adventure/level-02/bathroom-background.png';
-import frontDeskBackgroundUrl from '../../assets/adventure/level-02/front-desk-background.png';
 import keycardUrl from '../../assets/adventure/level-02/keycard.png';
-import lobbyBackgroundUrl from '../../assets/adventure/level-02/lobby-background.png';
 import passportUrl from '../../assets/adventure/level-02/passport.png';
-import phoneUrl from '../../assets/adventure/level-02/phone.png';
 import reservationPaperUrl from '../../assets/adventure/level-02/reservation-paper.png';
 import walletUrl from '../../assets/adventure/level-02/wallet.png';
 import {
   addBox,
   addCeilingLights,
+  addContactShadow,
   addCylinder,
-  addPottedPlant,
   addRoomShell,
+  addRoundedBox,
   type RoomPalette,
 } from '../../components/three/sceneHelpers';
 import {
   makeMarbleFloorMaterial,
-  makePlasterWallMaterial,
-  makeTileFloorMaterial,
+  makePaneledWallMaterial,
 } from '../../components/three/proceduralTextures';
+import { makeImageSurfaceMaterial } from '../../components/three/imageTextures';
+import { buildHotelLobbyRoom, lobbyPalette } from './stage01-hotel-lobby';
 import { lessonScenarios } from '../lessonScenarios';
 import { customPhraseCommand, phraseCommand } from './shared/phraseCommand';
 import type {
@@ -34,11 +32,11 @@ import type {
  * Stage 2: Front Desk Check-In, ported from the bespoke LevelTwoDebugPage
  * component onto the Stage3DAdventure data-driven engine.
  *
- * Visual approach: the room shells are procedural Three.js geometry — same
- * pattern as Stage 3 — but the rear wall of each room mounts the existing
- * 2D PNG backdrop from the original point-and-click stage as a textured
- * plane. This keeps the considerable art investment in those PNGs while
- * stepping the stage onto the same engine as Stages 3–10.
+ * Visual approach: the lobby room reuses Stage 1's exported lobby build
+ * (same hotel, same set), and the front-desk room uses the same ceiling /
+ * cove / paneled-wall treatment in a warmer amber. The original 2D PNG
+ * backdrops were retired — photoreal murals behind low-poly geometry read
+ * as two different games stitched together.
  *
  * NPC approach: the bellhop and front-desk hostess now render as full 3D
  * rigs (bellboy + hotelLobbyGirl) instead of 2D portraits. Their idle/talk
@@ -56,57 +54,23 @@ const phrases = scenario.chunks.flatMap((chunk) => chunk.phrases);
 const phraseById = Object.fromEntries(phrases.map((p) => [p.id, p]));
 
 // ---------------------------------------------------------------------------
-// Room palettes — warm hotel ambers contrasted with cool tile in the bathroom.
+// Room palettes — the lobby reuses Stage 1's exported palette (same hotel,
+// same set); the front desk is a warmer amber take on the same language.
+// The old 2D PNG murals are retired: they were photoreal paintings pasted
+// behind low-poly geometry and read as a different game.
 // ---------------------------------------------------------------------------
-const lobbyPalette: RoomPalette = {
-  floor: 0x2a1f1a,
-  wall: 0x3a2a22,
-  accent: 0xfacc15,
-  trim: 0xfde68a,
-  glow: 0xfbbf24,
-};
-
 const frontDeskPalette: RoomPalette = {
-  floor: 0x1f1a14,
-  wall: 0x2c241c,
+  floor: 0x8a9aa6,
+  // Lifted well above the old 0x2c241c, which rendered near-black.
+  wall: 0x4a3526,
   accent: 0xf59e0b,
   trim: 0xfde68a,
   glow: 0xfb923c,
 };
 
-const bathroomPalette: RoomPalette = {
-  floor: 0xe2e8f0,
-  wall: 0xf1f5f9,
-  accent: 0x67e8f9,
-  trim: 0xa7f3d0,
-  glow: 0x60a5fa,
-};
-
-/**
- * Mount one of the level-02 background PNGs as a textured plane against the
- * rear wall of a procedurally-shelled room. The plane is sized to roughly
- * fill the back wall the shell already painted, giving the original art a
- * second life as a rear-wall mural until the rooms get bespoke geometry.
- */
-function addRearWallBackdrop(group: THREE.Group, textureUrl: string) {
-  const loader = new THREE.TextureLoader();
-  const texture = loader.load(textureUrl);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const wall = new THREE.Mesh(
-    new THREE.PlaneGeometry(17.6, 5.4),
-    new THREE.MeshBasicMaterial({ map: texture, toneMapped: false }),
-  );
-  // Sit a hair in front of the procedural back wall (z=-5.9) so z-fighting
-  // doesn't strobe the mural.
-  wall.position.set(0, 2.85, -5.83);
-  group.add(wall);
-}
-
 // ---------------------------------------------------------------------------
-// Procedural room builders. Deliberately lean — most of the visual interest
-// comes from the rear-wall backdrop. Each builder is responsible for the
-// shell, the backdrop, and any foreground props that need to be clickable
-// (which are mostly hotspots so the geometry there is minimal).
+// Procedural room builders. The lobby comes from stage01; only the front
+// desk room is built here.
 // ---------------------------------------------------------------------------
 
 /**
@@ -143,95 +107,69 @@ function addChandelier(group: THREE.Group, x: number, z: number, bulbCount = 8) 
   }
 }
 
-function buildLobbyRoom(group: THREE.Group, palette: RoomPalette) {
-  addRoomShell(group, palette, {
-    ceilingTrim: true,
-    floorMaterial: makeMarbleFloorMaterial(3, 2),
-    wallMaterial: makePlasterWallMaterial(palette.wall, 4, 1.5),
-  });
-  addRearWallBackdrop(group, lobbyBackgroundUrl);
-  addCeilingLights(group, palette, [-4.5, 0, 4.5], -2.3);
-  addChandelier(group, 0, -0.6);
-
-  // Foreground seating cluster — a low coffee table flanked by potted plants
-  // tells the player this is a lounge, not a corridor.
-  addBox(group, [1.6, 0.4, 0.9], [-4.5, 0.2, 2.6], 0x4a382b);
-  addBox(group, [1.7, 0.06, 1.0], [-4.5, 0.43, 2.6], 0x6b4a35);
-  // Magazine stack on the table
-  addBox(group, [0.42, 0.04, 0.3], [-4.6, 0.48, 2.6], 0xfacc15);
-  addBox(group, [0.42, 0.04, 0.3], [-4.6, 0.52, 2.6], 0xff7eb6);
-  addPottedPlant(group, -6.4, 2.4);
-  addPottedPlant(group, 6.4, 2.4);
-  addPottedPlant(group, -7.4, -2.6);
-  addPottedPlant(group, 7.4, -2.6);
-
-  // Welcome sign above the lounge — small framed greeting that ties the
-  // lobby to the same hotel chain implied by Stage 1's signage.
-  addBox(group, [3.0, 0.5, 0.04], [-4.5, 3.4, -5.83], 0x0a1423);
-  addBox(group, [3.0, 0.05, 0.05], [-4.5, 3.65, -5.82], 0xb98843, {
-    emissive: 0xb98843,
-    emissiveIntensity: 0.35,
-  });
-  addBox(group, [3.0, 0.05, 0.05], [-4.5, 3.15, -5.82], 0xb98843, {
-    emissive: 0xb98843,
-    emissiveIntensity: 0.35,
-  });
-  // Letter row — "WELCOME"-shaped glyph cubes
-  for (let i = 0; i < 7; i += 1) {
-    const x = -4.5 - 1.0 + i * 0.32;
-    addBox(group, [0.18, 0.22, 0.03], [x, 3.4, -5.81], 0xf5c96b, {
-      emissive: 0xf5c96b,
-      emissiveIntensity: 0.7,
-    });
-  }
-
-  // Luggage cart — visually establishes "hotel" beyond any doubt and stages
-  // nicely against the back-right corner.
-  addBox(group, [1.2, 0.06, 0.7], [5.6, 0.5, -3.0], 0x4a3520);
-  addBox(group, [0.04, 1.4, 0.04], [5.0, 1.2, -3.3], 0xb98843);
-  addBox(group, [0.04, 1.4, 0.04], [6.2, 1.2, -3.3], 0xb98843);
-  addBox(group, [1.3, 0.04, 0.04], [5.6, 1.9, -3.3], 0xb98843);
-  // Suitcase on the cart
-  addBox(group, [0.6, 0.36, 0.42], [5.6, 0.74, -3.0], 0x7f1d1d);
-  addBox(group, [0.08, 0.16, 0.04], [5.6, 0.96, -2.78], 0xb98843, {
-    metalness: 0.5,
-    roughness: 0.35,
-  });
-
-  // Item display pedestals — gives the wallet / passport hotspots a surface
-  // to "sit on" instead of floating awkwardly above the floor.
-  addCylinder(group, 0.34, 0.7, [-2.4, 0.35, -1.4], 0x4a3a2a, { segments: 22 });
-  addCylinder(group, 0.34, 0.7, [-0.4, 0.35, -1.4], 0x4a3a2a, { segments: 22 });
-  // Pedestal top trim — subtle gold edge so they read as "display" not "stool"
-  addCylinder(group, 0.36, 0.02, [-2.4, 0.71, -1.4], 0xf5c96b, {
-    segments: 22,
-    emissive: 0xb98843,
-    emissiveIntensity: 0.3,
-  });
-  addCylinder(group, 0.36, 0.02, [-0.4, 0.71, -1.4], 0xf5c96b, {
-    segments: 22,
-    emissive: 0xb98843,
-    emissiveIntensity: 0.3,
-  });
-}
-
 function buildFrontDeskRoom(group: THREE.Group, palette: RoomPalette) {
   addRoomShell(group, palette, {
     ceilingTrim: true,
-    floorMaterial: makeMarbleFloorMaterial(3, 2),
-    wallMaterial: makePlasterWallMaterial(palette.wall, 4, 1.5),
+    floorMaterial: makeImageSurfaceMaterial(
+      'veined-marble-floor',
+      5,
+      4,
+      () => makeMarbleFloorMaterial(3, 2),
+      { roughness: 0.14, metalness: 0, color: 0xe6e0d4 },
+    ),
+    // Same paneled-wall language as Stage 1's lobby, tinted to the warmer
+    // front-desk amber so the two rooms read as one hotel.
+    wallMaterial: makePaneledWallMaterial(palette.wall, 0xd6a94d, 3, 1),
   });
-  addRearWallBackdrop(group, frontDeskBackgroundUrl);
   addCeilingLights(group, palette, [-4.5, 0, 4.5], -2.6);
   addChandelier(group, 0, 0.4, 10);
 
-  // Reception counter — the visual centerpiece. A long low box with a
-  // brighter trim strip on top reads as a polished wood desk.
-  addBox(group, [10, 1.1, 1.4], [0, 0.55, -2.6], 0x4a3520);
-  addBox(group, [10.2, 0.08, 1.5], [0, 1.13, -2.6], 0xfde68a, {
-    emissive: 0xfacc15,
-    emissiveIntensity: 0.2,
+  // ---- Ceiling + cove — same closed-roof treatment as Stage 1 ----------
+  const ceiling = new THREE.Mesh(
+    new THREE.PlaneGeometry(18, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0x39301f,
+      roughness: 0.9,
+      metalness: 0.02,
+      emissive: 0x241c12,
+      emissiveIntensity: 0.55,
+    }),
+  );
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.set(0, 4.42, 0);
+  ceiling.receiveShadow = true;
+  group.add(ceiling);
+  const cove = 0xffd9a0;
+  addBox(group, [17.6, 0.05, 0.1], [0, 4.32, -5.8], cove, { emissive: cove, emissiveIntensity: 0.85, collider: false });
+  addBox(group, [0.1, 0.05, 11.6], [-8.8, 4.32, 0], cove, { emissive: cove, emissiveIntensity: 0.85, collider: false });
+  addBox(group, [0.1, 0.05, 11.6], [8.8, 4.32, 0], cove, { emissive: cove, emissiveIntensity: 0.85, collider: false });
+
+  // ---- Practical lights ------------------------------------------------
+  const chandelierLight = new THREE.PointLight(0xffd98a, 1.5, 11, 1.6);
+  chandelierLight.position.set(0, 3.6, 0.4);
+  group.add(chandelierLight);
+  const deskLight = new THREE.PointLight(0xffe2b0, 1.1, 8, 1.8);
+  deskLight.position.set(0, 2.6, -1.8);
+  group.add(deskLight);
+
+  // Reception counter — rounded walnut body + cream marble slab, matching
+  // the Stage 1 desk build so the hotel furniture is consistent.
+  addRoundedBox(group, [10, 1.1, 1.4], [0, 0.55, -2.6], 0x5a392a, {
+    radius: 0.05,
+    roughness: 0.55,
   });
+  addBox(group, [9.8, 0.12, 1.3], [0, 0.06, -2.6], 0x241712, { collider: false });
+  addRoundedBox(group, [10.3, 0.1, 1.56], [0, 1.16, -2.6], 0xe8e2d6, {
+    radius: 0.03,
+    roughness: 0.22,
+    metalness: 0.05,
+  });
+  addBox(group, [10.32, 0.05, 1.58], [0, 1.09, -2.6], 0xd6a94d, {
+    emissive: 0xb98843,
+    emissiveIntensity: 0.2,
+    collider: false,
+  });
+  addContactShadow(group, 0, -1.7, 1.2, 0.4);
   // Under-counter glow strip
   addBox(group, [10.0, 0.04, 0.05], [0, 0.16, -1.95], 0x67e8f9, {
     emissive: 0x67e8f9,
@@ -281,17 +219,52 @@ function buildFrontDeskRoom(group: THREE.Group, palette: RoomPalette) {
     });
   });
 
-  // Keycard tray + pen holder + a small framed "Now Serving" placard
-  addBox(group, [0.6, 0.04, 0.4], [2.6, 1.16, -2.6], 0x1f2937);
-  addCylinder(group, 0.06, 0.18, [-2.6, 1.22, -2.6], 0x4a3520, { segments: 14 });
+  // Keycard tray + pen holder (counter top now sits at y≈1.21)
+  addBox(group, [0.6, 0.04, 0.4], [2.6, 1.23, -2.6], 0x1f2937, { collider: false });
+  addCylinder(group, 0.06, 0.18, [-2.6, 1.3, -2.6], 0x4a3520, { segments: 14, collider: false });
   // Pens in the holder
-  addCylinder(group, 0.015, 0.18, [-2.6, 1.35, -2.6], 0x67e8f9, { segments: 6 });
-  addCylinder(group, 0.015, 0.18, [-2.55, 1.35, -2.6], 0xff7eb6, { segments: 6 });
+  addCylinder(group, 0.015, 0.18, [-2.6, 1.43, -2.6], 0x67e8f9, { segments: 6, collider: false });
+  addCylinder(group, 0.015, 0.18, [-2.55, 1.43, -2.6], 0xff7eb6, { segments: 6, collider: false });
   // Bell
-  addCylinder(group, 0.1, 0.16, [-2.0, 1.21, -2.6], 0xd6a94d, {
+  addCylinder(group, 0.1, 0.16, [-2.0, 1.31, -2.6], 0xd6a94d, {
     segments: 18,
     metalness: 0.55,
     roughness: 0.32,
+    collider: false,
+  });
+  // Counter checklist: four brass ticks for Wallet / Passport / Reservation / Keycard.
+  // It gives the check-in chain a visible quest-object feel without adding HUD bulk.
+  addBox(group, [1.55, 0.035, 0.72], [0.8, 1.245, -2.02], 0x111827, { collider: false });
+  [-0.45, -0.15, 0.15, 0.45].forEach((dx) => {
+    addBox(group, [0.17, 0.04, 0.17], [0.8 + dx, 1.272, -2.02], 0xf5c96b, {
+      emissive: 0xfacc15,
+      emissiveIntensity: 0.45,
+      collider: false,
+    });
+  });
+  // Elevator bank / room exit. The stage now ends when Patrick actually uses
+  // the keycard instead of when the bellhop merely offers directions.
+  addBox(group, [2.1, 2.45, 0.08], [6.35, 1.23, -5.76], 0x1f2937, {
+    metalness: 0.2,
+    roughness: 0.42,
+    collider: false,
+  });
+  addBox(group, [0.06, 2.25, 0.04], [6.35, 1.23, -5.71], 0xb98843, {
+    emissive: 0xb98843,
+    emissiveIntensity: 0.22,
+    collider: false,
+  });
+  addBox(group, [1.75, 0.08, 0.04], [6.35, 2.52, -5.7], 0xf5c96b, {
+    emissive: 0xfacc15,
+    emissiveIntensity: 0.65,
+    collider: false,
+  });
+  addBox(group, [0.28, 0.55, 0.05], [7.58, 1.25, -5.69], 0x0f172a, { collider: false });
+  addCylinder(group, 0.07, 0.035, [7.58, 1.38, -5.64], 0x67e8f9, {
+    segments: 16,
+    emissive: 0x67e8f9,
+    emissiveIntensity: 0.8,
+    collider: false,
   });
   // Floor mat under the customer side of the counter
   addBox(group, [4.0, 0.012, 1.4], [0, 0.012, -1.0], 0x7f1d1d, {
@@ -302,134 +275,143 @@ function buildFrontDeskRoom(group: THREE.Group, palette: RoomPalette) {
   addBox(group, [4.0, 0.014, 0.05], [0, 0.014, -0.3], 0xb98843);
 }
 
-function buildBathroomRoom(group: THREE.Group, palette: RoomPalette) {
+function addHotelWayfinding(group: THREE.Group, labelBlocks: Array<[number, number]>, z = -5.78) {
+  addBox(group, [2.4, 0.5, 0.05], [0, 3.08, z], 0x111827, {
+    emissive: 0x0f172a,
+    emissiveIntensity: 0.24,
+    collider: false,
+  });
+  addBox(group, [2.4, 0.05, 0.05], [0, 3.34, z + 0.02], 0xb98843, {
+    emissive: 0xb98843,
+    emissiveIntensity: 0.42,
+    collider: false,
+  });
+  for (const [x, width] of labelBlocks) {
+    addBox(group, [width, 0.16, 0.03], [x, 3.08, z + 0.03], 0xfde68a, {
+      emissive: 0xfacc15,
+      emissiveIntensity: 0.66,
+      collider: false,
+    });
+  }
+}
+
+function buildElevatorLandingRoom(group: THREE.Group, palette: RoomPalette) {
   addRoomShell(group, palette, {
     ceilingTrim: true,
-    floorMaterial: makeTileFloorMaterial(0xe8eef0, 5, 4),
-    wallMaterial: makeTileFloorMaterial(0xeaf2f4, 5, 3),
+    floorMaterial: makeImageSurfaceMaterial(
+      'veined-marble-floor',
+      6,
+      3,
+      () => makeMarbleFloorMaterial(4, 2),
+      { roughness: 0.16, metalness: 0, color: 0xded7c9 },
+    ),
+    wallMaterial: makePaneledWallMaterial(0x3b2f27, 0xd6a94d, 4, 1),
   });
-  addRearWallBackdrop(group, bathroomBackgroundUrl);
-  // Sky-blue ceiling lights — colder than the warm-gold ones elsewhere.
-  addCeilingLights(group, palette, [-3.0, 0, 3.0], -2.6);
+  addCeilingLights(group, palette, [-5.6, -1.8, 1.8, 5.6], -2.6);
+  addChandelier(group, 0, 0.5, 8);
+  addHotelWayfinding(group, [
+    [-0.72, 0.38],
+    [-0.22, 0.2],
+    [0.22, 0.2],
+    [0.72, 0.38],
+  ]);
 
-  // Sink counter sized so the phone hotspot reads as sitting on it.
-  addBox(group, [4.5, 0.9, 1.2], [0, 0.45, -2.8], 0xe2e8f0);
-  addBox(group, [4.6, 0.06, 1.25], [0, 0.93, -2.8], 0xf8fafc);
-  // Counter side panels (more depth than a bare box)
-  addBox(group, [0.05, 0.92, 1.25], [-2.28, 0.46, -2.8], 0xcbd5e1);
-  addBox(group, [0.05, 0.92, 1.25], [2.28, 0.46, -2.8], 0xcbd5e1);
-  // Basin
-  addCylinder(group, 0.5, 0.14, [0, 0.96, -2.8], 0xcbd5e1, { segments: 28 });
-  // Drain
-  addCylinder(group, 0.06, 0.02, [0, 0.97, -2.8], 0x4a5562, { segments: 14 });
-  // Faucet
-  addCylinder(group, 0.04, 0.4, [0, 1.18, -3.0], 0xcbd5e1, {
-    segments: 12,
-    metalness: 0.8,
-    roughness: 0.2,
-  });
-  addBox(group, [0.32, 0.04, 0.04], [0, 1.36, -2.9], 0xcbd5e1, {
-    metalness: 0.8,
-    roughness: 0.2,
-  });
-  // Soap dispenser
-  addCylinder(group, 0.06, 0.18, [-1.2, 1.04, -2.8], 0x1f2937, { segments: 14 });
-  addCylinder(group, 0.03, 0.06, [-1.2, 1.18, -2.8], 0xf8fafc, { segments: 8 });
-  // Hand towel folded on the counter
-  addBox(group, [0.4, 0.04, 0.26], [1.4, 0.99, -2.8], 0xf8fafc);
-  addBox(group, [0.4, 0.02, 0.26], [1.4, 1.025, -2.8], 0x60a5fa, {
-    emissive: 0x60a5fa,
-    emissiveIntensity: 0.18,
-  });
-
-  // Mirror above the sink — a tall reflective panel framed in chrome.
-  addBox(group, [2.2, 1.4, 0.05], [0, 2.4, -5.85], 0xcbd5e1, {
-    metalness: 0.85,
-    roughness: 0.12,
-  });
-  addBox(group, [2.36, 0.06, 0.07], [0, 3.13, -5.83], 0xa7f3d0, {
-    emissive: 0xa7f3d0,
-    emissiveIntensity: 0.4,
-  });
-  addBox(group, [2.36, 0.06, 0.07], [0, 1.67, -5.83], 0xa7f3d0, {
-    emissive: 0xa7f3d0,
-    emissiveIntensity: 0.4,
-  });
-  addBox(group, [0.08, 1.52, 0.07], [-1.18, 2.4, -5.83], 0xa7f3d0, {
-    emissive: 0xa7f3d0,
-    emissiveIntensity: 0.4,
-  });
-  addBox(group, [0.08, 1.52, 0.07], [1.18, 2.4, -5.83], 0xa7f3d0, {
-    emissive: 0xa7f3d0,
-    emissiveIntensity: 0.4,
+  // Elevator bank at the front-desk side of the landing.
+  [-2.1, 0, 2.1].forEach((x, index) => {
+    addBox(group, [1.5, 2.65, 0.09], [x, 1.33, -5.74], 0x1f2937, {
+      metalness: 0.24,
+      roughness: 0.36,
+      collider: false,
+    });
+    addBox(group, [0.06, 2.42, 0.04], [x, 1.33, -5.68], 0xb98843, {
+      emissive: 0xb98843,
+      emissiveIntensity: 0.25,
+      collider: false,
+    });
+    addBox(group, [1.18, 0.05, 0.04], [x, 2.66, -5.66], index === 1 ? 0x67e8f9 : 0xf5c96b, {
+      emissive: index === 1 ? 0x67e8f9 : 0xfacc15,
+      emissiveIntensity: 0.6,
+      collider: false,
+    });
   });
 
-  // Tile floor accent — a long thin strip down the center for depth.
-  addBox(group, [0.6, 0.008, 5.0], [0, 0.012, 0], 0x67e8f9, {
+  // Narrow carpet runner, side alcoves, and luggage cart make it read like a
+  // connector room rather than another static lobby.
+  addBox(group, [3.4, 0.016, 10.2], [0, 0.012, 0], 0x6b1f2a, { emissive: 0x3f1017, emissiveIntensity: 0.08 });
+  addBox(group, [0.08, 0.018, 10.2], [-1.76, 0.018, 0], 0xd6a94d, { collider: false });
+  addBox(group, [0.08, 0.018, 10.2], [1.76, 0.018, 0], 0xd6a94d, { collider: false });
+  [-6.8, 6.8].forEach((x) => {
+    addBox(group, [1.2, 2.0, 0.16], [x, 1.05, -1.5], 0x261d1a, { collider: false });
+    addBox(group, [0.86, 0.95, 0.08], [x, 1.35, -1.39], 0xfde68a, {
+      emissive: 0xfacc15,
+      emissiveIntensity: 0.18,
+      collider: false,
+    });
+  });
+  addRoundedBox(group, [1.25, 0.12, 0.75], [-5.8, 0.52, 2.4], 0xb98843, { radius: 0.04, metalness: 0.35 });
+  addCylinder(group, 0.16, 0.09, [-6.28, 0.16, 2.1], 0x111827, { segments: 14 });
+  addCylinder(group, 0.16, 0.09, [-5.32, 0.16, 2.1], 0x111827, { segments: 14 });
+  addBox(group, [0.95, 0.55, 0.5], [-5.8, 0.86, 2.48], 0x7c2d12, { roughness: 0.7 });
+}
+
+function buildGuestCorridorRoom(group: THREE.Group, palette: RoomPalette) {
+  addRoomShell(group, palette, {
+    ceilingTrim: true,
+    floorMaterial: makeImageSurfaceMaterial(
+      'stage-01-teal-runner-rug-texture',
+      2,
+      8,
+      () => makeMarbleFloorMaterial(5, 2),
+      { roughness: 0.34, metalness: 0, color: 0xb9afa1 },
+    ),
+    wallMaterial: makePaneledWallMaterial(0x302820, 0xb98843, 5, 1),
+  });
+  addCeilingLights(group, palette, [-5.6, -2.8, 0, 2.8, 5.6], -2.6);
+  addHotelWayfinding(group, [
+    [-0.7, 0.22],
+    [-0.36, 0.22],
+    [0.0, 0.22],
+    [0.36, 0.22],
+    [0.7, 0.22],
+  ]);
+
+  // Corridor side doors. The far door 1106 is the real goal.
+  const doorXs = [-6.2, -3.8, -1.4, 1.4, 3.8, 6.2];
+  doorXs.forEach((x, index) => {
+    const isGoal = index === 4;
+    addBox(group, [1.35, 2.25, 0.12], [x, 1.16, -5.72], isGoal ? 0x5a321c : 0x2a211c, {
+      roughness: 0.52,
+      metalness: 0.04,
+      collider: false,
+    });
+    addBox(group, [1.18, 0.08, 0.05], [x, 2.42, -5.64], isGoal ? 0x67e8f9 : 0xd6a94d, {
+      emissive: isGoal ? 0x67e8f9 : 0xb98843,
+      emissiveIntensity: isGoal ? 0.7 : 0.35,
+      collider: false,
+    });
+    addCylinder(group, 0.055, 0.04, [x + 0.48, 1.18, -5.62], isGoal ? 0x67e8f9 : 0xfde68a, {
+      segments: 12,
+      emissive: isGoal ? 0x67e8f9 : 0xfacc15,
+      emissiveIntensity: isGoal ? 0.8 : 0.25,
+      collider: false,
+    });
+  });
+
+  addBox(group, [3.2, 0.018, 10.4], [0, 0.014, 0], 0x12333a, { emissive: 0x0f2a2f, emissiveIntensity: 0.12 });
+  addBox(group, [0.08, 0.02, 10.4], [-1.68, 0.02, 0], 0xd6a94d, { collider: false });
+  addBox(group, [0.08, 0.02, 10.4], [1.68, 0.02, 0], 0xd6a94d, { collider: false });
+  addBox(group, [1.2, 1.6, 0.08], [-7.2, 1.6, -2.1], 0x111827, { collider: false });
+  addBox(group, [0.92, 1.25, 0.04], [-7.2, 1.6, -2.02], 0x67e8f9, {
     emissive: 0x67e8f9,
-    emissiveIntensity: 0.18,
-  });
-
-  // Small plant for warmth
-  addPottedPlant(group, -3.6, 0.6);
-  addPottedPlant(group, 3.6, 0.6);
-
-  // ---- POLISH PASS (Tech-demo) -----------------------------------------
-  // The bathroom was the most utilitarian of the three rooms; these
-  // additions push it from "functional" to "hotel-quality" so it matches
-  // Stages 1 and 3's density without changing camera framing or
-  // movement bounds.
-
-  // Towel rack on the side wall — a chrome bar with a rolled towel.
-  addCylinder(group, 0.02, 0.6, [3.8, 1.6, -2.8], 0xcbd5e1, {
-    segments: 10,
-    metalness: 0.85,
-    roughness: 0.18,
-  });
-  addBox(group, [0.04, 0.12, 0.06], [3.8, 1.42, -2.78], 0xcbd5e1, {
-    metalness: 0.85,
-    roughness: 0.18,
-  });
-  addBox(group, [0.04, 0.12, 0.06], [3.8, 1.78, -2.78], 0xcbd5e1, {
-    metalness: 0.85,
-    roughness: 0.18,
-  });
-  // Folded towel hanging from the rack
-  addBox(group, [0.5, 0.32, 0.05], [3.55, 1.42, -2.78], 0xf8fafc);
-  addBox(group, [0.5, 0.04, 0.05], [3.55, 1.58, -2.78], 0x60a5fa, {
-    emissive: 0x60a5fa,
-    emissiveIntensity: 0.18,
-  });
-
-  // Toiletry shelf above the sink — slim glass shelf with two small bottles.
-  addBox(group, [1.4, 0.04, 0.22], [0, 1.62, -5.7], 0xe2e8f0, {
-    metalness: 0.4,
-    roughness: 0.18,
-  });
-  addCylinder(group, 0.06, 0.22, [-0.35, 1.74, -5.7], 0x10b981, { segments: 14 });
-  addCylinder(group, 0.06, 0.22, [-0.05, 1.74, -5.7], 0xf59e0b, { segments: 14 });
-  addCylinder(group, 0.06, 0.22, [0.3, 1.74, -5.7], 0xff7eb6, { segments: 14 });
-
-  // Ceiling vent slats — gives the eye something on the ceiling other than
-  // the flat lights.
-  for (let i = 0; i < 6; i += 1) {
-    addBox(group, [1.2, 0.04, 0.05], [-3.0 + i * 1.2, 4.78, -1.5], 0xcbd5e1);
-  }
-
-  // Soft floor accent rectangle near the counter — reads as "bath mat".
-  addBox(group, [2.2, 0.012, 0.9], [0, 0.012, -1.6], 0xa7f3d0, {
-    emissive: 0xa7f3d0,
-    emissiveIntensity: 0.12,
-  });
-  addBox(group, [2.2, 0.014, 0.04], [0, 0.014, -1.16], 0x10b981, {
-    emissive: 0x10b981,
-    emissiveIntensity: 0.32,
-  });
-  addBox(group, [2.2, 0.014, 0.04], [0, 0.014, -2.04], 0x10b981, {
-    emissive: 0x10b981,
-    emissiveIntensity: 0.32,
+    emissiveIntensity: 0.24,
+    collider: false,
   });
 }
+
+// The bathroom room was removed in the tech-demo trim: it existed solely to
+// hold the phone item, which stretched the fetch quest to five items across
+// three rooms before the player had learned the verb loop. See lobbyRoom —
+// the check-in now needs wallet + passport, then the desk paperwork.
 
 // ---------------------------------------------------------------------------
 // Stage 2 doesn't have phrases registered for every command we'd like to wire
@@ -465,6 +447,21 @@ function itemSpoken(
     successText,
     extras,
   );
+}
+
+function roomTransitionCommand(
+  label: string,
+  targetPhrase: string,
+  romanization: string,
+  translation: string,
+  successText: string,
+  entersRoom: string,
+  extras: Parameters<typeof customPhraseCommand>[7] = {},
+) {
+  return customPhraseCommand('use', label, targetPhrase, romanization, romanization, translation, successText, {
+    ...extras,
+    entersRoom,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -557,17 +554,21 @@ const lobbyRoom: AdventureRoom3D = {
   title: 'Hotel Lobby',
   shortTitle: 'Lobby',
   description:
-    'A warm Bangkok hotel lobby. Find Patrick’s personal items, then approach the front desk to check in.',
+    'Morning at the Chao Phraya Star. Patrick’s wallet and passport are on the lounge table where he dozed off — gather them and finish the check-in the hostess promised.',
+  // Same set as Stage 1: this is literally the lobby the player just learned
+  // their first phrases in, which sells continuity and reuses the polished
+  // build (ceiling, chandelier, GLB furniture) for free.
   palette: lobbyPalette,
   patrickStart: [4.6, 0, 3.4],
-  build: buildLobbyRoom,
+  build: buildHotelLobbyRoom,
   hotspots: [
     {
       id: 'wallet',
       label: 'Wallet',
       kind: 'item',
-      position: [-2.4, 1.0, -1.4],
-      standPosition: [-2.4, 0, 0.2],
+      // On the lounge coffee table (table centre -5.6, 2.6, top ≈0.46).
+      position: [-5.25, 0.72, 2.6],
+      standPosition: [-5.25, 0, 1.45],
       sprite: walletUrl,
       spriteScale: [0.85, 0.85],
       commands: {
@@ -596,8 +597,9 @@ const lobbyRoom: AdventureRoom3D = {
       id: 'passport',
       label: 'Passport',
       kind: 'item',
-      position: [-0.4, 1.0, -1.4],
-      standPosition: [-0.4, 0, 0.2],
+      // Next to the wallet on the lounge coffee table.
+      position: [-5.95, 0.72, 2.6],
+      standPosition: [-5.95, 0, 1.45],
       sprite: passportUrl,
       spriteScale: [0.85, 0.85],
       commands: {
@@ -652,21 +654,47 @@ const lobbyRoom: AdventureRoom3D = {
         ),
         talk: customPhraseCommand(
           'talk',
-          'I talk to',
+          'Ask for room directions',
           'ผมคุยกับพนักงานยกกระเป๋าครับ',
           'phom khui gap pha-nak-ngaan yok gra-pao khrap',
           'pom koo-ee gap pa-nak-ngaan yok gra-pao khrap',
           'I talk to the bellhop.',
-          'The bellhop takes the luggage and leads Patrick toward the room.',
+          'The bellhop points past the brass elevator doors. "Use your keycard there, sir. Room 1106 is ready."',
           {
-            requiresItems: ['wallet', 'passport', 'phone', 'reservationPaper', 'keycard'],
-            blockedText: 'Collect all five check-in items before asking the bellhop to take you to the room.',
-            completesAdventure: true,
+            requiresItems: ['wallet', 'passport', 'reservationPaper', 'keycard'],
+            blockedText: 'Collect all four check-in items before asking the bellhop to take you to the room.',
             characterVoice: {
               speaker: 'Bellhop',
-              text: 'Of course, sir. I will take your luggage and show you to the room.',
+              text: 'Of course, sir. Use the keycard at the elevator, then I will bring the luggage up.',
             },
           },
+        ),
+      },
+    },
+    {
+      id: 'frontDeskArchway',
+      label: 'Front Desk Archway',
+      kind: 'prop',
+      position: [1.2, 1.45, -5.45],
+      standPosition: [1.2, 0, -3.9],
+      ringColor: 0xf59e0b,
+      commands: {
+        look: customPhraseCommand(
+          'look',
+          'Look down the hotel passage',
+          'ผมดูทางไปแผนกต้อนรับครับ',
+          'phom duu thaang bpai pha-naek ton-rap khrap',
+          'phom duu thaang bpai pha-naek ton-rap khrap',
+          'I look toward the front desk passage.',
+          'Warm brass signs point deeper into the hotel. The front desk is just beyond the lobby.',
+        ),
+        use: roomTransitionCommand(
+          'Walk to Front Desk',
+          'ผมไปแผนกต้อนรับครับ',
+          'phom bpai pha-naek ton-rap khrap',
+          'I go to the front desk.',
+          'Patrick follows the brass signs toward reception.',
+          'frontDesk',
         ),
       },
     },
@@ -718,11 +746,14 @@ const frontDeskRoom: AdventureRoom3D = {
         ),
         talk: phraseCommand(
           'talk',
-          'Greet the hostess',
+          'Begin the check-in duel',
           phraseById['check-in-please'] ?? phrases[0],
           'The hostess starts the hotel check-in conversation.',
           {
             conversationId: 'frontDeskCheckIn',
+            // SNES-style social duel replaces the scrolling check-in. The
+            // conversation below stays as fallback + recap source.
+            battleEncounterId: 'clerk-check-in-duel',
             conversation: frontDeskCheckInConversation,
             conversationCompleteText:
               'Check-in conversation complete. Take the reservation paper and keycard from the desk.',
@@ -734,7 +765,7 @@ const frontDeskRoom: AdventureRoom3D = {
       id: 'reservationPaper',
       label: 'Reservation Paper',
       kind: 'item',
-      position: [-1.8, 1.2, -2.6],
+      position: [-1.8, 1.55, -2.6],
       standPosition: [-1.8, 0, -1.2],
       sprite: reservationPaperUrl,
       spriteScale: [0.9, 0.7],
@@ -758,9 +789,9 @@ const frontDeskRoom: AdventureRoom3D = {
           'Reservation paper collected. The clerk can prepare the keycard.',
           {
             givesItem: 'reservationPaper',
-            requiresItems: ['wallet', 'passport', 'phone'],
+            requiresItems: ['wallet', 'passport'],
             requiresConversation: 'frontDeskCheckIn',
-            blockedText: 'Collect the wallet, passport, and phone before taking the reservation paper.',
+            blockedText: 'Collect the wallet and passport before taking the reservation paper.',
             conversationBlockedText:
               'Complete the check-in conversation with the hostess before taking the reservation paper.',
           },
@@ -768,10 +799,37 @@ const frontDeskRoom: AdventureRoom3D = {
       },
     },
     {
+      id: 'lobbyArchway',
+      label: 'Lobby Archway',
+      kind: 'prop',
+      position: [-6.7, 1.35, -5.45],
+      standPosition: [-6.7, 0, -3.7],
+      ringColor: 0xfde68a,
+      commands: {
+        look: customPhraseCommand(
+          'look',
+          'Look back toward the lobby',
+          'ผมดูทางไปล็อบบี้ครับ',
+          'phom duu thaang bpai lobby khrap',
+          'phom duu thaang bpai lobby khrap',
+          'I look toward the lobby.',
+          'The lobby lights are still visible through the archway behind the reception hall.',
+        ),
+        use: roomTransitionCommand(
+          'Return to Lobby',
+          'ผมกลับไปล็อบบี้ครับ',
+          'phom glap bpai lobby khrap',
+          'I go back to the lobby.',
+          'Patrick retraces the marble passage to the lobby.',
+          'lobby',
+        ),
+      },
+    },
+    {
       id: 'keycard',
       label: 'Keycard',
       kind: 'item',
-      position: [2.6, 1.2, -2.6],
+      position: [2.6, 1.55, -2.6],
       standPosition: [2.6, 0, -1.2],
       sprite: keycardUrl,
       spriteScale: [0.85, 0.55],
@@ -795,12 +853,52 @@ const frontDeskRoom: AdventureRoom3D = {
           'Keycard collected. You are checked in now.',
           {
             givesItem: 'keycard',
-            requiresItems: ['wallet', 'passport', 'phone', 'reservationPaper'],
+            requiresItems: ['wallet', 'passport', 'reservationPaper'],
             requiresConversation: 'frontDeskCheckIn',
             blockedText:
-              'Collect the wallet, passport, phone, and reservation paper before taking the keycard.',
+              'Collect the wallet, passport, and reservation paper before taking the keycard.',
             conversationBlockedText:
               'Complete the check-in conversation with the hostess before taking the keycard.',
+          },
+        ),
+      },
+    },
+    {
+      id: 'elevatorDoors',
+      label: 'Elevator Doors',
+      kind: 'prop',
+      position: [6.35, 1.35, -5.45],
+      standPosition: [6.35, 0, -3.6],
+      ringColor: 0x67e8f9,
+      commands: {
+        look: customPhraseCommand(
+          'look',
+          'Inspect elevator panel',
+          'ผมดูลิฟต์ครับ',
+          'phom duu lift khrap',
+          'pom doo lift khrap',
+          'I look at the elevator.',
+          'A brass reader glows beside the elevator doors. It is waiting for the keycard.',
+        ),
+        use: customPhraseCommand(
+          'use',
+          'Ride elevator to guest floor',
+          'ผมใช้บัตรห้องพักครับ',
+          'phom chai bat hong phak khrap',
+          'pom chai baht hong pahk khrap',
+          'I use the room keycard.',
+          'The elevator panel chirps. The brass doors open toward the guest-floor landing.',
+          {
+            requiresItems: ['wallet', 'passport', 'reservationPaper', 'keycard'],
+            requiresConversation: 'frontDeskCheckIn',
+            blockedText: 'Finish check-in and collect the wallet, passport, reservation paper, and keycard first.',
+            conversationBlockedText:
+              'Complete the check-in conversation with the hostess before trying the elevator.',
+            entersRoom: 'elevatorLanding',
+            characterVoice: {
+              speaker: 'Bellhop',
+              text: 'Perfect. Room eleven oh six is ready. The guest corridor is on this floor.',
+            },
           },
         ),
       },
@@ -808,46 +906,197 @@ const frontDeskRoom: AdventureRoom3D = {
   ],
 };
 
-const bathroomRoom: AdventureRoom3D = {
-  id: 'bathroom',
-  title: 'Bathroom',
-  shortTitle: 'Bath',
-  description: 'A clean hotel bathroom. The booking phone is on the sink counter.',
-  palette: bathroomPalette,
-  patrickStart: [0, 0, 2.4],
-  build: buildBathroomRoom,
+const elevatorLandingRoom: AdventureRoom3D = {
+  id: 'elevatorLanding',
+  title: 'Guest-Floor Elevator Landing',
+  shortTitle: 'Lift',
+  description:
+    'The elevator opens onto a quiet guest-floor landing. Signs split toward the room corridor and back down to reception.',
+  palette: frontDeskPalette,
+  patrickStart: [0, 0, 3.7],
+  build: buildElevatorLandingRoom,
   hotspots: [
     {
-      id: 'phone',
-      label: 'Phone',
-      kind: 'item',
-      position: [-1.2, 1.05, -2.6],
-      standPosition: [-1.2, 0, -1.2],
-      sprite: phoneUrl,
-      spriteScale: [0.6, 0.95],
+      id: 'frontDeskElevator',
+      label: 'Elevator Back to Front Desk',
+      kind: 'prop',
+      position: [0, 1.4, -5.45],
+      standPosition: [0, 0, -3.6],
+      ringColor: 0x67e8f9,
       commands: {
-        look: itemSpoken(
+        look: customPhraseCommand(
           'look',
-          'I look at',
-          'โทรศัพท์',
-          'tho-ra-sap',
-          'tho-ra-sap',
-          'phone',
-          'You find the phone near the sink with the reservation email open.',
+          'Inspect elevator doors',
+          'ผมดูลิฟต์ครับ',
+          'phom duu lift khrap',
+          'phom duu lift khrap',
+          'I look at the elevator.',
+          'The center elevator still glows, ready to return to reception.',
         ),
-        take: itemSpoken(
-          'take',
-          'I take',
-          'โทรศัพท์',
-          'tho-ra-sap',
-          'tho-ra-sap',
-          'phone',
-          'Phone collected. The booking confirmation is ready.',
-          { givesItem: 'phone' },
+        use: roomTransitionCommand(
+          'Ride back to Front Desk',
+          'ผมกลับไปแผนกต้อนรับครับ',
+          'phom glap bpai pha-naek ton-rap khrap',
+          'I go back to the front desk.',
+          'The elevator hums back down to reception.',
+          'frontDesk',
+        ),
+      },
+    },
+    {
+      id: 'corridorSign',
+      label: 'Room Corridor Sign',
+      kind: 'prop',
+      position: [5.6, 1.6, -2.4],
+      standPosition: [4.8, 0, -1.0],
+      ringColor: 0xfde68a,
+      commands: {
+        look: customPhraseCommand(
+          'look',
+          'Read room sign',
+          'ผมดูป้ายห้องพักครับ',
+          'phom duu bpaai hong phak khrap',
+          'phom duu bpaai hong phak khrap',
+          'I look at the room sign.',
+          'The sign points toward rooms 1101 through 1112. Room 1106 is down the corridor.',
+        ),
+        use: roomTransitionCommand(
+          'Enter Guest Corridor',
+          'ผมไปทางห้องพักครับ',
+          'phom bpai thaang hong phak khrap',
+          'I go toward the guest rooms.',
+          'Patrick follows the runner carpet into the guest corridor.',
+          'guestCorridor',
+        ),
+      },
+    },
+    {
+      id: 'luggageCart',
+      label: 'Luggage Cart',
+      kind: 'prop',
+      position: [-5.8, 0.95, 2.45],
+      standPosition: [-4.7, 0, 2.45],
+      ringColor: 0xf59e0b,
+      commands: {
+        look: customPhraseCommand(
+          'look',
+          'Inspect luggage cart',
+          'ผมดูรถเข็นกระเป๋าครับ',
+          'phom duu rot-khen gra-pao khrap',
+          'phom duu rot-khen gra-pao khrap',
+          'I look at the luggage cart.',
+          'The bellhop has already sent Patrick\'s luggage ahead. The cart is empty now.',
         ),
       },
     },
   ],
+  ambianceOverride: {
+    fogNear: 10,
+    fogFar: 28,
+  },
+};
+
+const guestCorridorRoom: AdventureRoom3D = {
+  id: 'guestCorridor',
+  title: 'Guest Corridor',
+  shortTitle: 'Rooms',
+  description:
+    'A long, quiet corridor of numbered doors. Find Room 1106 and use the keycard to finish check-in.',
+  palette: frontDeskPalette,
+  patrickStart: [0, 0, 3.8],
+  build: buildGuestCorridorRoom,
+  hotspots: [
+    {
+      id: 'landingReturn',
+      label: 'Elevator Landing',
+      kind: 'prop',
+      position: [-6.9, 1.4, -5.45],
+      standPosition: [-6.2, 0, -3.5],
+      ringColor: 0xfde68a,
+      commands: {
+        look: customPhraseCommand(
+          'look',
+          'Look back to landing',
+          'ผมดูทางกลับลิฟต์ครับ',
+          'phom duu thaang glap lift khrap',
+          'phom duu thaang glap lift khrap',
+          'I look back toward the elevator.',
+          'The elevator landing is behind you, past the brass runner lights.',
+        ),
+        use: roomTransitionCommand(
+          'Return to Elevator Landing',
+          'ผมกลับไปลิฟต์ครับ',
+          'phom glap bpai lift khrap',
+          'I go back to the elevator.',
+          'Patrick walks back to the elevator landing.',
+          'elevatorLanding',
+        ),
+      },
+    },
+    {
+      id: 'floorMap',
+      label: 'Floor Map',
+      kind: 'prop',
+      position: [-7.2, 1.6, -2.1],
+      standPosition: [-6.1, 0, -1.5],
+      ringColor: 0x67e8f9,
+      commands: {
+        look: customPhraseCommand(
+          'look',
+          'Read floor map',
+          'ผมดูแผนที่ชั้นนี้ครับ',
+          'phom duu phaen-thee chan nee khrap',
+          'phom duu phaen-thee chan nee khrap',
+          'I look at this floor map.',
+          'The map confirms Room 1106 is on the right side of the corridor.',
+        ),
+      },
+    },
+    {
+      id: 'room1106',
+      label: 'Room 1106',
+      kind: 'prop',
+      position: [3.8, 1.45, -5.45],
+      standPosition: [3.8, 0, -3.55],
+      ringColor: 0x67e8f9,
+      commands: {
+        look: customPhraseCommand(
+          'look',
+          'Inspect Room 1106',
+          'ผมดูห้องหนึ่งหนึ่งศูนย์หกครับ',
+          'phom duu hong neung-neung-suun-hok khrap',
+          'phom duu hong neung-neung-suun-hok khrap',
+          'I look at Room 1106.',
+          'The door plaque matches the keycard sleeve: Room 1106.',
+        ),
+        use: customPhraseCommand(
+          'use',
+          'Use keycard on Room 1106',
+          'ผมใช้บัตรห้องพักครับ',
+          'phom chai bat hong phak khrap',
+          'phom chai bat hong phak khrap',
+          'I use the room keycard.',
+          'The lock clicks green. Patrick finally reaches his room.',
+          {
+            requiresItems: ['wallet', 'passport', 'reservationPaper', 'keycard'],
+            requiresConversation: 'frontDeskCheckIn',
+            blockedText: 'Finish check-in and collect every document before opening Room 1106.',
+            conversationBlockedText:
+              'Complete the check-in conversation with the hostess before opening Room 1106.',
+            completesAdventure: true,
+            characterVoice: {
+              speaker: 'Bellhop',
+              text: 'That is your room, sir. I will leave the luggage inside.',
+            },
+          },
+        ),
+      },
+    },
+  ],
+  ambianceOverride: {
+    fogNear: 8,
+    fogFar: 24,
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -869,6 +1118,7 @@ const ambiance: SceneAmbiance = {
   rimColor: 0xfbbf24,
   rimIntensity: 2.2,
   rimPosition: [5, 2.6, -4.2],
+  skyTexture: 'warm-dusk-sky',
 };
 
 export const stageTwoAdventure: AdventureSceneConfig = {
@@ -879,7 +1129,7 @@ export const stageTwoAdventure: AdventureSceneConfig = {
   badge: `Stage ${scenario.scenarioNumber}/10 · 3D`,
   description: scenario.storyGoal,
   introVideoUrl: introTwoMovieUrl,
-  rooms: [lobbyRoom, frontDeskRoom, bathroomRoom],
+  rooms: [lobbyRoom, frontDeskRoom, elevatorLandingRoom, guestCorridorRoom],
   inventoryItems: {
     wallet: {
       id: 'wallet',
@@ -894,13 +1144,6 @@ export const stageTwoAdventure: AdventureSceneConfig = {
       thaiNoun: 'หนังสือเดินทาง',
       romanization: 'nang-sue doen-thaang',
       sprite: passportUrl,
-    },
-    phone: {
-      id: 'phone',
-      label: 'Phone',
-      thaiNoun: 'โทรศัพท์',
-      romanization: 'tho-ra-sap',
-      sprite: phoneUrl,
     },
     reservationPaper: {
       id: 'reservationPaper',
@@ -917,8 +1160,19 @@ export const stageTwoAdventure: AdventureSceneConfig = {
       sprite: keycardUrl,
     },
   },
-  requiredInventory: ['wallet', 'passport', 'phone', 'reservationPaper', 'keycard'],
+  requiredInventory: ['wallet', 'passport', 'reservationPaper', 'keycard'],
   ambiance,
-  completionMessage: 'Stage 2 clear. The hotel welcomes you in.',
-  loadingTagline: 'Polishing the marble at reception…',
+  completionMessage: 'Stage 2 clear. Patrick checks in, follows the guest-floor route, and unlocks Room 1106.',
+  chapterTitle: 'Day Two — The Front Desk',
+  loadingTagline: 'Morning light spills across the marble…',
+  // Cool, crisp morning-light grade — a touch bluer than the warm lobby to
+  // distinguish the front-desk service beat.
+  grade: {
+    tint: [0.93, 0.97, 1.05],
+    tintAmount: 0.18,
+    contrast: 1.06,
+    saturation: 1.06,
+    vignette: 0.32,
+    exposure: 1.02,
+  },
 };

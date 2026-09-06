@@ -404,7 +404,14 @@ export function addFoliage(group: THREE.Group, x: number, z: number, scale = 1) 
   addContactShadow(group, x, z, 0.5 * scale, 0.6);
 }
 
-export function addHangingLantern(group: THREE.Group, x: number, y: number, z: number, color: number) {
+export function addHangingLantern(
+  group: THREE.Group,
+  x: number,
+  y: number,
+  z: number,
+  color: number,
+  options: { light?: boolean } = {},
+) {
   // Hanging decor — none of it should block walking
   // Cord
   addBox(group, [0.04, y, 0.04], [x, y / 2 + 0.5, z], 0x111827, { collider: false });
@@ -424,10 +431,12 @@ export function addHangingLantern(group: THREE.Group, x: number, y: number, z: n
     emissiveIntensity: 0.4,
     collider: false,
   });
-  // Point light (cheap)
-  const light = new THREE.PointLight(color, 0.85, 4.2);
-  light.position.set(x, 0.6, z);
-  group.add(light);
+  // Point light (cheap, but they add up — strings pass light:false and share)
+  if (options.light ?? true) {
+    const light = new THREE.PointLight(color, 0.85, 4.2);
+    light.position.set(x, 0.6, z);
+    group.add(light);
+  }
   return body;
 }
 
@@ -506,8 +515,18 @@ export function addLanternStringBetween(
     const t = (i + 0.5) / count;
     const x = fromX + (toX - fromX) * t;
     const drop = 0.08 + Math.sin(t * Math.PI) * 0.06;
-    addHangingLantern(group, x, baseY - 0.8 - drop, z, color);
+    // Individual lanterns stay emissive-only; two shared lights below cover
+    // the whole string. (Per-lantern PointLights made Stage 3 the slowest
+    // loader in the demo — 14+ lights in one room.)
+    addHangingLantern(group, x, baseY - 0.8 - drop, z, color, { light: false });
   }
+  // Two shared string lights at the 1/3 and 2/3 points — visually equivalent
+  // wash at a fraction of the per-fragment lighting cost.
+  [1 / 3, 2 / 3].forEach((t) => {
+    const light = new THREE.PointLight(color, 1.1, Math.abs(toX - fromX) * 0.6 + 2);
+    light.position.set(fromX + (toX - fromX) * t, baseY - 1.0, z);
+    group.add(light);
+  });
 }
 
 const MATERIAL_TEXTURE_FIELDS = [
@@ -534,7 +553,7 @@ const MATERIAL_TEXTURE_FIELDS = [
 
 const REUSABLE_TEXTURE_USER_DATA_KEY = 'sceneHelperReusableTexture';
 
-function markReusableTexture<TTexture extends THREE.Texture>(texture: TTexture): TTexture {
+export function markReusableTexture<TTexture extends THREE.Texture>(texture: TTexture): TTexture {
   texture.userData[REUSABLE_TEXTURE_USER_DATA_KEY] = true;
   return texture;
 }
@@ -652,6 +671,28 @@ export function addSkyDome(scene: THREE.Scene, topColor: number, bottomColor: nu
         gl_FragColor = vec4(mix(bottomColor, topColor, t), 1.0);
       }
     `,
+  });
+  const dome = new THREE.Mesh(geometry, material);
+  dome.name = 'sky-dome';
+  scene.add(dome);
+  return dome;
+}
+
+/**
+ * Image-backed sky dome. Maps a panoramic backdrop image (a §1 asset from
+ * `CHATGPT_IMAGE_ASSETS.md`, 2:1 equirectangular) onto a large inward-facing
+ * sphere behind the room. The texture is expected to already be configured
+ * (colour space / mapping) by the caller — see `loadSkyTexture` in
+ * `imageTextures.ts`. The texture is shared/cached, so it is NOT disposed with
+ * the scene; the dome mesh + geometry are. Returns the dome mesh.
+ */
+export function addSkyDomeFromTexture(scene: THREE.Scene, texture: THREE.Texture, radius = 60) {
+  const geometry = new THREE.SphereGeometry(radius, 32, 20);
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
   });
   const dome = new THREE.Mesh(geometry, material);
   dome.name = 'sky-dome';

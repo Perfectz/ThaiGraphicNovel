@@ -72,7 +72,7 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <Card tone={tone === 'ember' ? 'ember' : 'none'} className="p-4 sm:p-5">
+    <Card tone={tone === 'ember' ? 'ember' : 'none'} className="p-3 sm:p-4">
       <p
         className={`font-display text-[0.65rem] font-bold uppercase tracking-[0.28em] ${
           tone === 'ember' ? 'text-ember' : 'text-accent'
@@ -83,7 +83,7 @@ function Section({
       {description ? (
         <p className="mt-1 text-xs font-medium leading-relaxed text-paper-muted">{description}</p>
       ) : null}
-      <div className="mt-3 grid gap-4">{children}</div>
+      <div className="mt-2.5 grid gap-3">{children}</div>
     </Card>
   );
 }
@@ -333,7 +333,7 @@ export function GameSettings({ isOpen, onClose, onOpenRoadmap }: GameSettingsPro
         </>
       }
     >
-      <div className="grid gap-4">
+      <div className="grid gap-3">
         <Section eyebrow="Sound">
           <label className="flex items-center justify-between gap-4">
             <span className="text-sm font-medium text-paper">Background music</span>

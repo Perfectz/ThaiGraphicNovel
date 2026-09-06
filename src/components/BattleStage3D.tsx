@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import {
   createBattleStage3D,
   type BattleStageController,
+  type BattleStageOptions,
   type BattleVfxRequest,
 } from './three/battleStageScene';
 
@@ -19,6 +20,8 @@ export type BattleStage3DProps = {
   vfx: BattleVfxRequest[];
   /** Toggles true on every screen-shake event from the reducer. */
   hasShake: boolean;
+  /** Per-encounter opponent model / ally visibility (social duels). */
+  stageOptions?: BattleStageOptions;
 };
 
 /**
@@ -39,7 +42,7 @@ export function BattleStage3D(props: BattleStage3DProps) {
     let cancelled = false;
     let controller: BattleStageController | null = null;
 
-    void createBattleStage3D(mount)
+    void createBattleStage3D(mount, propsRef.current.stageOptions ?? {})
       .then((created) => {
         if (cancelled) {
           created.dispose();

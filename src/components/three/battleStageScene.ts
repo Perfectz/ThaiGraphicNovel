@@ -83,6 +83,47 @@ const ELEMENT_COLORS: Record<BattleVfxRequest['element'], number> = {
   heal: 0x4ade80,
 };
 
+const ELEMENT_SECONDARY_COLORS: Record<BattleVfxRequest['element'], number> = {
+  slash: 0xffffff,
+  fire: 0xfacc15,
+  ice: 0xdbeafe,
+  lightning: 0x67e8f9,
+  holy: 0xffffff,
+  wind: 0xd9f99d,
+  shadow: 0x312e81,
+  heal: 0xbbf7d0,
+};
+
+function additiveMeshMaterial(color: number, opacity = 0) {
+  return new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+}
+
+function additiveLineMaterial(color: number, opacity = 0) {
+  return new THREE.LineBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+}
+
+function setObjectOpacity(object: THREE.Object3D, opacity: number) {
+  const material = (object as THREE.Mesh | THREE.Line).material;
+  if (!material) return;
+  const materials = Array.isArray(material) ? material : [material];
+  for (const mat of materials) {
+    mat.transparent = true;
+    mat.opacity = opacity;
+  }
+}
+
 type AnimationSource = { id: string; label: string; url: string; loop: 'repeat' | 'once' };
 
 type RiggedCharacter = {
@@ -280,7 +321,17 @@ async function loadRiggedCharacter(
   return { root: holder, mixer, play, load };
 }
 
-export async function createBattleStage3D(mount: HTMLElement): Promise<BattleStageController> {
+export type BattleStageOptions = {
+  /** Opponent model override — defaults to the Rift Guardian. */
+  opponent?: { modelUrl: string; height: number; rotationY?: number };
+  /** Hide the Su ally rig (used when Su herself is the opponent). */
+  hideAlly?: boolean;
+};
+
+export async function createBattleStage3D(
+  mount: HTMLElement,
+  options: BattleStageOptions = {},
+): Promise<BattleStageController> {
   const caps = getBrowserCapabilities();
   const width = mount.clientWidth || window.innerWidth || 1;
   const height = mount.clientHeight || window.innerHeight || 1;
@@ -350,8 +401,15 @@ export async function createBattleStage3D(mount: HTMLElement): Promise<BattleSta
 
   // Soft contact shadows sit under each battler regardless of shadow-map budget.
   addContactShadow(environment, HERO_ANCHOR.x, HERO_ANCHOR.z, 0.85, 0.6);
-  addContactShadow(environment, SU_ANCHOR.x, SU_ANCHOR.z, 0.8, 0.55);
-  addContactShadow(environment, ENEMY_ANCHOR.x, ENEMY_ANCHOR.z, 1.5, 0.62);
+  if (!options.hideAlly) addContactShadow(environment, SU_ANCHOR.x, SU_ANCHOR.z, 0.8, 0.55);
+  // Human-scale opponents get a human-scale shadow; the Guardian a boss one.
+  addContactShadow(
+    environment,
+    ENEMY_ANCHOR.x,
+    ENEMY_ANCHOR.z,
+    options.opponent && options.opponent.height < 2.4 ? 0.85 : 1.5,
+    0.62,
+  );
 
   void (async () => {
     hero = await loadRiggedCharacter(
@@ -370,37 +428,44 @@ export async function createBattleStage3D(mount: HTMLElement): Promise<BattleSta
     }
   })();
 
-  void (async () => {
-    su = await loadRiggedCharacter(
-      loader,
-      characters,
-      suModelAssetUrl,
-      suSources,
-      SU_ANCHOR,
-      HERO_FACING,
-      1.7,
-    ).catch(() => null);
-    if (su) {
-      await su.load('idle');
-      await su.load('talk');
-      su.play('idle', 0);
-    }
-  })();
+  if (!options.hideAlly) {
+    void (async () => {
+      su = await loadRiggedCharacter(
+        loader,
+        characters,
+        suModelAssetUrl,
+        suSources,
+        SU_ANCHOR,
+        HERO_FACING,
+        1.7,
+      ).catch(() => null);
+      if (su) {
+        await su.load('idle');
+        await su.load('talk');
+        su.play('idle', 0);
+      }
+    })();
+  }
 
+  // Opponent model — the encounter's own NPC for social duels, the Rift
+  // Guardian by default. Same procedural animation path either way (idle
+  // bob, hurt recoil, cast pulse, defeat topple).
+  const opponentModelUrl = options.opponent?.modelUrl ?? riftGuardianModelAssetUrl;
+  const opponentHeight = options.opponent?.height ?? riftGuardianHeight;
   let enemyMaterials: THREE.MeshStandardMaterial[] = [];
   void (async () => {
-    const gltf = await loader.loadAsync(riftGuardianModelAssetUrl).catch(() => null);
+    const gltf = await loader.loadAsync(opponentModelUrl).catch(() => null);
     if (!gltf) return;
     const root = gltf.scene;
     root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(root);
     const size = box.getSize(new THREE.Vector3());
-    root.scale.setScalar(size.y > 0 ? riftGuardianHeight / size.y : 1);
+    root.scale.setScalar(size.y > 0 ? opponentHeight / size.y : 1);
     root.updateMatrixWorld(true);
     const scaledBox = new THREE.Box3().setFromObject(root);
     const center = scaledBox.getCenter(new THREE.Vector3());
     root.position.set(ENEMY_ANCHOR.x - center.x, ENEMY_ANCHOR.y - scaledBox.min.y, ENEMY_ANCHOR.z - center.z);
-    root.rotation.y = ENEMY_FACING;
+    root.rotation.y = options.opponent?.rotationY ?? ENEMY_FACING;
     root.traverse((object) => {
       const mesh = object as THREE.Mesh;
       mesh.castShadow = true;
@@ -460,8 +525,15 @@ export async function createBattleStage3D(mount: HTMLElement): Promise<BattleSta
     group: THREE.Group;
     core: THREE.Mesh;
     halo: THREE.Mesh;
+    beam: THREE.Mesh;
+    shockwave: THREE.Mesh;
+    projectile: THREE.Mesh;
+    specials: THREE.Group;
     light: THREE.PointLight;
     points: THREE.Points;
+    element: BattleVfxRequest['element'];
+    source: THREE.Vector3;
+    impact: THREE.Vector3;
     life: number;
     ttl: number;
   };
@@ -474,39 +546,166 @@ export async function createBattleStage3D(mount: HTMLElement): Promise<BattleSta
 
   const spawnVfx = ({ element, target }: BattleVfxRequest) => {
     const color = ELEMENT_COLORS[element] ?? 0xffffff;
+    const secondary = ELEMENT_SECONDARY_COLORS[element] ?? 0xffffff;
     const at = vfxAnchor(target);
+    const source =
+      target === 'enemy'
+        ? vfxAnchor('hero').add(new THREE.Vector3(0.35, 0.25, 0))
+        : vfxAnchor('enemy').add(new THREE.Vector3(-0.35, 0.25, 0));
+    const impact = at.clone().sub(source);
+    const distance = Math.max(0.1, impact.length());
+    const direction = impact.clone().normalize();
     const group = new THREE.Group();
-    group.position.copy(at);
+    group.position.copy(source);
+
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.09, distance, 10, 1, true),
+      additiveMeshMaterial(color),
+    );
+    beam.position.copy(impact).multiplyScalar(0.5);
+    beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+    beam.scale.y = 0.001;
+    group.add(beam);
+
+    const projectile = new THREE.Mesh(
+      new THREE.SphereGeometry(element === 'slash' ? 0.16 : 0.22, 16, 12),
+      additiveMeshMaterial(secondary, 1),
+    );
+    group.add(projectile);
 
     const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.4, 18, 14),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending }),
+      new THREE.SphereGeometry(element === 'fire' || element === 'shadow' ? 0.52 : 0.4, 18, 14),
+      additiveMeshMaterial(color),
     );
+    core.position.copy(impact);
     group.add(core);
 
     const halo = new THREE.Mesh(
       new THREE.RingGeometry(0.5, 0.62, 40),
-      new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.8,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
+      additiveMeshMaterial(color, 0.8),
     );
+    (halo.material as THREE.MeshBasicMaterial).side = THREE.DoubleSide;
+    halo.position.copy(impact);
     halo.lookAt(camera.position);
     group.add(halo);
+
+    const shockwave = new THREE.Mesh(
+      new THREE.TorusGeometry(0.38, 0.035, 8, 46),
+      additiveMeshMaterial(secondary),
+    );
+    shockwave.position.copy(impact);
+    shockwave.lookAt(camera.position);
+    group.add(shockwave);
+
+    const specials = new THREE.Group();
+    group.add(specials);
+    const markSpecial = (object: THREE.Object3D, kind: string) => {
+      object.userData.kind = kind;
+      object.userData.basePosition = object.position.clone();
+      return object;
+    };
+
+    if (element === 'slash') {
+      for (let i = 0; i < 3; i++) {
+        const arc = new THREE.Mesh(
+          new THREE.TorusGeometry(0.42 + i * 0.16, 0.022, 8, 36, Math.PI * 1.24),
+          additiveMeshMaterial(i === 1 ? secondary : color),
+        );
+        arc.position.copy(impact);
+        arc.rotation.set(0.45 + i * 0.12, 0.85, -0.55 + i * 0.34);
+        arc.userData.offset = i * 0.12;
+        specials.add(markSpecial(arc, 'slashArc'));
+      }
+    } else if (element === 'fire') {
+      const flameGeometry = new THREE.ConeGeometry(0.16, 0.75, 9);
+      for (let i = 0; i < 7; i++) {
+        const flame = new THREE.Mesh(flameGeometry, additiveMeshMaterial(i % 2 ? secondary : color));
+        const angle = (i / 7) * Math.PI * 2;
+        const radius = 0.18 + (i % 3) * 0.08;
+        flame.position.copy(impact).add(new THREE.Vector3(Math.cos(angle) * radius, 0.05, Math.sin(angle) * radius));
+        flame.rotation.set((Math.random() - 0.5) * 0.45, 0, angle);
+        flame.userData.offset = i * 0.08;
+        specials.add(markSpecial(flame, 'fireTongue'));
+      }
+    } else if (element === 'ice') {
+      const shardGeometry = new THREE.ConeGeometry(0.08, 0.78, 5);
+      for (let i = 0; i < 8; i++) {
+        const shard = new THREE.Mesh(shardGeometry, additiveMeshMaterial(i % 2 ? secondary : color));
+        const angle = (i / 8) * Math.PI * 2;
+        const radial = new THREE.Vector3(Math.cos(angle), 0.35 + (i % 2) * 0.3, Math.sin(angle)).normalize();
+        shard.position.copy(impact).add(radial.clone().multiplyScalar(0.12));
+        shard.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), radial);
+        shard.userData.direction = radial;
+        shard.userData.offset = i * 0.07;
+        specials.add(markSpecial(shard, 'iceShard'));
+      }
+    } else if (element === 'lightning') {
+      for (let bolt = 0; bolt < 3; bolt++) {
+        const boltPoints: THREE.Vector3[] = [];
+        const side = new THREE.Vector3(-direction.z, 0.4, direction.x).normalize();
+        for (let step = 0; step <= 8; step++) {
+          const amount = step / 8;
+          const jitter = step === 0 || step === 8 ? 0 : (Math.random() - 0.5) * (0.38 + bolt * 0.12);
+          boltPoints.push(impact.clone().multiplyScalar(amount).add(side.clone().multiplyScalar(jitter)));
+        }
+        const boltLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(boltPoints), additiveLineMaterial(bolt ? secondary : color));
+        boltLine.userData.offset = bolt * 0.11;
+        specials.add(markSpecial(boltLine, 'lightningBolt'));
+      }
+    } else if (element === 'wind') {
+      for (let i = 0; i < 4; i++) {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.28 + i * 0.09, 0.018, 8, 44),
+          additiveMeshMaterial(i % 2 ? secondary : color),
+        );
+        ring.position.copy(impact).multiplyScalar(0.22 + i * 0.18);
+        ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), direction);
+        ring.userData.offset = i * 0.14;
+        specials.add(markSpecial(ring, 'windRing'));
+      }
+    } else if (element === 'shadow') {
+      for (let i = 0; i < 3; i++) {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.35 + i * 0.18, 0.035, 8, 40),
+          additiveMeshMaterial(i === 0 ? secondary : color),
+        );
+        ring.position.copy(impact);
+        ring.rotation.set(Math.PI * 0.5, 0, i * 0.8);
+        ring.userData.offset = i * 0.1;
+        specials.add(markSpecial(ring, 'shadowVortex'));
+      }
+    } else if (element === 'holy' || element === 'heal') {
+      const glyphColor = element === 'heal' ? secondary : color;
+      const glyphRing = new THREE.Mesh(new THREE.RingGeometry(0.46, 0.52, 6), additiveMeshMaterial(glyphColor));
+      glyphRing.position.copy(impact);
+      glyphRing.lookAt(camera.position);
+      specials.add(markSpecial(glyphRing, element === 'heal' ? 'healGlyph' : 'holyGlyph'));
+
+      const barGeometry = new THREE.BoxGeometry(0.08, 0.82, 0.035);
+      const vertical = new THREE.Mesh(barGeometry, additiveMeshMaterial(glyphColor));
+      const horizontal = new THREE.Mesh(barGeometry, additiveMeshMaterial(glyphColor));
+      vertical.position.copy(impact);
+      horizontal.position.copy(impact);
+      horizontal.rotation.z = Math.PI * 0.5;
+      specials.add(markSpecial(vertical, element === 'heal' ? 'healGlyph' : 'holyGlyph'));
+      specials.add(markSpecial(horizontal, element === 'heal' ? 'healGlyph' : 'holyGlyph'));
+    }
 
     const count = caps.isLowEndDevice ? 24 : 60;
     const positions = new Float32Array(count * 3);
     const velocities: THREE.Vector3[] = [];
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = 0;
-      positions[i * 3 + 1] = 0;
-      positions[i * 3 + 2] = 0;
+      positions[i * 3] = impact.x;
+      positions[i * 3 + 1] = impact.y;
+      positions[i * 3 + 2] = impact.z;
+      const spread =
+        element === 'lightning' ? 8 : element === 'fire' ? 7 : element === 'shadow' ? 4.5 : 6;
       velocities.push(
-        new THREE.Vector3((Math.random() - 0.5) * 6, (Math.random() - 0.2) * 6, (Math.random() - 0.5) * 6),
+        new THREE.Vector3(
+          (Math.random() - 0.5) * spread,
+          (Math.random() - 0.25) * spread,
+          (Math.random() - 0.5) * spread,
+        ),
       );
     }
     const geometry = new THREE.BufferGeometry();
@@ -526,10 +725,26 @@ export async function createBattleStage3D(mount: HTMLElement): Promise<BattleSta
     group.add(points);
 
     const light = new THREE.PointLight(color, 6, 9, 2);
+    light.position.copy(impact);
     group.add(light);
 
     scene.add(group);
-    activeVfx.push({ group, core, halo, light, points, life: 0, ttl: 0.9 });
+    activeVfx.push({
+      group,
+      core,
+      halo,
+      beam,
+      shockwave,
+      projectile,
+      specials,
+      light,
+      points,
+      element,
+      source,
+      impact,
+      life: 0,
+      ttl: element === 'holy' || element === 'heal' ? 1.12 : 0.98,
+    });
   };
 
   // ── Camera shake ──
@@ -608,26 +823,95 @@ export async function createBattleStage3D(mount: HTMLElement): Promise<BattleSta
       const fx = activeVfx[i];
       fx.life += delta;
       const t = Math.min(1, fx.life / fx.ttl);
-      const grow = 0.4 + t * 2.4;
+      const travel = Math.min(1, t / 0.34);
+      const impactT = Math.max(0, (t - 0.24) / 0.76);
+      const pulse = Math.sin(Math.min(1, impactT) * Math.PI);
+      fx.projectile.position.copy(fx.impact).multiplyScalar(travel);
+      if (fx.element === 'slash') {
+        fx.projectile.scale.set(2.2 + pulse * 1.2, 0.28 + pulse * 0.08, 0.28 + pulse * 0.08);
+        fx.projectile.rotation.z += delta * 18;
+      } else if (fx.element === 'ice') {
+        fx.projectile.scale.set(0.55 + pulse * 0.45, 1.7 + pulse * 0.6, 0.55 + pulse * 0.45);
+        fx.projectile.rotation.x += delta * 8;
+      } else {
+        fx.projectile.scale.setScalar(0.75 + pulse * 1.1);
+      }
+      (fx.projectile.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 1 - impactT * 1.25);
+      fx.beam.position.copy(fx.impact).multiplyScalar(travel * 0.5);
+      fx.beam.scale.y = Math.max(0.001, travel);
+      (fx.beam.material as THREE.MeshBasicMaterial).opacity =
+        fx.element === 'lightning'
+          ? Math.max(0, 0.9 - impactT * 0.6) * (0.72 + Math.random() * 0.28)
+          : Math.max(0, 0.9 - impactT * 1.1);
+      const grow = 0.28 + impactT * 2.8;
       fx.core.scale.setScalar(grow);
-      (fx.core.material as THREE.MeshBasicMaterial).opacity = (1 - t) * 0.95;
-      fx.halo.scale.setScalar(0.6 + t * 3.4);
+      (fx.core.material as THREE.MeshBasicMaterial).opacity = pulse * 0.95;
+      fx.halo.scale.setScalar(0.45 + impactT * 3.8);
       fx.halo.lookAt(camera.position);
-      (fx.halo.material as THREE.MeshBasicMaterial).opacity = (1 - t) * 0.8;
-      fx.light.intensity = (1 - t) * 6;
+      (fx.halo.material as THREE.MeshBasicMaterial).opacity = pulse * 0.82;
+      fx.shockwave.scale.setScalar(0.6 + impactT * 2.4);
+      fx.shockwave.lookAt(camera.position);
+      (fx.shockwave.material as THREE.MeshBasicMaterial).opacity = Math.max(0, pulse * 0.85);
+      fx.light.intensity = pulse * 7;
+      fx.specials.traverse((child) => {
+        if (child === fx.specials) return;
+        const kind = child.userData.kind as string | undefined;
+        if (!kind) return;
+        const base = child.userData.basePosition as THREE.Vector3 | undefined;
+        const offset = (child.userData.offset as number | undefined) ?? 0;
+        const delayed = Math.max(0, Math.min(1, (impactT - offset) / Math.max(0.01, 1 - offset)));
+        const specialPulse = Math.sin(delayed * Math.PI);
+        if (base) child.position.copy(base);
+
+        if (kind === 'slashArc') {
+          child.scale.setScalar(0.5 + delayed * 1.8);
+          child.rotation.z += delta * (8 + offset * 8);
+          setObjectOpacity(child, specialPulse);
+        } else if (kind === 'fireTongue') {
+          child.position.y += delayed * (0.8 + offset);
+          child.scale.set(0.75 + specialPulse * 0.45, 0.35 + delayed * 1.35, 0.75 + specialPulse * 0.45);
+          child.rotation.y += delta * 5;
+          setObjectOpacity(child, specialPulse * 0.95);
+        } else if (kind === 'iceShard') {
+          const outward = child.userData.direction as THREE.Vector3 | undefined;
+          if (outward) child.position.add(outward.clone().multiplyScalar(delayed * 0.85));
+          child.scale.setScalar(0.45 + delayed * 1.2);
+          child.rotation.z += delta * 2;
+          setObjectOpacity(child, Math.max(0, 1 - delayed * 0.55));
+        } else if (kind === 'lightningBolt') {
+          child.visible = travel > 0.16;
+          setObjectOpacity(child, Math.max(0, 1 - impactT * 0.8) * (0.45 + Math.random() * 0.55));
+        } else if (kind === 'windRing') {
+          child.position.copy(fx.impact).multiplyScalar(0.18 + delayed * 0.82);
+          child.scale.setScalar(0.6 + delayed * 2.1);
+          child.rotation.z += delta * (7 + offset * 10);
+          setObjectOpacity(child, specialPulse * 0.78);
+        } else if (kind === 'shadowVortex') {
+          child.scale.setScalar(1.15 - delayed * 0.45 + specialPulse * 0.35);
+          child.rotation.z -= delta * (4 + offset * 10);
+          setObjectOpacity(child, specialPulse * 0.95);
+        } else if (kind === 'holyGlyph' || kind === 'healGlyph') {
+          child.scale.setScalar(0.55 + delayed * (kind === 'healGlyph' ? 1.5 : 1.2));
+          child.rotation.z += delta * (kind === 'healGlyph' ? -2.5 : 2.5);
+          setObjectOpacity(child, specialPulse * 0.9);
+        }
+      });
       const pos = fx.points.geometry.getAttribute('position') as THREE.BufferAttribute;
       const vels = fx.points.userData.velocities as THREE.Vector3[];
       for (let p = 0; p < pos.count; p++) {
-        pos.setXYZ(
-          p,
-          pos.getX(p) + vels[p].x * delta,
-          pos.getY(p) + vels[p].y * delta,
-          pos.getZ(p) + vels[p].z * delta,
-        );
-        vels[p].y -= delta * 4;
+        if (impactT > 0) {
+          pos.setXYZ(
+            p,
+            pos.getX(p) + vels[p].x * delta,
+            pos.getY(p) + vels[p].y * delta,
+            pos.getZ(p) + vels[p].z * delta,
+          );
+          vels[p].y -= delta * 4;
+        }
       }
       pos.needsUpdate = true;
-      (fx.points.material as THREE.PointsMaterial).opacity = 1 - t;
+      (fx.points.material as THREE.PointsMaterial).opacity =
+        impactT > 0 ? Math.max(0, (1 - impactT) * 1.1) : 0;
       if (t >= 1) {
         scene.remove(fx.group);
         disposeObjectTree(fx.group);

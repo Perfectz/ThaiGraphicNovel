@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -11,19 +13,32 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
-import { addSkyDome, lighten } from './three/sceneHelpers';
+import { addSkyDome, addSkyDomeFromTexture, lighten } from './three/sceneHelpers';
+import { loadSkyTexture } from './three/imageTextures';
 import { resolveCircleCollision, PLAYER_COLLISION_RADIUS } from './three/collision';
 import { createXRControls } from './three/xrControls';
 import { createXRHud, type XRHudSnapshot } from './three/xrHud';
 import { createXRCinema } from './three/xrCinema';
 import { createXRMenu } from './three/xrMenu';
+import { createXRVignette } from './three/xrVignette';
+import {
+  type XRComfortSettings,
+  loadComfort,
+  saveComfort,
+  cycleTurnStyle,
+  cycleVignette,
+  toggleHandedness,
+} from './three/xrComfort';
 import { patrickAnimationSources, patrickModelAssetUrl, type PatrickAnimationId } from './three/patrickRig';
 import type {
   AdventureCommand,
+  AdventureConversationTurn,
   AdventureHotspot3D,
   AdventureSceneConfig,
   AdventureVerb,
 } from '../data/adventures/types';
+import { applyResult, type PhraseResult, type PhraseResultMap } from './stageClear';
+import { StageClearPayoff } from './StageClearPayoff';
 import {
   getTutoringLevel,
   getVoiceJudgeMode,
@@ -49,6 +64,21 @@ import { getBrowserCapabilities } from '../services/browserCapabilities';
 import { CharacterDebugIntroDialogue } from './CharacterDebugIntroDialogue';
 import { getStageIntroLines } from '../data/adventures/stageIntros';
 import { getStageOneSuAudioSrc, getSuAudioSrc } from '../services/suLineAudio';
+import { stagePhraseCoachTextById } from '../data/stagePhraseCoachLines';
+import { getBattleEncounter } from '../data/battleEncounters';
+import { enterStageForVitals } from '../systems/battleVitals';
+import {
+  loadProgression,
+  PROGRESSION_CHANGED_EVENT,
+  type BattleSpoils,
+} from '../systems/progression';
+import type { BattleEncounterConfig } from '../data/phantasyBattleDemo';
+
+// Turn-based social-duel screen — lazy so stages that never trigger a battle
+// don't pay for the battle bundle (3D battle stage, VFX, battle CSS).
+const PhantasyBattleScreen = lazy(() =>
+  import('./PhantasyBattleDemo').then((module) => ({ default: module.PhantasyBattleDemo })),
+);
 import { stageOneConversationDeck } from '../data/stageOneSuVoiceLines';
 import { getCharacterVoiceAudioSrc } from '../services/characterVoiceAudio';
 import {
@@ -137,9 +167,21 @@ export type Stage3DAdventureProps = {
   config: AdventureSceneConfig;
   onComplete?: () => void;
   onReturnToOverworld?: () => void;
+  /**
+   * Overworld portal handler. When a hotspot command carries an
+   * `entersStageIndex`, the engine calls this with that index instead of
+   * running the lesson-completion flow. The walkable Sukhumvit overworld wires
+   * this to the store's `jumpToScenario` so a street gate launches its stage.
+   */
+  onEnterStage?: (scenarioIndex: number) => void;
 };
 
-export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: Stage3DAdventureProps) {
+export function Stage3DAdventure({
+  config,
+  onComplete,
+  onReturnToOverworld,
+  onEnterStage,
+}: Stage3DAdventureProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const sceneRefs = useRef<SceneRefs | null>(null);
   const roomRef = useRef<string>(config.rooms[0].id);
@@ -174,6 +216,15 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   const xrPresentingRef = useRef(false);
   const isIntroMovieActiveRef = useRef(false);
   const syncXRSurfacesRef = useRef<() => void>(() => {});
+  // VR comfort settings (snap turn / vignette / handedness). State so the menu
+  // panel repaints on change; a mirror ref so the per-frame XR loop reads the
+  // latest value without re-binding its once-bound closures.
+  const [comfort, setComfort] = useState<XRComfortSettings>(() => loadComfort());
+  const comfortRef = useRef<XRComfortSettings>(comfort);
+  useEffect(() => {
+    comfortRef.current = comfort;
+    saveComfort(comfort);
+  }, [comfort]);
   const stageIntroAudioRef = useRef<HTMLAudioElement | null>(null);
   const soundSettings = useSoundSettings();
   const returnToTitle = useGameStore((state) => state.returnToTitle);
@@ -192,6 +243,31 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   const [activeCommand, setActiveCommand] = useState<ActiveCommand | null>(null);
   const [activeConversation, setActiveConversation] = useState<ActiveConversation | null>(null);
   const [completedConversations, setCompletedConversations] = useState<string[]>([]);
+  // Active turn-based social duel (SNES battle screen) — set when a talk
+  // command with a battleEncounterId starts, cleared on victory/leave.
+  const [activeBattle, setActiveBattle] = useState<{
+    hotspot: AdventureHotspot3D;
+    command: AdventureCommand;
+    encounter: BattleEncounterConfig;
+  } | null>(null);
+
+  // Campaign-continuous battle vitals: advancing to the next stage keeps
+  // Patrick's Confidence/Focus/items; replays or stage-jumps start clean.
+  // The per-stage spoils tally (for the Stage Clear card) resets either way.
+  const stageSpoilsRef = useRef({ xp: 0, baht: 0, equipment: [] as string[], level: 1 });
+  useEffect(() => {
+    enterStageForVitals(config.scenarioNumber);
+    stageSpoilsRef.current = { xp: 0, baht: 0, equipment: [], level: loadProgression().level };
+  }, [config.scenarioId, config.scenarioNumber]);
+
+  // Persistent RPG progression (level + baht) for the header badge — kept in
+  // sync with duel rewards via the progression-changed event.
+  const [progression, setProgression] = useState(() => loadProgression());
+  useEffect(() => {
+    const refresh = () => setProgression(loadProgression());
+    window.addEventListener(PROGRESSION_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(PROGRESSION_CHANGED_EVENT, refresh);
+  }, []);
   // Per-conversation cursor — saved each time advanceConversation advances.
   // Lets the player click away from an in-progress conversation and click
   // back later to resume at the last unfinished turn instead of restarting
@@ -286,6 +362,11 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   const reviewTurnIndexRef = useRef<number | null>(null);
   reviewTurnIndexRef.current = reviewTurnIndex;
   const [stageComplete, setStageComplete] = useState(false);
+  // Per-phrase outcomes recorded across the drill (id → best score/confirmed/
+  // skipped) plus the turn list captured at completion. Together these drive
+  // the Stage Clear mastery recap so the level pays off the learning.
+  const [phraseResults, setPhraseResults] = useState<PhraseResultMap>({});
+  const [clearedTurns, setClearedTurns] = useState<AdventureConversationTurn[]>([]);
   const [loadStatus, setLoadStatus] = useState(`Loading ${config.title}...`);
   // MVP 5 — Loading polish. We track three independent signals so the
   // overlay can render a progressive checklist and decide when it's truly
@@ -463,6 +544,42 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     activeConversationTurn?.response.romanization ?? activeCommand?.command.romanization;
   const inventoryCount = inventory.length;
   const requiredCount = config.requiredInventory.length;
+  const hasActiveSpeechPrompt = Boolean(activeCommand || activeConversation) && !stageComplete;
+  const contextualActions = useMemo(
+    () =>
+      selectedHotspot
+        ? adventureVerbs.flatMap((verb) => {
+            const command = selectedHotspot.commands[verb.id];
+            if (!command) return [];
+            const missing = getMissing(inventory, command.requiresItems);
+            const needsConversation =
+              command.requiresConversation &&
+              !completedConversations.includes(command.requiresConversation);
+            const blocked = Boolean(needsConversation || missing.length > 0);
+            const blockedReason = needsConversation
+              ? 'Finish the required talk first'
+              : missing.length > 0
+                ? `Need ${formatInventoryList(missing, config.inventoryItems)}`
+                : '';
+            return [
+              {
+                verb: verb.id,
+                verbLabel: verb.label,
+                label: command.label,
+                hint: blocked ? blockedReason : command.romanization,
+                blocked,
+              },
+            ];
+          })
+        : [],
+    [selectedHotspot, inventory, completedConversations, config.inventoryItems],
+  );
+  const showContextualActions =
+    Boolean(selectedHotspot) &&
+    contextualActions.length > 0 &&
+    !hasActiveSpeechPrompt &&
+    !isHudMenuOpen &&
+    !stageComplete;
 
   roomRef.current = roomId;
   activeCommandRef.current = activeCommand;
@@ -479,7 +596,16 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     // Gradient sky dome behind the room — the flat background colour stays as
     // the fog/clear colour, the dome adds a vertical two-tone so the horizon
     // reads with depth. Sky top lifts toward the hemi sky colour.
-    addSkyDome(scene, lighten(config.ambiance.hemiSky, 0.15), config.ambiance.background);
+    // Prefer an image-backed dome if the stage names a sky asset that exists;
+    // otherwise fall back to the procedural two-tone gradient dome.
+    const skyTexture = config.ambiance.skyTexture
+      ? loadSkyTexture(config.ambiance.skyTexture)
+      : null;
+    if (skyTexture) {
+      addSkyDomeFromTexture(scene, skyTexture);
+    } else {
+      addSkyDome(scene, lighten(config.ambiance.hemiSky, 0.15), config.ambiance.background);
+    }
 
     const camera = new THREE.PerspectiveCamera(52, mount.clientWidth / mount.clientHeight, 0.1, 80);
     // Stage 1 opens with Patrick rising on the left and Su waving on the right.
@@ -520,8 +646,25 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     // React never re-renders over it. VRButton self-disables to "VR NOT
     // SUPPORTED" when the browser/headset has no immersive-vr session, so it is
     // inert and harmless on a normal desktop. Removed in the cleanup below.
-    const vrButton = VRButton.createButton(renderer);
+    // Require 'local-floor' so the session only starts when the runtime can
+    // actually report a floor-relative pose — otherwise our standing-height and
+    // rig-on-the-floor assumptions silently break and the player floats/sinks.
+    // 'hand-tracking' is optional: nice when present, never blocking.
+    const vrButton = VRButton.createButton(renderer, {
+      requiredFeatures: ['local-floor'],
+      optionalFeatures: ['hand-tracking'],
+    });
     vrButton.dataset.testid = 'stage-3d-vr-button';
+    const hideUnsupportedVrButton = () => {
+      if (/not supported/i.test(vrButton.textContent ?? '')) {
+        vrButton.style.display = 'none';
+        vrButton.setAttribute('aria-hidden', 'true');
+      }
+    };
+    const vrButtonObserver = new MutationObserver(hideUnsupportedVrButton);
+    vrButtonObserver.observe(vrButton, { childList: true, characterData: true, subtree: true });
+    hideUnsupportedVrButton();
+    window.setTimeout(hideUnsupportedVrButton, 0);
     // Lift it clear of the bottom HUD dock and sit it above all overlays so the
     // "ENTER VR" affordance stays tappable on a headset-capable browser.
     vrButton.style.bottom = 'auto';
@@ -606,6 +749,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       mount.clientWidth || window.innerWidth || 1,
       mount.clientHeight || window.innerHeight || 1,
       { strength: config.bloomStrength, threshold: config.bloomThreshold },
+      config.grade,
     );
 
     let disposed = false;
@@ -685,6 +829,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       xrHud: null,
       xrCinema: null,
       xrMenu: null,
+      xrVignette: null,
       renderer,
       controls,
       floor,
@@ -980,6 +1125,13 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     playerRig.add(xrMenu.group);
     refs.xrMenu = xrMenu;
 
+    // Comfort vignette — head-locked, so it's parented to the CAMERA (not the
+    // rig) and stays pinned to the eyes as the head moves. Driven each frame by
+    // xrControls via onVignette below.
+    const xrVignette = createXRVignette();
+    camera.add(xrVignette.group);
+    refs.xrVignette = xrVignette;
+
     function setMenuOpen(open: boolean) {
       menuOpenRef.current = open;
       xrMenu.setOpen(open);
@@ -1012,6 +1164,15 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
               break;
             case 'cycleTutor':
               vrCycleTutorRef.current();
+              break;
+            case 'cycleTurn':
+              setComfort((c) => ({ ...c, turn: cycleTurnStyle(c.turn) }));
+              break;
+            case 'cycleVignette':
+              setComfort((c) => ({ ...c, vignette: cycleVignette(c.vignette) }));
+              break;
+            case 'toggleHandedness':
+              setComfort((c) => ({ ...c, handedness: toggleHandedness(c.handedness) }));
               break;
             case 'returnToTitle':
               vrReturnTitleRef.current();
@@ -1082,6 +1243,8 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       isMenuOpen: () => menuOpenRef.current || (xrPresentingRef.current && isIntroMovieActiveRef.current),
       getColliders: () => refs.colliders,
       roomBounds: ROOM_BOUNDS,
+      getComfort: () => comfortRef.current,
+      onVignette: (amount) => xrVignette.setAmount(amount),
     });
     refs.xrControls = xrControls;
 
@@ -1093,6 +1256,14 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     function onXRSessionStart() {
       controlsEnabledBeforeXR = controls.enabled;
       controls.enabled = false;
+      // Fixed-foveation rendering: drop shading rate toward the periphery where
+      // the lenses are blurry anyway. Near-free GPU headroom on standalone
+      // headsets, which keeps the frame rate (and therefore comfort) stable.
+      try {
+        renderer.xr.setFoveation(1);
+      } catch {
+        // Older runtimes may not support foveation control — harmless to skip.
+      }
       // FIRST PERSON: the player *is* Patrick. Drop the rig onto Patrick's
       // current floor position so the headset opens at his eyes, hide his
       // avatar (you're inside him), and stop any pending click-to-move so the
@@ -1119,6 +1290,8 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       controls.enabled = controlsEnabledBeforeXR;
       xrPresentingRef.current = false;
       setMenuOpen(false);
+      // Clear any residual comfort vignette so it can't linger on the flat path.
+      xrVignette.setAmount(0);
       syncXRSurfacesRef.current();
     }
     renderer.xr.addEventListener('sessionstart', onXRSessionStart);
@@ -1268,6 +1441,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       renderer.xr.removeEventListener('sessionend', onXRSessionEnd);
       window.removeEventListener('resize', onResize);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
+      vrButtonObserver.disconnect();
       if (vrButton.parentElement === mount) {
         mount.removeChild(vrButton);
       }
@@ -1276,6 +1450,8 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
       xrHud.dispose();
       playerRig.remove(xrMenu.group);
       xrMenu.dispose();
+      camera.remove(xrVignette.group);
+      xrVignette.dispose();
       if (refs.xrCinema) {
         playerRig.remove(refs.xrCinema.group);
         refs.xrCinema.dispose();
@@ -1358,8 +1534,8 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   useEffect(() => {
     const menu = sceneRefs.current?.xrMenu;
     if (!menu) return;
-    menu.update({ musicEnabled: soundSettings.musicEnabled, voiceMode, tutorLevel });
-  }, [soundSettings.musicEnabled, voiceMode, tutorLevel]);
+    menu.update({ musicEnabled: soundSettings.musicEnabled, voiceMode, tutorLevel, comfort });
+  }, [soundSettings.musicEnabled, voiceMode, tutorLevel, comfort]);
 
   // --- Rebuild room geometry & hotspots when roomId changes ---
   useEffect(() => {
@@ -1529,6 +1705,50 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     soundSettings.guideAudioVolume,
   ]);
 
+  // Su prompt + coaching VO for non-conversation command cues. Stage 1's
+  // conversation turns get VO from stageOneConversationDeck above; this
+  // covers the Stage 2/3 command cards (and any future stage) by looking up
+  // the recorded per-phrase pair `stage-NN-<phraseId>-su` / `-coach` from the
+  // generated all-Su manifest. Stays silent when no recording exists, which
+  // matches the old behavior.
+  useEffect(() => {
+    if (!activeCommand || activeConversation || stageComplete || !soundSettings.guideAudioEnabled) {
+      return;
+    }
+    const phraseId = activeCommand.command.phraseId;
+    if (!phraseId) return;
+    const slug = `stage-${String(config.scenarioNumber).padStart(2, '0')}-${phraseId}`;
+    const playback = [`${slug}-su`, `${slug}-coach`]
+      .map((audioId) => ({
+        src: getSuAudioSrc(audioId) ?? '',
+        caption: stagePhraseCoachTextById[audioId] ?? '',
+      }))
+      .filter((slot) => Boolean(slot.src));
+    if (!playback.length) return;
+    stopSuPlayback();
+    const runId = suPlaybackRunRef.current;
+    void (async () => {
+      for (const slot of playback) {
+        if (suPlaybackRunRef.current !== runId) return;
+        setPlaybackCaption(slot.caption);
+        await suAudioPlayer.playUntilEnded(slot.src, soundSettings.guideAudioVolume);
+      }
+      if (suPlaybackRunRef.current === runId) setPlaybackCaption('');
+    })();
+    return () => {
+      if (suPlaybackRunRef.current === runId) stopSuPlayback();
+      setPlaybackCaption('');
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeCommand,
+    activeConversation,
+    config.scenarioNumber,
+    stageComplete,
+    soundSettings.guideAudioEnabled,
+    soundSettings.guideAudioVolume,
+  ]);
+
   function moveTo(position: THREE.Vector3) {
     const refs = sceneRefs.current;
     if (!refs) return;
@@ -1577,11 +1797,11 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     setSelectedHotspotId(hotspot.id);
     setActiveCommand(null);
     setActiveConversation(null);
-    setIsHudMenuOpen(true);
+    setIsHudMenuOpen(false);
     setReviewTurnIndex(null);
     setVerdict(null);
     setVoiceError('');
-    setMessage(`${hotspot.label}: choose a command, then say the Thai sentence.`);
+    setMessage(`${hotspot.label}: choose an action.`);
     setHintsDismissed(true);
     playHotspotNpcAnimation(hotspot);
     // Clear any prior conversation anchor — the rigged-person block below
@@ -1683,6 +1903,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
 
     setActiveCommand({ hotspot: selectedHotspot, command });
     setActiveConversation(null);
+    setIsHudMenuOpen(false);
     setVerdict(null);
     setVoiceError('');
     setVoiceStatus(
@@ -1742,7 +1963,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
           setVoiceStatus('Command accepted. The action succeeds.');
           const acceptedConversation = activeConversationRef.current;
           if (acceptedConversation) {
-            advanceConversation(acceptedConversation);
+            advanceConversation(acceptedConversation, nextVerdict.score);
             return;
           }
           const acceptedCommand = activeCommandRef.current;
@@ -1876,7 +2097,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     setVoiceStatus('Skipped this phrase. The action succeeds anyway.');
 
     if (pendingConversation) {
-      advanceConversation(pendingConversation);
+      advanceConversation(pendingConversation, 'skipped');
       return;
     }
     if (pendingCommand) {
@@ -1944,6 +2165,23 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
   }
 
   function startConversation({ hotspot, command }: ActiveCommand, initialTurnIndex = 0) {
+    // Social-duel route: when the command names a battle encounter, stage the
+    // turn-based fight instead of the scrolling conversation. Victory marks
+    // the same conversationId, so gating/completion logic stays identical.
+    if (command.battleEncounterId) {
+      const encounterConfig = getBattleEncounter(command.battleEncounterId);
+      if (encounterConfig) {
+        stopSuPlayback();
+        setActiveCommand(null);
+        setActiveConversation(null);
+        setIsHudMenuOpen(false);
+        setVerdict(null);
+        setVoiceError('');
+        setMessage(`${hotspot.label} squares up. The conversation becomes a duel.`);
+        setActiveBattle({ hotspot, command, encounter: encounterConfig });
+        return;
+      }
+    }
     if (!command.conversationId || !command.conversation?.length) {
       executeCommand({ hotspot, command });
       return;
@@ -1958,6 +2196,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     const firstTurn = command.conversation[safeStart];
     setActiveCommand(null);
     setActiveConversation(nextConversation);
+    setIsHudMenuOpen(false);
     setVerdict(null);
     setVoiceError('');
     setVoiceStatus(
@@ -1980,6 +2219,62 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     void refs?.loadPatrickAction('victory').then((loaded) => {
       if (loaded) refs.playPatrickAction('victory', 0.16);
     });
+  }
+
+  // Battle victory — mirror the conversation-completion path exactly, so the
+  // hostess gating, recap card, and completesAdventure flow all work whether
+  // the player talked or duelled.
+  function handleBattleVictory(spoils?: BattleSpoils) {
+    const battle = activeBattle;
+    if (!battle) return;
+    const { hotspot, command } = battle;
+    setActiveBattle(null);
+    if (spoils) {
+      stageSpoilsRef.current = {
+        xp: stageSpoilsRef.current.xp + spoils.xp,
+        baht: stageSpoilsRef.current.baht + spoils.baht,
+        equipment: spoils.equipmentLabel
+          ? [...stageSpoilsRef.current.equipment, spoils.equipmentLabel]
+          : stageSpoilsRef.current.equipment,
+        level: spoils.level,
+      };
+    }
+    if (command.conversationId) {
+      setCompletedConversations((current) =>
+        current.includes(command.conversationId!) ? current : [...current, command.conversationId!],
+      );
+    }
+    // Mirror executeCommand's reward path — a duel that "gives" an item (the
+    // vendor handing over the plate) must stock the inventory the same way.
+    if (command.givesItem) {
+      setInventory((current) =>
+        current.includes(command.givesItem!) ? current : [...current, command.givesItem!],
+      );
+    }
+    setMessage(command.conversationCompleteText ?? command.successText);
+    setVoiceStatus('Duel won. Continue the stage.');
+    sceneRefs.current?.playPatrickAction('idle', 0.18);
+    playHotspotNpcAnimation(hotspot);
+    if (sceneRefs.current) sceneRefs.current.conversationAnchor = null;
+    // Seed the Stage Clear recap from the command's lesson turns (same rule
+    // as conversation completion: the explicit drill wins; an apply-it duel
+    // only seeds if nothing better was captured).
+    const turns = command.conversation ?? [];
+    if (command.recapDrill) {
+      setClearedTurns(turns);
+    } else if (command.completesAdventure) {
+      setClearedTurns((prev) => (prev.length ? prev : turns));
+    }
+    if (command.completesAdventure) {
+      completeCurrentStage();
+    } else if (command.entersRoom) {
+      window.setTimeout(() => enterRoom(command.entersRoom!), 260);
+    }
+  }
+
+  function handleBattleExit() {
+    setActiveBattle(null);
+    setMessage('You step back from the duel. Talk again when you are ready.');
   }
 
   // Re-point the VR HUD dispatch refs at the current-render closures every
@@ -2041,11 +2336,18 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     if (refs.xrHud) refs.xrHud.group.visible = presenting && !isIntroMovieActive;
   }
 
-  function advanceConversation(conversation: ActiveConversation) {
+  function advanceConversation(conversation: ActiveConversation, result: PhraseResult = 'confirmed') {
     const turns = conversation.command.conversation ?? [];
     const currentTurn = turns[conversation.turnIndex];
     const nextTurnIndex = conversation.turnIndex + 1;
     const nextTurn = turns[nextTurnIndex];
+
+    // Record how the player did on the phrase they just cleared, so the Stage
+    // Clear recap can show per-phrase mastery. Re-attempts only ever improve
+    // the record (see rankResult in stageClear.ts).
+    if (currentTurn) {
+      setPhraseResults((prev) => applyResult(prev, currentTurn.id, result));
+    }
 
     if (nextTurn) {
       setActiveConversation({ ...conversation, turnIndex: nextTurnIndex });
@@ -2080,6 +2382,16 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     // can drift back to the normal player-bias point.
     if (sceneRefs.current) sceneRefs.current.conversationAnchor = null;
 
+    // Snapshot the phrase list for the Stage Clear mastery recap. The explicit
+    // lesson drill wins; otherwise the completing conversation seeds the recap
+    // only if nothing better was captured (so a short "apply it" exchange that
+    // completes the stage can't overwrite the full lesson list).
+    if (conversation.command.recapDrill) {
+      setClearedTurns(turns);
+    } else if (conversation.command.completesAdventure) {
+      setClearedTurns((prev) => (prev.length ? prev : turns));
+    }
+
     if (conversation.command.completesAdventure) {
       completeCurrentStage();
     }
@@ -2099,6 +2411,12 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
     }
     if (command.completesAdventure) {
       completeCurrentStage();
+    }
+    // Overworld portal — once the destination phrase lands, travel to that
+    // stage. Brief delay so the success line registers before the scene swaps.
+    if (command.entersStageIndex !== undefined && onEnterStage) {
+      const targetIndex = command.entersStageIndex;
+      window.setTimeout(() => onEnterStage(targetIndex), 480);
     }
   }
 
@@ -2153,6 +2471,10 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         aria-busy={!canHideLoadOverlay}
       >
         <div className="flex flex-col items-center gap-3">
+          {/* Chapter card — turns the between-stage load into a scene break. */}
+          {config.chapterTitle ? (
+            <p className="adventure-3d-load-chapter">{config.chapterTitle}</p>
+          ) : null}
           <div className="adventure-3d-load-spinner" />
           <p className="adventure-3d-load-label">{config.badge}</p>
           <p className="adventure-3d-load-sublabel">{config.title}</p>
@@ -2180,29 +2502,36 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
 
       {/* Header — stage badge + room nav. Tighter than before and uses the per-stage accent. */}
       <header className="adventure-3d-topbar pointer-events-none absolute left-3 right-3 top-3 z-30 flex flex-wrap items-start justify-between gap-3 sm:left-6 sm:right-6 sm:top-5">
-        <div className="adventure-3d-header pointer-events-auto max-w-md px-4 py-2.5">
-          <span className="adventure-3d-badge">{config.badge}</span>
-          <p className="mt-1.5 text-lg font-black leading-tight text-white sm:text-xl">{room.title}</p>
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/60">
+        <div className="adventure-3d-header pointer-events-auto max-w-sm px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <span className="adventure-3d-badge">{config.badge}</span>
+            <span className="adventure-3d-badge" title={`${progression.xp} XP earned`}>
+              Lv {progression.level} · ฿{progression.baht}
+            </span>
+          </div>
+          <p className="mt-1 text-base font-black leading-tight text-white sm:text-lg">{room.title}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/60">
             {config.subtitle}
           </p>
         </div>
-        <nav className="adventure-3d-room-nav pointer-events-auto flex gap-1 p-1" aria-label="Stage rooms">
-          {config.rooms.map((nextRoom) => (
-            <button
-              key={nextRoom.id}
-              type="button"
-              onClick={() => enterRoom(nextRoom.id)}
-              className={`adventure-3d-room-pill ${nextRoom.id === roomId ? 'adventure-3d-room-pill--active' : ''}`}
-            >
-              {nextRoom.shortTitle}
-            </button>
-          ))}
-        </nav>
+        {config.rooms.length > 1 ? (
+          <nav className="adventure-3d-room-nav pointer-events-auto flex gap-1 p-1" aria-label="Stage rooms">
+            {config.rooms.map((nextRoom) => (
+              <button
+                key={nextRoom.id}
+                type="button"
+                onClick={() => enterRoom(nextRoom.id)}
+                className={`adventure-3d-room-pill ${nextRoom.id === roomId ? 'adventure-3d-room-pill--active' : ''}`}
+              >
+                {nextRoom.shortTitle}
+              </button>
+            ))}
+          </nav>
+        ) : null}
       </header>
 
       {/* Objective banner — pinned top-center, telegraphs the current beat */}
-      <div className="adventure-3d-objective-wrap pointer-events-none absolute left-1/2 top-[5.8rem] z-25 -translate-x-1/2 sm:top-[6.4rem]">
+      <div className="adventure-3d-objective-wrap pointer-events-none absolute left-1/2 top-[5rem] z-25 -translate-x-1/2 sm:top-[5.5rem]">
         <div className="adventure-3d-objective">
           <span className="adventure-3d-objective__eyebrow">
             {selectedHotspot?.label ?? 'Stage Objective'}
@@ -2210,6 +2539,135 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
           <span className="adventure-3d-objective__text">{message}</span>
         </div>
       </div>
+
+      {showContextualActions && selectedHotspot ? (
+        <section
+          className="adventure-3d-context-actions pointer-events-auto"
+          aria-label={`${selectedHotspot.label} actions`}
+        >
+          <div className="adventure-3d-context-actions__label">
+            <span>{selectedHotspot.label}</span>
+            <small>{selectedHotspot.kind}</small>
+          </div>
+          <div className="adventure-3d-context-actions__buttons">
+            {contextualActions.map((action) => (
+              <button
+                key={action.verb}
+                type="button"
+                onClick={() => selectCommand(action.verb)}
+                className={`adventure-3d-context-action ${
+                  action.blocked ? 'adventure-3d-context-action--blocked' : ''
+                }`}
+                aria-label={`${action.verbLabel}: ${action.label}`}
+              >
+                <span>{action.label}</span>
+                <small>{action.hint}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {hasActiveSpeechPrompt ? (
+        <section className="adventure-3d-phrase-bar pointer-events-auto" aria-label="Phrase practice">
+          <div className="adventure-3d-phrase-card">
+            {activeConversation && activeConversationTurn ? (
+              <>
+                <span className="adventure-3d-phrase-card__eyebrow">
+                  {activeConversationTurn.npcSpeaker} - {activeConversationProgress}
+                </span>
+                <p className="adventure-3d-phrase-card__npc">{activeConversationTurn.npcEnglish}</p>
+                <p className="adventure-3d-phrase-card__thai">
+                  {activeConversationTurn.response.targetPhrase}
+                </p>
+                <p className="adventure-3d-phrase-card__roman">
+                  {activeConversationTurn.response.romanization}
+                </p>
+                <p className="adventure-3d-phrase-card__translation">
+                  {activeConversationTurn.response.translation}
+                </p>
+              </>
+            ) : activeCommand ? (
+              <>
+                <span className="adventure-3d-phrase-card__eyebrow">{activeCommand.command.label}</span>
+                <p className="adventure-3d-phrase-card__thai">{activeCommand.command.targetPhrase}</p>
+                <p className="adventure-3d-phrase-card__roman">{activeCommand.command.romanization}</p>
+                <p className="adventure-3d-phrase-card__translation">
+                  {activeCommand.command.translation}
+                </p>
+              </>
+            ) : null}
+          </div>
+
+          <div className="adventure-3d-phrase-actions">
+            {voiceMode === 'no-mic' ? (
+              <button
+                type="button"
+                onClick={confirmNoMicPrompt}
+                className="adventure-3d-mic adventure-3d-phrase-actions__primary"
+                aria-label="Confirm phrase and continue"
+              >
+                {activeConversation ? 'Confirm & Continue' : 'Confirm Phrase'}
+                <span className="adventure-3d-mic__hint">
+                  {activeSpeechRomanization ?? 'Read the prompt'}
+                </span>
+              </button>
+            ) : hasVoiceCoach ? (
+              <button
+                type="button"
+                onPointerDown={startVoiceAttemptWithPointerCapture}
+                onPointerUp={stopVoiceAttemptWithPointerCapture}
+                onPointerCancel={stopVoiceAttemptWithPointerCapture}
+                disabled={isConnecting}
+                className={`adventure-3d-mic adventure-3d-phrase-actions__primary ${
+                  isRecording ? 'adventure-3d-mic--recording' : ''
+                }`}
+              >
+                {isRecording ? 'Release To Judge' : activeConversation ? 'Hold To Answer' : 'Hold To Speak'}
+                <span className="adventure-3d-mic__hint">
+                  {activeSpeechRomanization ?? 'Say the Thai phrase'}
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void connectVoiceCoach()}
+                disabled={isConnecting}
+                className="adventure-3d-connect adventure-3d-phrase-actions__primary"
+              >
+                {isConnecting ? 'Connecting' : `Connect ${voiceMode === 'whisper' ? 'Whisper' : 'Realtime'} Mic`}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={skipActivePrompt}
+              className="adventure-3d-room-pill text-center"
+              title="Advance past this phrase without speaking."
+            >
+              Skip
+            </button>
+            <button
+              type="button"
+              onClick={tryPreviousPhrase}
+              disabled={!activeConversation || activeConversation.turnIndex <= 0 || isReviewing}
+              className="adventure-3d-room-pill text-center"
+              title="Re-practice the previous phrase once."
+            >
+              Review
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsHudMenuOpen((current) => !current)}
+              className="adventure-3d-room-pill text-center"
+              aria-expanded={isHudMenuOpen}
+              aria-controls="adventure-3d-action-panel"
+            >
+              {isHudMenuOpen ? 'Hide Details' : 'Details'}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {/* Stage completion celebration. Two distinct paths:
           - Final stage of the tech demo (scenarioNumber === playable count):
@@ -2220,30 +2678,21 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         config.scenarioNumber >= TECH_DEMO_PLAYABLE_STAGE_COUNT ? (
           <DemoEndSplash onReplay={() => onReturnToOverworld?.()} onContinue={() => onComplete?.()} />
         ) : (
-          <div className="pointer-events-none absolute inset-0 z-[55] grid place-items-center">
-            <div className="adventure-3d-completion pointer-events-auto">
-              <span className="adventure-3d-completion__eyebrow">Stage Clear</span>
-              <h2 className="adventure-3d-completion__title">{config.completionMessage}</h2>
-              <p className="adventure-3d-completion__body">
-                {config.title} — Patrick is ready for the next rift.
-              </p>
-              <button
-                type="button"
-                onClick={() => onComplete?.()}
-                className="adventure-3d-connect mt-4"
-                style={{ display: 'inline-grid' }}
-              >
-                Proceed to Level {config.scenarioNumber + 1}
-              </button>
-            </div>
-          </div>
+          <StageClearPayoff
+            scenarioNumber={config.scenarioNumber}
+            completionMessage={config.completionMessage}
+            turns={clearedTurns}
+            results={phraseResults}
+            spoils={stageSpoilsRef.current}
+            onProceed={() => onComplete?.()}
+          />
         )
       ) : null}
 
       {/* Collapsible action HUD */}
       <section
         id="adventure-3d-action-panel"
-        className={`adventure-3d-panel pointer-events-auto absolute inset-x-3 top-[10rem] z-50 grid max-h-[min(20rem,42dvh)] gap-3 overflow-y-auto p-3 text-white sm:inset-x-6 sm:top-[10.8rem] sm:grid-cols-[minmax(0,1fr)_minmax(13rem,0.58fr)_minmax(17rem,0.78fr)] sm:p-4 lg:inset-x-10 ${
+        className={`adventure-3d-panel pointer-events-auto absolute inset-x-3 top-[10rem] z-50 grid max-h-[min(17rem,40dvh)] gap-2 overflow-y-auto p-2.5 text-white sm:inset-x-6 sm:top-[10.8rem] sm:grid-cols-[minmax(0,1fr)_minmax(11.5rem,0.55fr)_minmax(15rem,0.72fr)] sm:p-3 lg:inset-x-10 ${
           isHudMenuOpen ? 'adventure-3d-panel--hud-open' : ''
         }`}
       >
@@ -2305,7 +2754,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
                 <span className="adventure-3d-card__eyebrow" style={{ color: '#fde68a' }}>
                   Patrick responds
                 </span>
-                <p className="mt-1 text-lg font-black leading-tight text-white sm:text-xl">
+                <p className="mt-1 text-base font-black leading-tight text-white sm:text-lg">
                   {activeConversationTurn.response.targetPhrase}
                 </p>
                 <p className="text-sm font-black leading-tight" style={{ color: accentHex }}>
@@ -2321,7 +2770,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
             ) : activeCommand ? (
               <>
                 <span className="adventure-3d-card__eyebrow">Say it</span>
-                <p className="mt-1 text-lg font-black leading-tight text-white sm:text-xl">
+                <p className="mt-1 text-base font-black leading-tight text-white sm:text-lg">
                   {activeCommand.command.targetPhrase}
                 </p>
                 <p className="text-sm font-black leading-tight" style={{ color: accentHex }}>
@@ -2336,8 +2785,9 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
               </>
             ) : (
               <p className="text-sm font-bold leading-snug text-white/72">
-                Tap a person, item, or prop in the 3D scene, choose a verb, then hold the mic to say the Thai
-                sentence.
+                {voiceMode === 'no-mic'
+                  ? 'Tap a person, item, or prop in the 3D scene, choose a verb, then read the Thai and confirm.'
+                  : 'Tap a person, item, or prop in the 3D scene, choose a verb, then hold the mic to say the Thai sentence.'}
               </p>
             )}
           </div>
@@ -2488,7 +2938,7 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
         </div>
 
         {/* COLUMN 3 — Su judge panel */}
-        <details className="adventure-3d-drawer min-w-0" open>
+        <details className="adventure-3d-drawer min-w-0" open={Boolean(verdict || voiceError || isRecording)}>
           <summary className="adventure-3d-drawer__summary">Su Coach</summary>
           <SuPronunciationJudge
             hasVoiceCoach={hasVoiceCoach}
@@ -2634,6 +3084,32 @@ export function Stage3DAdventure({ config, onComplete, onReturnToOverworld }: St
           >
             Skip Intro
           </button>
+        </div>
+      ) : null}
+
+      {/* Turn-based social duel — full-screen overlay above the adventure.
+          Lazy-loaded; mounting keyed by encounter id so back-to-back duels
+          always start from a fresh battle state. */}
+      {activeBattle ? (
+        <div
+          className="pointer-events-auto absolute inset-0 z-[85] overflow-y-auto bg-[#0A0A0B]"
+          data-testid="stage-battle-overlay"
+        >
+          <Suspense
+            fallback={
+              <div className="grid h-full place-items-center text-sm font-bold uppercase tracking-[0.2em] text-white/70">
+                Entering the duel…
+              </div>
+            }
+          >
+            <PhantasyBattleScreen
+              key={activeBattle.encounter.id}
+              encounter={activeBattle.encounter}
+              onVictory={handleBattleVictory}
+              onExit={handleBattleExit}
+              completesStage={Boolean(activeBattle.command.completesAdventure)}
+            />
+          </Suspense>
         </div>
       ) : null}
     </main>

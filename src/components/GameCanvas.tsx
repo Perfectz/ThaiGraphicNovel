@@ -3,14 +3,13 @@ import { useGameStore } from '../store/gameStore';
 import { BattleHUD } from './BattleHUD';
 import { ChapterCharacterLayer } from './ChapterCharacterLayer';
 import { DialogueBox } from './DialogueBox';
+import { OverworldScene } from './OverworldScene';
 import { Stage3DAdventureDispatcher } from './Stage3DAdventureDispatcher';
 import { StageErrorBoundary } from './StageErrorBoundary';
-import { Button, Chip } from './ui';
 
 export function GameCanvas() {
   const currentScene = useGameStore((state) => state.currentScene);
   const activeScenarioIndex = useGameStore((state) => state.activeScenarioIndex);
-  const startTutorialDialogue = useGameStore((state) => state.startTutorialDialogue);
   const battle = useGameStore((state) => state.battle);
 
   // Every gameplay stage (1–10) now renders through the data-driven
@@ -21,6 +20,16 @@ export function GameCanvas() {
   // equivalents reached parity. The legacy scene names are preserved here so
   // existing save data and store transitions keep working without a state
   // migration; they just resolve to the dispatcher now.
+  // The walkable Sukhumvit overworld hub — a full 3D scene (not the old static
+  // VN panel). Routed before the stage check so it owns the 'overworld' scene.
+  if (currentScene === 'overworld') {
+    return (
+      <StageErrorBoundary>
+        <OverworldScene />
+      </StageErrorBoundary>
+    );
+  }
+
   if (
     currentScene === 'stage3dAdventure' ||
     (currentScene === 'dialogue' && activeScenarioIndex === 0) ||
@@ -36,8 +45,11 @@ export function GameCanvas() {
     );
   }
 
-  const { activeScenario, activeStage, focusCharacter, focusLabel, focusLine, startLessonLabel } =
-    getScenePresentation(currentScene, activeScenarioIndex, battle);
+  const { activeScenario, activeStage, focusCharacter } = getScenePresentation(
+    currentScene,
+    activeScenarioIndex,
+    battle,
+  );
 
   return (
     <main className="vn-game-shell relative h-dvh w-screen overflow-hidden bg-ink text-paper">
@@ -66,23 +78,6 @@ export function GameCanvas() {
       </header>
 
       <ChapterCharacterLayer characters={focusCharacter ? [focusCharacter] : []} />
-
-      {currentScene === 'overworld' ? (
-        <section className="pointer-events-auto absolute inset-x-3 bottom-[var(--vn-panel-bottom)] z-40 grid min-h-[9.5rem] gap-3 overflow-y-auto rounded-[12px] border border-hairline bg-ink-raised/95 p-4 text-paper shadow-card backdrop-blur-sm sm:inset-x-10 sm:grid-cols-[1fr_auto] sm:gap-5 sm:p-5 lg:inset-x-16">
-          <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-2">
-              <Chip>{focusLabel}</Chip>
-              <span className="h-px flex-1 bg-hairline" />
-            </div>
-            <p className="text-base font-medium leading-relaxed text-paper sm:text-lg">{focusLine}</p>
-          </div>
-          <div className="grid gap-2 sm:w-64">
-            <Button variant="primary" onClick={startTutorialDialogue}>
-              {startLessonLabel}
-            </Button>
-          </div>
-        </section>
-      ) : null}
 
       {currentScene === 'dialogue' ? <DialogueBox /> : null}
       {currentScene === 'battle' ? <BattleHUD /> : null}

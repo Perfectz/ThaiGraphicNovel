@@ -1,0 +1,45 @@
+.today-practice {
+  border: 1px solid #718f85;
+  background: #183c41;
+  padding: 18px;
+  margin: 18px 0;
+}
+.today-practice h3 {
+  color: #efd196;
+  margin: 0 0 12px;
+}
+.today-practice-stats {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.today-practice-stats p {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 10px;
+}
+.today-practice-stats strong {
+  color: #fff0c3;
+  font-size: 22px;
+}
+.today-practice-stats span,
+.today-practice > p,
+.today-practice small {
+  color: #d0dfd7;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.today-practice .bk-button {
+  margin-top: 12px;
+}
+@media (max-width: 600px) {
+  .today-practice {
+    padding: 12px;
+  }
+  .today-practice-stats {
+    gap: 12px;
+  }
+  .today-practice-stats strong {
+    font-size: 18px;
+  }
+}

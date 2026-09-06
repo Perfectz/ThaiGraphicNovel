@@ -19,7 +19,7 @@ You can ship to all three at once — they're not mutually exclusive.
 1. Push the repo to GitHub.
 2. [vercel.com/new](https://vercel.com/new) → Import this repo.
 3. Vercel reads `vercel.json` automatically — no dashboard config needed.
-4. (Optional) Add `OPENAI_API_KEY` under Settings → Environment Variables if you want Realtime mode to work for visitors without their own key. Set scope to Production + Preview.
+4. The playtest is static: prerecorded character voices, microphone recording/replay, and text replies work without a server key. Adding an environment variable alone does not host the local Whisper or Realtime services. Do not expose a key to the client bundle.
 5. (Optional) Connect a custom domain under Settings → Domains.
 
 Build settings are inferred from `vercel.json` (`vite` framework, `npm run build`, `dist/` output). Hashed assets get a 1-year `Cache-Control`; `index.html` gets `must-revalidate` so deploys roll out instantly.

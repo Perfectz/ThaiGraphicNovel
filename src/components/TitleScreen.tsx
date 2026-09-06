@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useActiveScenarioIndex, useHasSavedGame, useNavigationActions } from '../store/selectors';
 import { getScenarioByIndex } from '../domain/scenarioRules';
 import { getBrowserAdvisory } from '../services/browserCapabilities';
+import { saveVoiceJudgeMode } from '../services/openAiSettings';
 import logoUrl from '../assets/branding/isekai-thai-quest-logo.svg';
 import {
   GearIcon,
@@ -19,9 +20,14 @@ const TitleThreeScene = lazy(() =>
   import('./TitleThreeScene').then((module) => ({ default: module.TitleThreeScene })),
 );
 
-// LevelSelect is only mounted when the user opens it. No reason to ship it in the
-// initial title bundle.
+// LevelSelect (carousel) and OverworldMap (Sukhumvit transit map) are only
+// mounted when the user opens them — no reason to ship either in the initial
+// title bundle. The map is the primary "where to next" entry; the carousel is
+// kept reachable from the More menu.
 const LevelSelect = lazy(() => import('./LevelSelect').then((module) => ({ default: module.LevelSelect })));
+const OverworldMap = lazy(() =>
+  import('./OverworldMap').then((module) => ({ default: module.OverworldMap })),
+);
 
 export type TitleScreenProps = {
   /**
@@ -37,14 +43,25 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
   const activeScenarioIndex = useActiveScenarioIndex();
   const { startAdventure, continueAdventure } = useNavigationActions();
   const [levelSelectOpen, setLevelSelectOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement | null>(null);
 
   const openLevelSelect = useCallback(() => setLevelSelectOpen(true), []);
   const closeLevelSelect = useCallback(() => setLevelSelectOpen(false), []);
+  const openMap = useCallback(() => setMapOpen(true), []);
+  const closeMap = useCallback(() => setMapOpen(false), []);
   const openAbout = useCallback(() => setAboutOpen(true), []);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
+  const startNoMicAdventure = useCallback(() => {
+    saveVoiceJudgeMode('no-mic');
+    startAdventure();
+  }, [startAdventure]);
+  const continueNoMicAdventure = useCallback(() => {
+    saveVoiceJudgeMode('no-mic');
+    continueAdventure();
+  }, [continueAdventure]);
 
   // Secondary actions (About, Battle Demo, Microgames) live behind a single
   // "More" disclosure so the title's primary flow stays to three buttons.
@@ -88,7 +105,7 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
           portrait behind has breathing room; on mobile the chrome stretches
           full width. */}
       <section className="relative z-10 mx-auto grid min-h-full w-full max-w-7xl grid-cols-1 items-center px-6 py-6 sm:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] sm:px-12 sm:py-8">
-        <div className="relative z-10 flex min-w-0 flex-col gap-7">
+        <div className="relative z-10 flex min-w-0 flex-col gap-5">
           {/* Eyebrow — one short orienting line. Scope ("3-stage demo") now
               lives in the tagline, so the redundant tech-demo chip is gone. */}
           <p className="font-display text-[10px] font-bold uppercase tracking-[0.32em] text-[#67E8F9]">
@@ -96,14 +113,14 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
           </p>
 
           {/* Hero cluster — logo + tagline */}
-          <div className="flex min-w-0 flex-col gap-5">
+          <div className="flex min-w-0 flex-col gap-4">
             <img
               src={logoUrl}
               alt="Isekai Thai Quest"
-              className="title-modern-logo block h-auto w-full max-w-[36rem] select-none"
+              className="title-modern-logo block h-auto w-full max-w-[30rem] select-none"
               draggable={false}
             />
-            <p className="max-w-lg text-base font-medium leading-relaxed text-[#F4F1EB]/85 sm:text-lg">
+            <p className="max-w-lg text-sm font-medium leading-relaxed text-[#F4F1EB]/85 sm:text-base">
               Learn survival Thai in Bangkok with Su, your AI tutor.{' '}
               <span className="text-[#67E8F9]">3-stage demo, ~20 min.</span> Mic optional.
             </p>
@@ -118,16 +135,16 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
               <button
                 type="button"
                 onClick={continueAdventure}
-                className="group flex w-full max-w-md items-center gap-4 rounded-lg border border-[#67E8F9]/40 bg-gradient-to-r from-[#67E8F9]/15 to-[#67E8F9]/5 p-4 text-left transition-colors duration-150 hover:border-[#67E8F9] hover:from-[#67E8F9]/25"
+                className="group flex w-full max-w-sm items-center gap-3 rounded-lg border border-[#67E8F9]/40 bg-gradient-to-r from-[#67E8F9]/15 to-[#67E8F9]/5 p-3 text-left transition-colors duration-150 hover:border-[#67E8F9] hover:from-[#67E8F9]/25"
               >
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#67E8F9] text-[#0A0A0B] transition-transform duration-150 group-hover:scale-105">
-                  <PlayIcon className="text-2xl" />
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#67E8F9] text-[#0A0A0B] transition-transform duration-150 group-hover:scale-105">
+                  <PlayIcon className="text-xl" />
                 </span>
                 <span className="flex min-w-0 flex-col">
-                  <span className="font-display text-[10px] font-bold uppercase tracking-[0.3em] text-[#67E8F9]">
+                  <span className="font-display text-[9px] font-bold uppercase tracking-[0.3em] text-[#67E8F9]">
                     Resume · Stage {activeScenarioIndex + 1}
                   </span>
-                  <span className="truncate font-display text-lg font-black uppercase tracking-tight text-[#F4F1EB]">
+                  <span className="truncate font-display text-base font-black uppercase tracking-tight text-[#F4F1EB]">
                     {resumeScenario.title}
                   </span>
                 </span>
@@ -148,11 +165,20 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
               )}
               <button
                 type="button"
-                onClick={openLevelSelect}
+                onClick={hasSavedGame ? continueNoMicAdventure : startNoMicAdventure}
+                aria-label={hasSavedGame ? 'Resume without microphone' : 'Start without microphone'}
+                className="title-modern-button title-modern-button--ghost"
+              >
+                <PlayIcon />
+                <span>{hasSavedGame ? 'Resume No-Mic' : 'Start No-Mic'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={openMap}
                 className="title-modern-button title-modern-button--ghost"
               >
                 <GridIcon />
-                <span>Level Select</span>
+                <span>Overworld Map</span>
               </button>
               <button
                 type="button"
@@ -205,6 +231,18 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
                     <button
                       type="button"
                       role="menuitem"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        openLevelSelect();
+                      }}
+                      className="flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-[#F4F1EB]/85 transition hover:bg-[#67E8F9]/10 hover:text-[#67E8F9]"
+                    >
+                      <GridIcon />
+                      <span>Level Select (cards)</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
                       onClick={() => goToRoute('/battle-demo')}
                       className="flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-[#F4F1EB]/85 transition hover:bg-[#67E8F9]/10 hover:text-[#67E8F9]"
                     >
@@ -224,12 +262,33 @@ export function TitleScreen({ onOpenSettings }: TitleScreenProps) {
                 ) : null}
               </div>
             </div>
+
+            {/* Info chips — orient a cold first-time player in one glance:
+                what kind of game, how the mic works, how best to play. */}
+            <div className="flex flex-wrap items-center gap-2" aria-label="Build info">
+              {['Turn-based phrase duels', 'Voice or No-Mic mode', 'Headphones recommended'].map(
+                (chip) => (
+                  <span
+                    key={chip}
+                    className="rounded-full border border-[#F4F1EB]/15 bg-[#15171B]/60 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#F4F1EB]/65 backdrop-blur-sm"
+                  >
+                    {chip}
+                  </span>
+                ),
+              )}
+            </div>
           </nav>
         </div>
 
         {/* Right column reserved for 3D Su silhouette breathing room. No overlay chrome. */}
         <div className="hidden sm:block" aria-hidden="true" />
       </section>
+
+      {mapOpen ? (
+        <Suspense fallback={null}>
+          <OverworldMap isOpen={mapOpen} onClose={closeMap} />
+        </Suspense>
+      ) : null}
 
       {levelSelectOpen ? (
         <Suspense fallback={null}>

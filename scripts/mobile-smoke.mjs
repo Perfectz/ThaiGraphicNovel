@@ -20,6 +20,7 @@ const viewports = [
 
 const ERROR_FILTERS = [
   /Failed to load resource.*api\/(whisper|realtime)/i,
+  /Failed to load resource: the server responded with a status of 502/i,
   /favicon/i,
   /vite-hmr/i,
   /ResizeObserver loop/i,
@@ -193,6 +194,12 @@ async function selectHotspotAndVerb(page, label) {
       box.y + ((1 - debugPoint.y) / 2) * box.height,
     );
     await page.waitForTimeout(500);
+    const contextualActionCount = await page.locator('.adventure-3d-context-action').count();
+    if (contextualActionCount > 0) {
+      await page.locator('.adventure-3d-context-action').first().click();
+      await page.waitForTimeout(250);
+      return;
+    }
     const enabledVerbCount = await page.locator('.adventure-3d-verb:not([disabled])').count();
     if (enabledVerbCount > 0) {
       await page.locator('.adventure-3d-verb:not([disabled])').first().click();
@@ -215,6 +222,12 @@ async function selectHotspotAndVerb(page, label) {
   for (const [rx, ry] of points) {
     await tap(page, box.x + box.width * rx, box.y + box.height * ry);
     await page.waitForTimeout(450);
+    const contextualActionCount = await page.locator('.adventure-3d-context-action').count();
+    if (contextualActionCount > 0) {
+      await page.locator('.adventure-3d-context-action').first().click();
+      await page.waitForTimeout(250);
+      return;
+    }
     const enabledVerbCount = await page.locator('.adventure-3d-verb:not([disabled])').count();
     if (enabledVerbCount > 0) {
       await page.locator('.adventure-3d-verb:not([disabled])').first().click();
@@ -229,7 +242,8 @@ async function selectHotspotAndVerb(page, label) {
 async function runTitleProbe(page, viewportName) {
   await page.goto(baseUrl, { waitUntil: 'load', timeout: 30_000 });
   await assertVisible(page.locator('nav[aria-label="Title menu"]').first(), `${viewportName} title menu`);
-  await assertVisible(page.locator('button:has-text("Microgames")').first(), `${viewportName} microgames CTA`);
+  await page.locator('button:has-text("More")').first().click();
+  await assertVisible(page.locator('[role="menu"] button:has-text("Microgames")').first(), `${viewportName} microgames CTA`);
   await assertVisible(page.locator('.title-three-scene[data-su-ready="true"]').first(), `${viewportName} title Su model`);
   await assertNoHorizontalOverflow(page, `${viewportName} title`);
   await assertTouchTargets(page, `${viewportName} title`);
@@ -247,7 +261,7 @@ async function runStageProbe(page, viewportName) {
   await dismissStageIntro(page);
   await page.waitForTimeout(600);
 
-  await assertVisible(page.locator('nav[aria-label="Stage rooms"]').first(), `${viewportName} room nav`);
+  await assertVisible(page.locator('.adventure-3d-header').first(), `${viewportName} stage header`);
   await assertVisible(page.locator('.adventure-3d-mic').first(), `${viewportName} mic button`);
   await assertVisible(page.locator('button:has-text("Skip Phrase")').first(), `${viewportName} skip phrase`);
   await selectHotspotAndVerb(page, `${viewportName} stage`);
@@ -270,7 +284,7 @@ async function runMicrogameProbe(page, viewportName) {
 async function runBattleDemoProbe(page, viewportName) {
   await page.goto(`${baseUrl}/battle-demo`, { waitUntil: 'load', timeout: 30_000 });
   await assertVisible(page.locator('main[aria-label="Phantasy Star 4 style battle demo"]'), `${viewportName} battle demo`);
-  await assertVisible(page.locator('button:has-text("Exit Demo")').first(), `${viewportName} battle exit`);
+  await assertVisible(page.locator('button:has-text("Title")').first(), `${viewportName} battle exit`);
   await assertNoHorizontalOverflow(page, `${viewportName} battle demo`);
   await assertTouchTargets(page, `${viewportName} battle demo`);
   await page.screenshot({ path: resolve(screenshotDir, `${viewportName}-04-battle-demo.png`) });

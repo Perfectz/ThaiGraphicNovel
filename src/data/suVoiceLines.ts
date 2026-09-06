@@ -1,11 +1,12 @@
 import { getStageIntroLines } from './adventures/stageIntros';
 import { buildScenarioDialogue } from './dialogue';
 import { lessonScenarios } from './lessonScenarios';
+import { stagePhraseCoachLines } from './stagePhraseCoachLines';
 
 export type SuVoiceLine = {
   id: string;
   text: string;
-  category: 'dialogue' | 'stage-intro';
+  category: 'dialogue' | 'stage-intro' | 'phrase-coach';
   note: string;
   voice: 'sage';
   model: 'gpt-realtime-2';
@@ -58,4 +59,7 @@ export const suVoiceLines: SuVoiceLine[] = [
         ),
       ),
   ),
+  // Per-phrase Su prompt + coaching tips for the Stage 2/3 command cues —
+  // closes the "demo goes silent after Stage 1" gap.
+  ...stagePhraseCoachLines,
 ];

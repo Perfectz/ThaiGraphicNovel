@@ -1,0 +1,31 @@
+.character-voice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+  color: #c8c9c3;
+}
+.character-voice button {
+  min-height: 34px;
+  border: 1px solid #b99b6366;
+  background: #10282ee6;
+  color: #f1d8a2;
+  border-radius: 5px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.character-voice button:focus-visible {
+  outline: 2px solid #f7d99b;
+  outline-offset: 3px;
+}
+.character-voice button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.character-voice small {
+  font-size: 10px;
+  letter-spacing: 0.035em;
+}

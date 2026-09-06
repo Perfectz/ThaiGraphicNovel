@@ -15,6 +15,7 @@
  */
 
 import { readdirSync, existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,9 +45,27 @@ function listAudioIds(dir) {
 }
 
 function loadLessonScenarios() {
-  // We can't import lessonScenarios.ts directly from an .mjs script without
-  // a build step, so we parse the source for phrase ids and stage scenario
-  // ids. Cheap and good enough for a coverage report.
+  // Preferred path: transpile lessonScenarios.ts with the typescript package
+  // (same trick the audio generator uses) so we read the REAL phrase ids.
+  // The old regex heuristic also harvested equipment / super-move ids
+  // (keycard-buckler, spoon-saber, …) and reported them as "missing phrases".
+  try {
+    const require = createRequire(import.meta.url);
+    const ts = require('typescript');
+    const source = readFileSync(join(ROOT, 'src', 'data', 'lessonScenarios.ts'), 'utf8');
+    const js = ts.transpileModule(source, {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    }).outputText;
+    const mod = { exports: {} };
+    new Function('exports', 'require', 'module', js)(mod.exports, require, mod);
+    return mod.exports.lessonScenarios.map((scenario) => ({
+      id: scenario.id,
+      number: scenario.scenarioNumber,
+      phraseIds: scenario.chunks.flatMap((chunk) => chunk.phrases.map((phrase) => phrase.id)),
+    }));
+  } catch {
+    // Fall through to the regex heuristic below.
+  }
   const source = readFileSync(join(ROOT, 'src', 'data', 'lessonScenarios.ts'), 'utf8');
   const scenarioBlocks = [];
   // Each scenario starts with `id: '...'`. We split on top-level scenario

@@ -54,7 +54,7 @@ export function DialoguePanel({
   const portraitImg = portrait ? (
     <div
       aria-hidden="true"
-      className={`relative h-40 w-32 shrink-0 sm:h-56 sm:w-44 lg:h-64 lg:w-48 ${
+      className={`relative h-36 w-28 shrink-0 sm:h-48 sm:w-36 lg:h-56 lg:w-40 ${
         portraitSide === 'right' ? 'order-2' : 'order-0'
       }`}
     >
@@ -73,35 +73,35 @@ export function DialoguePanel({
       <button
         type="button"
         onClick={onAdvance}
-        className="group flex w-full items-stretch gap-3 rounded-[12px] border border-hairline bg-ink-raised/95 px-4 py-4 text-left text-paper shadow-card backdrop-blur-sm transition-colors duration-[120ms] hover:border-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink sm:px-6 sm:py-5"
+        className="group flex w-full items-stretch gap-3 rounded-[10px] border border-hairline bg-ink-raised/95 px-4 py-3 text-left text-paper shadow-card backdrop-blur-sm transition-colors duration-[120ms] hover:border-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink sm:px-5 sm:py-3.5"
         aria-label={`${speaker} dialogue. ${continueLabel}.`}
       >
         {portraitImg}
 
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <header className="flex items-center justify-between gap-3">
             <Chip iconBefore={hasVoice ? '▶' : undefined} tone="default">
               {speaker}
             </Chip>
           </header>
 
-          <p aria-live="polite" className="text-base font-medium leading-relaxed text-paper sm:text-lg">
+          <p aria-live="polite" className="text-sm font-medium leading-relaxed text-paper sm:text-base">
             {body}
           </p>
 
           {thai ? (
-            <div className="mt-2 flex flex-col gap-1">
-              <p className="font-display text-3xl font-bold leading-tight text-paper sm:text-4xl">{thai}</p>
+            <div className="mt-1.5 flex flex-col gap-1">
+              <p className="font-display text-2xl font-bold leading-tight text-paper sm:text-3xl">{thai}</p>
               {romanization ? (
-                <p className="text-xl font-bold leading-tight text-accent sm:text-2xl">{romanization}</p>
+                <p className="text-lg font-bold leading-tight text-accent sm:text-xl">{romanization}</p>
               ) : null}
               {translation ? (
-                <p className="text-sm font-semibold text-paper-muted sm:text-base">{translation}</p>
+                <p className="text-xs font-semibold text-paper-muted sm:text-sm">{translation}</p>
               ) : null}
             </div>
           ) : null}
 
-          <footer className="mt-2 flex items-center justify-end gap-2 text-paper-muted">
+          <footer className="mt-1.5 flex items-center justify-end gap-2 text-paper-muted">
             <span className="text-[0.65rem] font-bold uppercase tracking-[0.28em] text-paper-quiet">
               {continueLabel}
             </span>

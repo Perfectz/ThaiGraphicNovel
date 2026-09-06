@@ -6,6 +6,7 @@ import type { XRControlsHandle } from './three/xrControls';
 import type { XRHudHandle } from './three/xrHud';
 import type { XRCinemaHandle } from './three/xrCinema';
 import type { XRMenuHandle } from './three/xrMenu';
+import type { XRVignetteHandle } from './three/xrVignette';
 
 /**
  * Animation controller surface for any rigged NPC hosted by a hotspot. Each
@@ -46,6 +47,8 @@ export type SceneRefs = {
   xrCinema: XRCinemaHandle | null;
   /** In-world VR menu panel (null until the bootstrap effect runs). */
   xrMenu: XRMenuHandle | null;
+  /** Head-locked comfort vignette (null until the bootstrap effect runs). */
+  xrVignette: XRVignetteHandle | null;
   renderer: THREE.WebGLRenderer;
   controls: OrbitControls;
   floor: THREE.Mesh;

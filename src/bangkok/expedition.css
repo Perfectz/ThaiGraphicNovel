@@ -1,0 +1,972 @@
+.exp-battle {
+  --ivory: #f3e5ca;
+  --gold: #d9b76e;
+  --ink: #0a151df2;
+  color: var(--ivory);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: 'Segoe UI', sans-serif;
+}
+.exp-battle button {
+  cursor: pointer;
+  color: var(--ivory);
+  border: 1px solid #b5a47d65;
+  background: linear-gradient(120deg, #172e38ed, #0a1923e8);
+  border-radius: 2px;
+  padding: 12px 17px;
+  text-align: left;
+  font: inherit;
+  transition:
+    border-color 0.18s,
+    background 0.18s;
+}
+.exp-battle button:hover:not(:disabled),
+.exp-battle button:focus-visible {
+  border-color: var(--gold);
+  background: #27444b;
+  outline: 2px solid #d9b76e55;
+  outline-offset: 2px;
+}
+.exp-battle button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.exp-battle button b,
+.exp-battle button small {
+  display: block;
+}
+.exp-battle button small {
+  font-size: 11px;
+  color: #b3c6c5;
+  margin-top: 5px;
+}
+.exp-battle .exp-primary {
+  background: linear-gradient(110deg, #d7be80, #b69052);
+  color: #132129;
+  border-color: #f8dda0;
+}
+.exp-battle .exp-primary small {
+  color: #34444a;
+}
+.exp-letterbox {
+  position: absolute;
+  inset: 0;
+  box-shadow:
+    inset 0 90px 90px #050f1c60,
+    inset 0 -160px 100px #030c16b0;
+}
+.exp-round {
+  position: absolute;
+  top: 86px;
+  left: 30px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  color: #b9c9c9;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.exp-round > span b {
+  font:
+    30px Georgia,
+    serif;
+  color: var(--gold);
+  margin-left: 7px;
+}
+.exp-round > div {
+  display: flex;
+  gap: 5px;
+}
+.exp-round > div > span {
+  padding: 10px 13px;
+  background: #0b1c29cc;
+  border-bottom: 1px solid #c6b47c55;
+}
+.exp-round .active {
+  color: var(--gold);
+  border-bottom: 2px solid var(--gold);
+}
+.exp-round .acted {
+  opacity: 0.45;
+}
+.exp-round .down {
+  text-decoration: line-through;
+  opacity: 0.3;
+}
+.exp-foes {
+  position: absolute;
+  right: 30px;
+  top: 98px;
+  width: 300px;
+}
+.exp-foes > div {
+  margin-bottom: 15px;
+  padding: 13px 16px;
+  background: linear-gradient(90deg, #0c1726d9, #111e2ab0);
+  border-left: 2px solid #bdb28a;
+  transition: opacity 0.5s;
+}
+.exp-foes > div.selected {
+  border-color: #ffdea0;
+  box-shadow: 0 0 22px #edc46b25;
+}
+.exp-foes > div.defeated {
+  opacity: 0.25;
+}
+.exp-foes h2 {
+  font:
+    21px Georgia,
+    serif;
+  margin: 7px 0 10px;
+}
+.exp-foes small {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: #c0b18e;
+}
+.exp-foes span {
+  font-size: 10px;
+  color: #d0c2ab;
+}
+.exp-hp,
+.exp-break {
+  height: 4px;
+  background: #ffffff1a;
+  overflow: hidden;
+  margin: 5px 0;
+}
+.exp-hp i,
+.exp-break i,
+.exp-resonance i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #8a434e, #e7a788);
+  transition: width 0.45s;
+}
+.exp-break {
+  height: 2px;
+  margin-top: 9px;
+}
+.exp-break i {
+  background: #dac481;
+}
+.exp-party {
+  position: absolute;
+  left: 30px;
+  top: 148px;
+  width: 250px;
+}
+.exp-party > div:not(.exp-resonance) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px;
+  border-left: 2px solid #bda47455;
+  margin-top: 7px;
+  background: linear-gradient(90deg, #0a1c28ed, #15252e99);
+}
+.exp-party > div.active {
+  border-color: #f1d691;
+  background: linear-gradient(90deg, #3a3d35e8, #142c3799);
+}
+.exp-party > div.down {
+  opacity: 0.45;
+}
+.exp-party section {
+  flex: 1;
+}
+.exp-party h3 {
+  margin: 3px 0 7px;
+  font:
+    20px Georgia,
+    serif;
+}
+.exp-party small {
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  color: #b4c4c2;
+}
+.exp-party section > span {
+  font-size: 10px;
+}
+.exp-party section > span b {
+  color: #95d9d2;
+  float: right;
+}
+.exp-party .exp-hp i {
+  background: linear-gradient(90deg, #42887e, #a5dcc7);
+}
+.exp-portrait {
+  width: 39px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  font:
+    26px Georgia,
+    serif;
+  border: 1px solid #deb98970;
+  color: #edcc96;
+  background: linear-gradient(145deg, #543e49, #172935);
+  transform: skewY(-6deg);
+}
+.exp-portrait.su {
+  background: linear-gradient(145deg, #36565a, #1b2534);
+  color: #b9ede3;
+}
+.exp-resonance {
+  margin: 10px 0 0;
+}
+.exp-resonance > div {
+  height: 3px;
+  background: #ffffff18;
+  margin-top: 5px;
+}
+.exp-resonance i {
+  background: linear-gradient(90deg, #9081c4, #ebd99b);
+}
+.exp-command-panel {
+  position: absolute;
+  pointer-events: auto;
+  bottom: 20px;
+  left: 30px;
+  right: 30px;
+  background: linear-gradient(115deg, #071722f5, #0b1c27ed 60%, #162a33f5);
+  border-top: 1px solid #d7c293bb;
+  box-shadow: 0 -15px 90px #06121a55;
+  padding: 18px 24px 12px;
+  max-height: 49vh;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #bda16e #10232d;
+}
+.exp-panel-heading {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  letter-spacing: 0.14em;
+  color: var(--gold);
+  font-size: 10px;
+}
+.exp-panel-heading .exp-sound-toggle {
+  min-height: 32px;
+  color: var(--gold);
+}
+.exp-panel-heading button,
+.exp-panel-footer button {
+  padding: 4px 0;
+  background: none;
+  border: 0;
+  font-size: 10px;
+  color: #bdc8c4;
+}
+.exp-battle-log {
+  font-size: 12px;
+  color: #d0c9b6;
+  padding: 10px 0;
+  border-bottom: 1px solid #b9b08425;
+  margin-bottom: 14px;
+}
+.exp-command-layout,
+.exp-targeting,
+.exp-rehearsal {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 35px;
+}
+.exp-kicker {
+  font-size: 9px;
+  letter-spacing: 0.19em;
+  color: var(--gold);
+  margin: 0 0 9px;
+}
+.exp-turn-copy h2,
+.exp-targeting h2,
+.exp-rehearsal h2,
+.exp-defense h2 {
+  font:
+    29px/1.15 Georgia,
+    serif;
+  margin: 7px 0 12px;
+}
+.exp-turn-copy p:not(.exp-kicker),
+.exp-targeting p:not(.exp-kicker),
+.exp-rehearsal > div:first-child > p:not(.exp-kicker) {
+  color: #b3c5c5;
+  font-size: 13px;
+  line-height: 1.65;
+  max-width: 470px;
+  margin: 9px 0;
+}
+.exp-turn-copy > small,
+.exp-rehearsal > div > small {
+  display: block;
+  color: #839f9f;
+  font-size: 11px;
+  margin-top: 17px;
+  line-height: 1.6;
+}
+.exp-commands {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.exp-commands b {
+  font:
+    20px Georgia,
+    serif;
+}
+.exp-panel-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 5px;
+}
+.exp-word-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.exp-word-grid > button {
+  position: relative;
+  padding: 16px;
+}
+.exp-word-grid b {
+  font:
+    20px Georgia,
+    serif;
+  margin: 5px 0 14px;
+}
+.exp-word-grid strong {
+  font-size: 13px;
+  display: block;
+  line-height: 1.5;
+}
+.exp-word-grid span[lang='th'] {
+  display: block;
+  font-size: 16px;
+  margin: 8px 0;
+  color: #a7d2c9;
+}
+.exp-cost {
+  float: right;
+  color: var(--gold);
+  font-size: 10px;
+  margin-left: 8px;
+}
+.exp-target-list {
+  display: grid;
+  gap: 8px;
+}
+.exp-target-list span {
+  display: block;
+  font-size: 11px;
+  margin-top: 6px;
+}
+.exp-targeting strong,
+.exp-rehearsal strong {
+  color: #d6bf89;
+  font-size: 12px;
+}
+.exp-rehearsal .speak-preview {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.exp-rehearsal .speak-preview h3 {
+  font-size: 18px;
+  margin: 5px 0;
+}
+.exp-rehearsal .speak-thai {
+  font-size: 26px;
+  margin: 5px 0;
+}
+.exp-rehearsal .speak-guidance,
+.exp-rehearsal .speak-step {
+  display: none;
+}
+.exp-rehearsal .speak-status {
+  min-height: 0;
+  margin: 7px 0;
+  font-size: 11px;
+}
+.exp-rehearsal .speak-honesty {
+  margin: 7px 0;
+  font-size: 9px;
+}
+.exp-rehearsal .speak-listen-controls button {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+.exp-rehearsal .speak-secondary button {
+  padding: 4px;
+  font-size: 10px;
+}
+.exp-rehearsal .bk-button {
+  padding: 9px 14px;
+  min-height: 0;
+  font-size: 12px;
+}
+.exp-rehearsal .speak-listen-controls {
+  margin: 7px 0;
+}
+.exp-impact {
+  position: absolute;
+  left: 52%;
+  top: 34%;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  color: #ffdf9f;
+  text-shadow: 0 4px 18px #000;
+  animation: exp-impact 1s ease-out both;
+}
+.exp-impact small {
+  display: block;
+  letter-spacing: 0.2em;
+  font-size: 12px;
+}
+.exp-impact strong {
+  display: block;
+  font:
+    80px Georgia,
+    serif;
+}
+.exp-impact-heal,
+.exp-impact-dodge {
+  color: #a6f6d8;
+}
+.exp-resolving {
+  height: 158px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  font:
+    22px Georgia,
+    serif;
+  color: var(--gold);
+}
+.exp-resolving > span {
+  font-size: 40px;
+}
+.exp-defense {
+  max-width: 720px;
+  margin: auto;
+}
+.exp-defense h2 {
+  display: inline;
+  margin-right: 20px;
+}
+.exp-defense > p:not(.exp-kicker) {
+  font-size: 12px;
+  color: #b2c6c7;
+}
+.exp-defense > small {
+  display: block;
+  margin-top: 10px;
+  color: #a9babb;
+  font-size: 10px;
+}
+.exp-timing {
+  --timing: 0%;
+  height: 22px;
+  background: #253d48;
+  border: 1px solid #d9c98a55;
+  position: relative;
+  margin: 16px 0 6px;
+}
+.exp-dodge-zone {
+  position: absolute;
+  left: 62%;
+  right: 2%;
+  inset-block: 0;
+  background: #4c9b8c99;
+}
+.exp-parry-zone {
+  position: absolute;
+  left: 79%;
+  right: 7%;
+  inset-block: 0;
+  background: #f0d391;
+}
+.exp-timing i {
+  position: absolute;
+  height: 32px;
+  width: 4px;
+  background: #fff6dc;
+  left: var(--timing);
+  top: -6px;
+  box-shadow: 0 0 10px white;
+}
+.exp-timing-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  letter-spacing: 0.15em;
+  color: #d4c499;
+}
+.exp-defense-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+.exp-help {
+  margin: 10px 0;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.7;
+  border: 1px solid #a2b3a355;
+  background: #1a3339;
+}
+.exp-result {
+  text-align: center;
+  padding: 15px;
+}
+.exp-result h1 {
+  font:
+    44px Georgia,
+    serif;
+  color: var(--gold);
+  margin: 12px 0;
+}
+.exp-result p {
+  font-size: 13px;
+}
+.exp-result button {
+  margin-top: 12px;
+  text-align: center;
+}
+@keyframes exp-impact {
+  0% {
+    opacity: 0;
+    translate: 0 20px;
+    scale: 1.3;
+  }
+  20% {
+    opacity: 1;
+    scale: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 -25px;
+  }
+}
+@media (min-width: 701px) and (max-height: 760px) {
+  .exp-party {
+    top: 138px;
+    width: 230px;
+  }
+  .exp-party > div:not(.exp-resonance) {
+    padding: 7px;
+  }
+  .exp-foes {
+    width: 270px;
+    top: 85px;
+  }
+  .exp-foes > div {
+    padding: 8px 12px;
+  }
+  .exp-foes h2 {
+    font-size: 18px;
+  }
+  .exp-command-panel {
+    bottom: 12px;
+    padding: 12px 20px 8px;
+  }
+  .exp-word-grid b {
+    font-size: 17px;
+  }
+  .exp-turn-copy h2 {
+    font-size: 24px;
+  }
+}
+@media (max-width: 700px) {
+  .rpg-screen-battle .rpg-header {
+    height: 51px;
+    padding: 0 12px;
+  }
+  .rpg-screen-battle .rpg-header nav button:not(:first-child) {
+    display: none;
+  }
+  .rpg-screen-battle .rpg-logo {
+    font-size: 12px;
+  }
+  .rpg-screen-battle .rpg-logo small {
+    font-size: 6px;
+    margin: 4px 0 0;
+  }
+  .exp-round {
+    top: 60px;
+    left: 12px;
+    gap: 7px;
+    font-size: 8px;
+    letter-spacing: 0.04em;
+  }
+  .exp-round > span b {
+    font-size: 19px;
+    margin-left: 3px;
+  }
+  .exp-round > div > span {
+    padding: 6px 8px;
+  }
+  .exp-round > div {
+    gap: 3px;
+  }
+  .exp-foes {
+    top: 103px;
+    right: 12px;
+    width: 160px;
+  }
+  .exp-foes > div {
+    padding: 7px 9px;
+    margin-bottom: 8px;
+  }
+  .exp-foes small {
+    font-size: 6px;
+    letter-spacing: 0.02em;
+  }
+  .exp-foes h2 {
+    font-size: 15px;
+    margin: 5px 0;
+  }
+  .exp-foes span {
+    font-size: 8px;
+  }
+  .exp-break {
+    margin-top: 5px;
+  }
+  .exp-party {
+    top: 103px;
+    bottom: auto;
+    left: 12px;
+    width: 155px;
+  }
+  .exp-party > div:not(.exp-resonance) {
+    padding: 7px;
+    margin: 0 0 7px;
+    gap: 7px;
+  }
+  .exp-portrait {
+    width: 22px;
+    height: 36px;
+    font-size: 19px;
+  }
+  .exp-party h3 {
+    font-size: 16px;
+  }
+  .exp-party small {
+    font-size: 5px;
+    letter-spacing: 0;
+  }
+  .exp-party section > span {
+    font-size: 8px;
+  }
+  .exp-resonance {
+    margin: 0;
+  }
+  .exp-command-panel {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    max-height: 51dvh;
+    padding: 12px 13px 8px;
+  }
+  .exp-panel-heading {
+    font-size: 8px;
+    letter-spacing: 0.07em;
+  }
+  .exp-battle-log {
+    font-size: 10px;
+    line-height: 1.5;
+    margin-bottom: 10px;
+    padding: 7px 0;
+  }
+  .exp-command-layout,
+  .exp-targeting,
+  .exp-rehearsal {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .exp-turn-copy h2 {
+    font-size: 22px;
+    margin: 3px 0 7px;
+  }
+  .exp-turn-copy p:not(.exp-kicker) {
+    font-size: 11px;
+    margin: 5px 0;
+  }
+  .exp-turn-copy > small {
+    margin-top: 7px;
+    font-size: 9px;
+  }
+  .exp-turn-copy .exp-kicker {
+    display: none;
+  }
+  .exp-commands b {
+    font-size: 18px;
+  }
+  .exp-battle button {
+    padding: 10px 11px;
+  }
+  .exp-battle button small {
+    font-size: 9px;
+  }
+  .exp-word-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+  .exp-word-grid > button {
+    padding: 11px;
+  }
+  .exp-word-grid b {
+    font-size: 17px;
+    margin-bottom: 9px;
+  }
+  .exp-word-grid strong {
+    font-size: 11px;
+  }
+  .exp-word-grid span[lang='th'] {
+    font-size: 14px;
+  }
+  .exp-word-grid small {
+    line-height: 1.5;
+  }
+  .exp-cost {
+    font-size: 8px;
+  }
+  .exp-rehearsal > div:first-child p:not(.exp-kicker),
+  .exp-rehearsal > div:first-child h2,
+  .exp-rehearsal > div:first-child > small {
+    display: none;
+  }
+  .exp-rehearsal .speak-preview {
+    padding: 0;
+  }
+  .exp-rehearsal .speak-preview h3 {
+    font-size: 17px;
+  }
+  .exp-rehearsal .speak-secondary button {
+    font-size: 9px;
+  }
+  .exp-rehearsal .speak-thai {
+    font-size: 24px;
+  }
+  .exp-targeting h2 {
+    font-size: 23px;
+  }
+  .exp-targeting p:not(.exp-kicker) {
+    font-size: 11px;
+  }
+  .exp-targeting strong {
+    font-size: 10px;
+  }
+  .exp-target-list {
+    gap: 7px;
+  }
+  .exp-resolving {
+    height: 170px;
+    font-size: 19px;
+    text-align: center;
+  }
+  .exp-impact {
+    top: 38%;
+    left: 50%;
+  }
+  .exp-impact strong {
+    font-size: 55px;
+  }
+  .exp-impact small {
+    font-size: 8px;
+  }
+  .exp-defense h2 {
+    display: block;
+    font-size: 23px;
+  }
+  .exp-defense > p:not(.exp-kicker) {
+    font-size: 11px;
+  }
+  .exp-defense-controls {
+    gap: 8px;
+  }
+  .exp-defense-controls button {
+    font-size: 12px;
+  }
+  .exp-result h1 {
+    font-size: 30px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .exp-battle * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.exp-rehearsal button.speak-record {
+  background: linear-gradient(110deg, #d7be80, #b69052);
+  color: #132129;
+  border-color: #f8dda0;
+}
+.rpg-title .rpg-sparring {
+  display: block;
+  margin-top: 12px;
+  width: 320px;
+}
+.rpg-objective .rpg-sparring {
+  margin-left: 12px;
+}
+@media (max-width: 700px) {
+  .exp-party,
+  .exp-foes {
+    width: calc(50% - 18px);
+  }
+  .exp-foes > div {
+    padding: 6px 9px;
+    font-size: 10px;
+    line-height: 1.3;
+  }
+  .exp-foes span {
+    font-size: 9px;
+  }
+  .exp-foes small {
+    font-size: 8px;
+    line-height: 1.2;
+  }
+  .exp-foes > div > small:first-child,
+  .exp-party section > small {
+    display: none;
+  }
+  .exp-foes h2 {
+    font-size: 13px;
+    margin: 2px 0;
+  }
+  .exp-foes .exp-hp {
+    height: 3px;
+    margin: 3px 0;
+  }
+  .exp-foes .exp-break {
+    margin: 3px 0;
+  }
+  .exp-party .exp-portrait {
+    display: none;
+  }
+  .exp-party h3 {
+    font-size: 14px;
+    margin: 2px 0;
+  }
+  .exp-party .exp-hp {
+    margin: 3px 0;
+  }
+  .exp-party > div:not(.exp-resonance) {
+    padding: 6px 8px;
+  }
+  .rpg-title .rpg-sparring {
+    max-width: 100%;
+    font-size: 10px;
+  }
+}
+
+.exp-read-plans {
+  display: block;
+  margin-top: 14px;
+  padding: 10px 14px;
+}
+.exp-intel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.exp-intel article {
+  border: 1px solid #9fbba044;
+  background: #102f38;
+  padding: 15px;
+}
+.exp-intel h3 {
+  color: #ebc78a;
+  font:
+    24px Georgia,
+    serif;
+  margin: 8px 0;
+}
+.exp-intel p,
+.exp-intent-warning {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #c9ddd7;
+}
+.exp-intel strong {
+  font-size: 12px;
+  color: #e1c894;
+}
+@media (max-width: 700px) {
+  .exp-intel-grid {
+    grid-template-columns: 1fr;
+  }
+  .exp-intel article {
+    padding: 10px;
+  }
+  .exp-intel h3 {
+    font-size: 20px;
+  }
+  .exp-intent-warning {
+    font-size: 11px;
+  }
+}
+.exp-intel-tabs {
+  display: none;
+}
+@media (max-width: 700px) {
+  .exp-command-panel.scouting .exp-battle-log {
+    display: none;
+  }
+}
+.exp-intel > .exp-primary {
+  padding: 12px 16px;
+  background: #dabb7a;
+  color: #172c32;
+  border: 1px solid #eacb8b;
+}
+@media (max-width: 700px) {
+  .exp-intel > p {
+    font-size: 11px;
+    margin: 8px 0;
+  }
+  .exp-intel-tabs {
+    display: flex;
+    gap: 6px;
+  }
+  .exp-intel-tabs button {
+    flex: 1;
+    min-height: 44px;
+    padding: 8px;
+    color: #dce7db;
+    background: #15323b;
+    border: 1px solid #5d797d;
+    font-size: 11px;
+  }
+  .exp-intel-tabs button[aria-pressed='true'] {
+    color: #ffdb96;
+    border-color: #d4b66e;
+    background: #24464a;
+  }
+  .exp-intel-grid {
+    margin: 8px 0;
+  }
+  .exp-intel-grid article {
+    display: none;
+  }
+  .exp-intel-grid article.selected {
+    display: block;
+  }
+  .exp-intel-grid p {
+    font-size: 12px;
+    margin: 7px 0;
+  }
+}

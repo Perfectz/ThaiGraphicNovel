@@ -27,6 +27,7 @@ export type DemoTechnique = {
   suLine?: string;
   isHeal?: boolean;
   effect?: 'guard' | 'charge';
+  menuRole?: 'attack' | 'ask' | 'compliment' | 'tease';
 };
 
 export type ConversationTurn = {
@@ -76,6 +77,9 @@ function move(
     effect: kind === 'defend' ? 'guard' : kind === 'super' ? 'charge' : undefined,
   };
 }
+
+/** Exported so stage encounter files can author their own turn decks. */
+export const buildBattleMove = move;
 
 export const conversationTurns: ConversationTurn[] = [
   {
@@ -927,6 +931,17 @@ export type DemoEnemy = {
   attackFlavor: string;
   attackPower: number;
   attackElement: BattleElement;
+  /**
+   * Per-round escalation added to attackPower as the duel goes on, giving each
+   * opponent a distinct pressure curve: 0 = a forgiving tutorial (Su), a small
+   * ramp = a service counter that gets faster ("rapid Thai"), a steeper ramp =
+   * a heat/hazard that builds (the night-market wok flare). The effective press
+   * each round is `attackPower + turnIndex * pressureRamp`. Guarding (Polite
+   * Stance) and clean replies still neutralise it, so the ramp rewards using
+   * the round's repair/defend phrase before a big press instead of punishing
+   * the player arbitrarily. Omitted → 0 (flat pressure, like the demo).
+   */
+  pressureRamp?: number;
 };
 
 export const demoEnemy: DemoEnemy = {
@@ -955,4 +970,85 @@ export const demoAlly = {
   id: 'su',
   name: 'Su',
   subtitle: 'Thai Coach',
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Encounter configs — everything the battle screen needs to stage a fight.
+// The /battle-demo route uses `defaultBattleEncounter` (the original Rift
+// Guardian demo); story stages author their own configs (see
+// src/data/battleEncounters/) and launch them from talk hotspots.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type BattleHeroConfig = typeof demoHero;
+export type BattleAllyConfig = typeof demoAlly;
+
+export type BattleEncounterConfig = {
+  id: string;
+  /** Narrator line that opens the battle log. */
+  introLine: string;
+  /** Opening demand if turns[0] has no enemyLine. */
+  fallbackOpener: string;
+  /** One-paragraph explainer shown during the intro banner. */
+  introHint: string;
+  enemy: DemoEnemy;
+  hero: BattleHeroConfig;
+  ally: BattleAllyConfig;
+  turns: ConversationTurn[];
+  victoryTitle: string;
+  victoryDescription: string;
+  defeatDescription: string;
+  /**
+   * Soft defeat: instead of a dead-end retry, Patrick steadies himself and
+   * the duel resumes at the current round with full Confidence. Used by
+   * story encounters so a bad streak never erases lesson progress.
+   */
+  softDefeat?: boolean;
+  /** Label for the exit button ("Title" on the demo, "Leave" in stages). */
+  exitLabel?: string;
+  /**
+   * Carry Confidence/Focus/items between duels via src/systems/battleVitals —
+   * story encounters set this; the standalone demo stays self-contained.
+   */
+  persistVitals?: boolean;
+  /**
+   * 3D model shown at the opponent anchor in the battle stage. Omitted →
+   * the Rift Guardian. Social duels point this at the NPC's own rig so the
+   * player fights the character they walked up to.
+   */
+  opponentVisual?: BattleOpponentVisual;
+  /**
+   * Hide the Su ally rig in the 3D stage — used when Su herself IS the
+   * opponent (her sparring trial) so she doesn't appear twice.
+   */
+  hideAllyRig?: boolean;
+  /** Baht dropped on victory (story duels). XP is earned per scored phrase. */
+  bahtReward?: number;
+  /** Equipment id (see src/systems/progression EQUIPMENT) looted on victory. */
+  equipmentReward?: string;
+};
+
+export type BattleOpponentVisual = {
+  /** GLB url (use the rig modules' exported *ModelAssetUrl). */
+  modelUrl: string;
+  /** Stage height in metres (humanoids ~1.7; the Guardian towers at 3.2). */
+  height: number;
+  /** Optional facing override in radians; defaults to the enemy anchor facing. */
+  rotationY?: number;
+};
+
+export const defaultBattleEncounter: BattleEncounterConfig = {
+  id: 'rift-guardian-demo',
+  introLine: 'A Rift Guardian blocks the Bangkok Rift.',
+  fallbackOpener: '"Introduce yourselves."',
+  introHint:
+    "This is a 10-turn polite conversation. Patrick's Thai score drives damage, Su can coach or protect, and the Guardian forces specific replies between turns.",
+  enemy: demoEnemy,
+  hero: demoHero,
+  ally: demoAlly,
+  turns: conversationTurns,
+  victoryTitle: 'Stage Cleared',
+  victoryDescription: 'The Rift Guardian yields. Su nods — your Thai grew stronger.',
+  defeatDescription: 'Doubt overwhelmed Patrick. Try again with clearer Thai responses.',
+  softDefeat: false,
+  exitLabel: 'Title',
 };

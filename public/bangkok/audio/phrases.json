@@ -1,0 +1,330 @@
+[
+  {
+    "id": "hello",
+    "text": "สวัสดีครับ"
+  },
+  {
+    "id": "my-name-is-patrick",
+    "text": "ผมชื่อแพทริกครับ"
+  },
+  {
+    "id": "nice-to-meet-you",
+    "text": "ยินดีที่ได้รู้จักครับ"
+  },
+  {
+    "id": "thank-you",
+    "text": "ขอบคุณครับ"
+  },
+  {
+    "id": "sorry",
+    "text": "ขอโทษครับ"
+  },
+  {
+    "id": "yes",
+    "text": "ใช่ครับ"
+  },
+  {
+    "id": "no",
+    "text": "ไม่ใช่ครับ"
+  },
+  {
+    "id": "how-much",
+    "text": "ราคาเท่าไหร่ครับ"
+  },
+  {
+    "id": "bathroom-where",
+    "text": "ห้องน้ำอยู่ที่ไหนครับ"
+  },
+  {
+    "id": "i-am-thirsty",
+    "text": "ผมหิวน้ำครับ"
+  },
+  {
+    "id": "reservation-have",
+    "text": "จองไว้ครับ"
+  },
+  {
+    "id": "under-name",
+    "text": "ชื่อแพทริกครับ"
+  },
+  {
+    "id": "check-in-please",
+    "text": "ขอเช็กอินครับ"
+  },
+  {
+    "id": "key-where",
+    "text": "กุญแจอยู่ที่ไหนครับ"
+  },
+  {
+    "id": "which-floor",
+    "text": "ห้องผมอยู่ชั้นไหนครับ"
+  },
+  {
+    "id": "elevator-where",
+    "text": "ลิฟต์อยู่ที่ไหนครับ"
+  },
+  {
+    "id": "speak-slowly",
+    "text": "ช่วยพูดช้าลงหน่อยครับ"
+  },
+  {
+    "id": "say-again",
+    "text": "พูดอีกครั้งได้ไหมครับ"
+  },
+  {
+    "id": "i-understand",
+    "text": "เข้าใจแล้วครับ"
+  },
+  {
+    "id": "want-this",
+    "text": "เอาอันนี้ครับ"
+  },
+  {
+    "id": "what-is-this",
+    "text": "อันนี้คืออะไรครับ"
+  },
+  {
+    "id": "one-plate",
+    "text": "ขอหนึ่งจานครับ"
+  },
+  {
+    "id": "not-spicy",
+    "text": "ไม่เผ็ดครับ"
+  },
+  {
+    "id": "little-spicy",
+    "text": "เผ็ดนิดหน่อยครับ"
+  },
+  {
+    "id": "no-peanuts",
+    "text": "ไม่เอาถั่วครับ"
+  },
+  {
+    "id": "water-please",
+    "text": "ขอน้ำเปล่าครับ"
+  },
+  {
+    "id": "bill-please",
+    "text": "คิดเงินด้วยครับ"
+  },
+  {
+    "id": "delicious",
+    "text": "อร่อยมากครับ"
+  },
+  {
+    "id": "go-to-shrine",
+    "text": "ไปวัดนี้ครับ"
+  },
+  {
+    "id": "go-hotel",
+    "text": "ไปโรงแรมนี้ครับ"
+  },
+  {
+    "id": "near-here",
+    "text": "อยู่ใกล้ไหมครับ"
+  },
+  {
+    "id": "use-meter",
+    "text": "เปิดมิเตอร์ได้ไหมครับ"
+  },
+  {
+    "id": "how-much-to-go",
+    "text": "ไปที่นั่นเท่าไหร่ครับ"
+  },
+  {
+    "id": "too-expensive",
+    "text": "แพงไปครับ"
+  },
+  {
+    "id": "traffic-heavy",
+    "text": "รถติดไหมครับ"
+  },
+  {
+    "id": "how-long",
+    "text": "ใช้เวลานานแค่ไหนครับ"
+  },
+  {
+    "id": "stop-here",
+    "text": "จอดตรงนี้ครับ"
+  },
+  {
+    "id": "can-see",
+    "text": "ขอดูได้ไหมครับ"
+  },
+  {
+    "id": "what-material",
+    "text": "ทำจากอะไรครับ"
+  },
+  {
+    "id": "has-color",
+    "text": "มีสีอื่นไหมครับ"
+  },
+  {
+    "id": "discount",
+    "text": "ลดราคาได้ไหมครับ"
+  },
+  {
+    "id": "little-cheaper",
+    "text": "ถูกกว่านี้ได้ไหมครับ"
+  },
+  {
+    "id": "buy-two",
+    "text": "ซื้อสองชิ้นลดได้ไหมครับ"
+  },
+  {
+    "id": "i-will-buy",
+    "text": "ผมเอาอันนี้ครับ"
+  },
+  {
+    "id": "think-first",
+    "text": "ขอคิดดูก่อนครับ"
+  },
+  {
+    "id": "not-today",
+    "text": "วันนี้ยังไม่เอาครับ"
+  },
+  {
+    "id": "stomach-hurts",
+    "text": "ปวดท้องครับ"
+  },
+  {
+    "id": "headache",
+    "text": "ปวดหัวครับ"
+  },
+  {
+    "id": "fever",
+    "text": "มีไข้ครับ"
+  },
+  {
+    "id": "need-medicine",
+    "text": "ต้องกินยาอะไรครับ"
+  },
+  {
+    "id": "have-allergy",
+    "text": "ผมแพ้ยานี้ครับ"
+  },
+  {
+    "id": "side-effects",
+    "text": "มีผลข้างเคียงไหมครับ"
+  },
+  {
+    "id": "how-many-times",
+    "text": "กินวันละกี่ครั้งครับ"
+  },
+  {
+    "id": "after-food",
+    "text": "กินหลังอาหารใช่ไหมครับ"
+  },
+  {
+    "id": "feel-better",
+    "text": "ดีขึ้นแล้วครับ"
+  },
+  {
+    "id": "like-coffee",
+    "text": "ผมชอบกาแฟครับ"
+  },
+  {
+    "id": "like-thai-food",
+    "text": "ผมชอบอาหารไทยครับ"
+  },
+  {
+    "id": "not-like-spicy",
+    "text": "ผมไม่ค่อยชอบเผ็ดครับ"
+  },
+  {
+    "id": "free-when",
+    "text": "ว่างเมื่อไหร่ครับ"
+  },
+  {
+    "id": "free-evening",
+    "text": "เย็นนี้ว่างครับ"
+  },
+  {
+    "id": "tomorrow-ok",
+    "text": "พรุ่งนี้ได้ไหมครับ"
+  },
+  {
+    "id": "go-together",
+    "text": "ไปด้วยกันไหมครับ"
+  },
+  {
+    "id": "meet-where",
+    "text": "เจอกันที่ไหนครับ"
+  },
+  {
+    "id": "see-you",
+    "text": "แล้วเจอกันครับ"
+  },
+  {
+    "id": "where-is-station",
+    "text": "สถานีอยู่ที่ไหนครับ"
+  },
+  {
+    "id": "go-how",
+    "text": "ไปยังไงครับ"
+  },
+  {
+    "id": "turn-left-right",
+    "text": "เลี้ยวซ้ายหรือขวาครับ"
+  },
+  {
+    "id": "i-am-lost",
+    "text": "ผมหลงทางครับ"
+  },
+  {
+    "id": "phone-dead",
+    "text": "โทรศัพท์แบตหมดครับ"
+  },
+  {
+    "id": "friend-missing",
+    "text": "เพื่อนผมหายครับ"
+  },
+  {
+    "id": "please-help",
+    "text": "ช่วยผมด้วยครับ"
+  },
+  {
+    "id": "call-police",
+    "text": "ช่วยโทรหาตำรวจให้หน่อยครับ"
+  },
+  {
+    "id": "need-hospital",
+    "text": "ผมต้องไปโรงพยาบาลครับ"
+  },
+  {
+    "id": "may-ask",
+    "text": "ขอสอบถามหน่อยครับ"
+  },
+  {
+    "id": "may-enter",
+    "text": "ขอเข้าไปได้ไหมครับ"
+  },
+  {
+    "id": "may-see-document",
+    "text": "ขอดูเอกสารได้ไหมครับ"
+  },
+  {
+    "id": "looking-for-info",
+    "text": "ผมกำลังหาข้อมูลครับ"
+  },
+  {
+    "id": "about-bangkok",
+    "text": "เกี่ยวกับกรุงเทพครับ"
+  },
+  {
+    "id": "important-matter",
+    "text": "เรื่องนี้สำคัญครับ"
+  },
+  {
+    "id": "thank-for-time",
+    "text": "ขอบคุณที่สละเวลาครับ"
+  },
+  {
+    "id": "next-step",
+    "text": "ขั้นตอนต่อไปคืออะไรครับ"
+  },
+  {
+    "id": "understand-formal",
+    "text": "รับทราบครับ"
+  }
+]

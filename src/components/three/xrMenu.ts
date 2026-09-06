@@ -1,4 +1,10 @@
 import * as THREE from 'three';
+import {
+  type XRComfortSettings,
+  TURN_LABEL,
+  VIGNETTE_LABEL,
+  HAND_LABEL,
+} from './xrComfort';
 
 /**
  * In-session VR menu panel.
@@ -15,7 +21,7 @@ import * as THREE from 'three';
  */
 
 const CANVAS_W = 860;
-const CANVAS_H = 720;
+const CANVAS_H = 1040;
 const PANEL_WIDTH_M = 1.05;
 const PANEL_HEIGHT_M = (PANEL_WIDTH_M * CANVAS_H) / CANVAS_W;
 
@@ -34,6 +40,8 @@ export type XRMenuSnapshot = {
   musicEnabled: boolean;
   voiceMode: 'whisper' | 'realtime' | 'no-mic';
   tutorLevel: 'easy' | 'medium' | 'hard';
+  /** Live VR comfort settings, shown as their own section. */
+  comfort: XRComfortSettings;
 };
 
 export type XRMenuAction =
@@ -41,6 +49,9 @@ export type XRMenuAction =
   | { kind: 'toggleMusic' }
   | { kind: 'cycleVoice' }
   | { kind: 'cycleTutor' }
+  | { kind: 'cycleTurn' }
+  | { kind: 'cycleVignette' }
+  | { kind: 'toggleHandedness' }
   | { kind: 'returnToTitle' };
 
 type RowTone = 'primary' | 'normal' | 'danger';
@@ -56,6 +67,8 @@ type Row = {
   /** Right-aligned current value (settings rows), or null for plain buttons. */
   value: string | null;
   tone: RowTone;
+  /** Section header to draw ABOVE this row (first row of a group), or null. */
+  section?: string;
 };
 
 export type XRMenuHandle = {
@@ -102,31 +115,43 @@ const TUTOR_LABEL: Record<XRMenuSnapshot['tutorLevel'], string> = {
 function buildRows(snapshot: XRMenuSnapshot): Row[] {
   const left = 56;
   const w = CANVAS_W - left * 2;
-  const h = 78;
-  const gap = 16;
+  const h = 70;
+  const gap = 14;
+  const sectionGap = 46; // extra space above a section header
   let y = 150;
-  const settingRow = (key: string, label: string, value: string, action: XRMenuAction): Row => {
-    const row: Row = { x: left, y, w, h, action, key, label, value, tone: 'normal' };
+  const settingRow = (
+    key: string,
+    label: string,
+    value: string,
+    action: XRMenuAction,
+    section?: string,
+  ): Row => {
+    if (section) y += sectionGap;
+    const row: Row = { x: left, y, w, h, action, key, label, value, tone: 'normal', section };
     y += h + gap;
     return row;
   };
 
   const rows: Row[] = [
-    settingRow('toggleMusic', 'Music', snapshot.musicEnabled ? 'On' : 'Off', { kind: 'toggleMusic' }),
+    settingRow('toggleMusic', 'Music', snapshot.musicEnabled ? 'On' : 'Off', { kind: 'toggleMusic' }, 'GAMEPLAY'),
     settingRow('cycleVoice', 'Voice mode', VOICE_LABEL[snapshot.voiceMode], { kind: 'cycleVoice' }),
     settingRow('cycleTutor', 'Tutor level', TUTOR_LABEL[snapshot.tutorLevel], { kind: 'cycleTutor' }),
+    // --- Comfort section: the settings that keep players from getting sick. ---
+    settingRow('cycleTurn', 'Turning', TURN_LABEL[snapshot.comfort.turn], { kind: 'cycleTurn' }, 'COMFORT'),
+    settingRow('cycleVignette', 'Vignette', VIGNETTE_LABEL[snapshot.comfort.vignette], { kind: 'cycleVignette' }),
+    settingRow('toggleHandedness', 'Turn hand', HAND_LABEL[snapshot.comfort.handedness], { kind: 'toggleHandedness' }),
   ];
 
   // Resume (primary) sits above the destructive Return to title, separated from
   // the settings list by the gap.
-  y += 8;
-  rows.push({ x: left, y, w, h: 88, action: { kind: 'resume' }, key: 'resume', label: 'Resume', value: null, tone: 'primary' });
-  y += 88 + gap;
+  y += sectionGap;
+  rows.push({ x: left, y, w, h: 86, action: { kind: 'resume' }, key: 'resume', label: 'Resume', value: null, tone: 'primary' });
+  y += 86 + gap;
   rows.push({
     x: left,
     y,
     w,
-    h: 72,
+    h: 70,
     action: { kind: 'returnToTitle' },
     key: 'returnToTitle',
     label: 'Return to title',
@@ -266,6 +291,22 @@ export function renderXRMenu(
 
   const rows = buildRows(snapshot);
   for (const row of rows) {
+    if (row.section) {
+      // Section eyebrow drawn just above the first row of the group.
+      ctx.save();
+      ctx.fillStyle = 'rgba(103,232,249,0.7)';
+      ctx.font = '700 19px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      if ('letterSpacing' in ctx) {
+        (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '3px';
+      }
+      ctx.fillText(row.section, left, row.y - 14);
+      if ('letterSpacing' in ctx) {
+        (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0px';
+      }
+      ctx.restore();
+    }
     drawRow(ctx, row, row.key === hoverKey);
   }
   return rows;
@@ -296,7 +337,12 @@ export function createXRMenu(): XRMenuHandle {
   group.visible = false;
 
   const raycastTargets: THREE.Object3D[] = [mesh];
-  let snapshot: XRMenuSnapshot = { musicEnabled: true, voiceMode: 'whisper', tutorLevel: 'medium' };
+  let snapshot: XRMenuSnapshot = {
+    musicEnabled: true,
+    voiceMode: 'whisper',
+    tutorLevel: 'medium',
+    comfort: { turn: 'snap-30', vignette: 'strong', handedness: 'right' },
+  };
   let rows: Row[] = [];
   let hoverKey: string | null = null;
 

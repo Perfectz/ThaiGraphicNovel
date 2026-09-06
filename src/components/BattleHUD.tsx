@@ -77,6 +77,16 @@ function getPronunciationScoreFlash(verdict: PronunciationVerdict): Omit<Pronunc
   };
 }
 
+function getNoMicVerdict(romanization: string): PronunciationVerdict {
+  return {
+    score: 72,
+    pass: true,
+    heard: romanization,
+    feedback: 'Confirmed in No-Mic mode.',
+    tip: 'Read the Thai aloud if you can, then keep moving.',
+  };
+}
+
 function PronunciationScoreFlashOverlay({ flash }: { flash: PronunciationScoreFlash | null }) {
   if (!flash) return null;
   return (
@@ -184,6 +194,18 @@ export function BattleHUD() {
   }, []);
 
   useEffect(() => {
+    if (voiceMode !== 'no-mic' || battle.hasWon) return;
+    pronunciationSession.current?.disconnect();
+    pronunciationSession.current = null;
+    connectionPromise.current = null;
+    setIsConnecting(false);
+    setIsRecording(false);
+    setIsAwaitingPronunciationResult(false);
+    setVoiceError('');
+    setVoiceStatus('No mic this run. Read the Thai, then tap Confirm Phrase.');
+  }, [battle.hasWon, currentPhrase.id, voiceMode]);
+
+  useEffect(() => {
     return () => {
       pronunciationSession.current?.disconnect();
       pronunciationSession.current = null;
@@ -277,6 +299,13 @@ export function BattleHUD() {
     setVerdict(null);
     const selectedMode = getVoiceJudgeMode();
     setVoiceMode(selectedMode);
+
+    if (selectedMode === 'no-mic') {
+      setIsConnecting(false);
+      setVoiceError('');
+      setVoiceStatus('No mic this run. Read the Thai, then tap Confirm Phrase.');
+      return null;
+    }
 
     connectionPromise.current = (async () => {
       const sessionOptions = {
@@ -384,6 +413,21 @@ export function BattleHUD() {
     stopVoiceAttempt();
   }
 
+  function confirmNoMicPhrase() {
+    if (battle.hasWon) return;
+    phraseAudioPlayer.stop();
+    stopSuPlayback();
+    setListenHighlight(false);
+    setVoiceError('');
+    setVerdict(null);
+    setPronunciationFlash(null);
+    const nextVerdict = getNoMicVerdict(currentPhrase.romanization);
+    setVerdict(nextVerdict);
+    setPronunciationFlash({ id: Date.now(), ...getPronunciationScoreFlash(nextVerdict) });
+    setVoiceStatus('Confirmed without mic. The action succeeds.');
+    submitPronunciationResult(nextVerdict);
+  }
+
   const micHint = !hasVoiceCoach
     ? `Connect ${voiceMode === 'whisper' ? 'Whisper' : 'Realtime'} mic`
     : isRecording
@@ -436,6 +480,7 @@ export function BattleHUD() {
               verdict={verdict}
               voiceError={voiceError || phraseAudioError || suAudioPlayer.error}
               voiceStatus={voiceStatus}
+              voiceMode={voiceMode}
               stageComplete
               stageReport={battle.stagePracticeReport}
             />
@@ -518,14 +563,26 @@ export function BattleHUD() {
 
         {/* Right column — action stack + judge */}
         <div className="flex min-w-0 flex-col gap-3">
-          <MicButton
-            isRecording={isRecording}
-            onStart={handleMicStart}
-            onStop={handleMicStop}
-            hint={micHint}
-            disabled={isConnecting}
-            className="w-full"
-          />
+          {voiceMode === 'no-mic' ? (
+            <Button
+              variant="primary"
+              size="md"
+              onClick={confirmNoMicPhrase}
+              disabled={isConnecting || isAwaitingPronunciationResult}
+              className="w-full"
+            >
+              Confirm Phrase
+            </Button>
+          ) : (
+            <MicButton
+              isRecording={isRecording}
+              onStart={handleMicStart}
+              onStop={handleMicStop}
+              hint={micHint}
+              disabled={isConnecting}
+              className="w-full"
+            />
+          )}
           <div className="grid grid-cols-3 gap-2">
             {secondaryOptions.map((option) => {
               const disabled =
@@ -550,6 +607,7 @@ export function BattleHUD() {
             verdict={verdict}
             voiceError={voiceError || phraseAudioError || suAudioPlayer.error}
             voiceStatus={voiceStatus}
+            voiceMode={voiceMode}
             stageComplete={battle.hasWon}
             stageReport={battle.stagePracticeReport}
           />

@@ -48,3 +48,10 @@ docs/storyboards/vr-wormhole-intro-storyboard-v3-transformation.png
 docs/storyboards/vr-wormhole-model-reference.png
 docs/storyboards/vr-wormhole-thai-quest-storyboard-v3-realistic.png
 docs/storyboards/vr-wormhole-thai-quest-storyboard-v4-game-style.png
+
+.vercel
+.env*
+!.env.example
+artifacts/
+*.blend1
+*.blend2

@@ -8,6 +8,7 @@ import {
   addLanternStringBetween,
   addNeonSign,
   addParticleField,
+  addRiftPortal,
   addRoomShell,
   addStallCounter,
   addWok,
@@ -17,6 +18,7 @@ import {
   makeConcreteMaterial,
   makeBrickWallMaterial,
 } from '../../components/three/proceduralTextures';
+import { addSignPlane, makeImageSurfaceMaterial } from '../../components/three/imageTextures';
 import { streetFoodVendorReactions } from '../streetFoodVendorReactions';
 import { lessonScenarios } from '../lessonScenarios';
 import type { AdventureRoom3D, AdventureSceneConfig, SceneAmbiance } from './types';
@@ -44,7 +46,13 @@ const cooklinePalette: RoomPalette = {
 function buildStallsRoom(group: THREE.Group, palette: RoomPalette) {
   addRoomShell(group, palette, {
     ceilingTrim: false,
-    floorMaterial: makeConcreteMaterial(0x6b6660, 5, 5),
+    floorMaterial: makeImageSurfaceMaterial(
+      'wet-night-market-asphalt',
+      5,
+      5,
+      () => makeConcreteMaterial(0x6b6660, 5, 5),
+      { roughness: 0.55, metalness: 0.15 },
+    ),
     wallMaterial: makeBrickWallMaterial(0x7a4636, 3, 2),
   });
   // Night sky beyond the back wall (replace back wall with deep magenta gradient strip)
@@ -55,8 +63,16 @@ function buildStallsRoom(group: THREE.Group, palette: RoomPalette) {
   addLanternStringBetween(group, -7, 7, -3.6, 3.8, 7, 0xff7eb6);
   addLanternStringBetween(group, -7, 7, -1.2, 3.6, 7, 0xfbbf24);
 
-  // Big neon sign on back wall
-  addNeonSign(group, [0, 3.6, -5.78], [3.2, 0.7], 0xfb7185);
+  // Rift Echo — a small flickering shard of the Bangkok gate at the market's
+  // edge. Optional review encounter (spaced repetition of Stage 1 phrases);
+  // the hotspot of the same name sits on it.
+  addRiftPortal(group, [7.2, 1.5, 2.2], 0.8);
+
+  // Big neon sign on back wall — the real "ตลาดนัด บางกอก / NIGHT MARKET
+  // BANGKOK" art when present, falling back to the procedural neon box.
+  if (!addSignPlane(group, 'thai-neon-shop-sign', [0, 3.8, -5.76], [4.0, 2.0], { intensity: 1.7 })) {
+    addNeonSign(group, [0, 3.6, -5.78], [3.2, 0.7], 0xfb7185);
+  }
   addNeonSign(group, [-5, 2.8, -5.78], [1.6, 0.5], 0x22d3ee);
   addNeonSign(group, [5, 2.8, -5.78], [1.6, 0.5], 0xfde68a);
 
@@ -224,7 +240,13 @@ function buildStallsRoom(group: THREE.Group, palette: RoomPalette) {
 function buildCooklineRoom(group: THREE.Group, palette: RoomPalette) {
   addRoomShell(group, palette, {
     ceilingTrim: false,
-    floorMaterial: makeConcreteMaterial(0x6b6660, 5, 5),
+    floorMaterial: makeImageSurfaceMaterial(
+      'wet-night-market-asphalt',
+      5,
+      5,
+      () => makeConcreteMaterial(0x6b6660, 5, 5),
+      { roughness: 0.55, metalness: 0.15 },
+    ),
     wallMaterial: makeBrickWallMaterial(0x7a4636, 3, 2),
   });
   addBox(group, [18, 5, 0.18], [0, 2.5, -6], 0x18101e);
@@ -370,6 +392,9 @@ const ambiance: SceneAmbiance = {
   rimColor: 0xff7eb6,
   rimIntensity: 2.6,
   rimPosition: [5, 2.6, -4.2],
+  // Out-of-focus neon Bangkok skyline above the stalls — the night-market
+  // showpiece backdrop. Visible above the back/side walls.
+  skyTexture: 'night-market-neon-sky',
 };
 
 const stallsRoom: AdventureRoom3D = {
@@ -377,7 +402,7 @@ const stallsRoom: AdventureRoom3D = {
   title: 'Night Market Stalls',
   shortTitle: 'Stalls',
   description:
-    'Bright lanterns string between vendor counters. Pick a dish, ask what it is, and order politely.',
+    'Bright lanterns string between vendor counters. Duel the vendor to order dinner — and a shard of the rift flickers at the market’s edge, replaying old lessons.',
   palette: stallsPalette,
   patrickStart: [-5.4, 0, 3.4],
   build: buildStallsRoom,
@@ -389,6 +414,9 @@ const stallsRoom: AdventureRoom3D = {
       position: [0, 1.45, -3.0],
       standPosition: [0, 0, -1.4],
       sprite: streetFoodVendorReactions.smile,
+      // Clicking the vendor walks up and opens the order duel directly —
+      // same UX as Su and the hostess in Stage 1.
+      autoTalk: true,
       model: {
         id: 'stage3Vendor',
         animation: 'wave',
@@ -412,14 +440,61 @@ const stallsRoom: AdventureRoom3D = {
         ),
         talk: phraseCommand(
           'talk',
-          'Greet the vendor',
+          'Order from the vendor',
           phraseById['want-this'],
           'The vendor nods and slides a plate forward.',
           {
+            // SNES-style order duel: choose a dish, set spice/allergies,
+            // place the order. Victory hands over the plate (givesItem).
+            // If the encounter id ever fails to resolve, the command falls
+            // back to a plain success that still gives the plate.
+            conversationId: 'vendor-order',
+            battleEncounterId: 'vendor-order-duel',
+            givesItem: 'plateOfNoodles',
+            conversationCompleteText:
+              'Order ticket locked: one plate, not too spicy, no peanuts. Grab water from the cook line, then settle the bill.',
             characterVoice: {
               speaker: 'Street Food Vendor',
               text: 'Good choice. I will make this plate for you.',
             },
+          },
+        ),
+      },
+    },
+    {
+      // Optional spaced-repetition encounter — never gates the stage. The
+      // Echo replays Stage 1's phrases as a three-round review duel.
+      id: 'rift-echo',
+      label: 'Rift Echo',
+      kind: 'prop',
+      position: [7.2, 1.5, 2.2],
+      standPosition: [5.9, 0, 2.2],
+      ringColor: 0xa855f7,
+      autoTalk: true,
+      commands: {
+        look: customPhraseCommand(
+          'look',
+          'I look at',
+          'ผมดูรอยแยกครับ',
+          'phom duu roi yaek khrap',
+          'pom doo roi yaek khrap',
+          'I look at the rift.',
+          'A faint shard of the Bangkok rift hums at the market’s edge. It seems to be… listening.',
+        ),
+        talk: customPhraseCommand(
+          'talk',
+          'Face the Echo',
+          'สวัสดีครับ',
+          'sawatdee khrap',
+          'sah-waht-dee khrap',
+          'Hello.',
+          'The Echo stirs, replaying your first day in Bangkok.',
+          {
+            conversationId: 'rift-echo-review',
+            battleEncounterId: 'rift-echo-review',
+            givesItem: 'echoCharm',
+            conversationCompleteText:
+              'The Echo dissolves into sparks and leaves a small charm pulsing with old lobby phrases.',
           },
         ),
       },
@@ -588,6 +663,7 @@ const cooklineRoom: AdventureRoom3D = {
           'The vendor tallies the bill on a small slip.',
           {
             requiresItems: ['plateOfNoodles', 'cupOfWater'],
+            givesItem: 'paidBill',
             blockedText: 'Order a plate of noodles and ask for water before paying.',
             characterVoice: {
               speaker: 'Street Food Vendor',
@@ -616,8 +692,8 @@ const cooklineRoom: AdventureRoom3D = {
           phraseById.delicious,
           'The chef beams and wipes their hands on a towel. Stage clear!',
           {
-            requiresItems: ['plateOfNoodles', 'cupOfWater'],
-            blockedText: 'Pay the bill before complimenting the chef.',
+            requiresItems: ['plateOfNoodles', 'cupOfWater', 'paidBill'],
+            blockedText: 'Order noodles, ask for water, and pay the bill before complimenting the chef.',
             completesAdventure: true,
             characterVoice: {
               speaker: 'Wok Chef',
@@ -669,9 +745,34 @@ export const stageThreeAdventure: AdventureSceneConfig = {
       romanization: 'naam plao',
       sprite: '',
     },
+    paidBill: {
+      id: 'paidBill',
+      label: 'Paid Bill',
+      thaiNoun: 'ใบเสร็จ',
+      romanization: 'bai set',
+      sprite: '',
+    },
+    echoCharm: {
+      id: 'echoCharm',
+      label: 'Echo Charm',
+      thaiNoun: 'เครื่องรางเสียงสะท้อน',
+      romanization: 'khreuang raang siang sa-thon',
+      sprite: '',
+    },
   },
-  requiredInventory: ['plateOfNoodles', 'cupOfWater'],
+  requiredInventory: ['plateOfNoodles', 'cupOfWater', 'paidBill'],
   ambiance,
-  completionMessage: 'Stage 3 clear. The night market accepts you.',
+  completionMessage: 'Stage 3 clear. Patrick orders dinner, pays properly, and earns the chef\'s respect.',
+  chapterTitle: 'Night Two — The Night Market',
   loadingTagline: 'Stringing up the night-market lanterns…',
+  // Hot, saturated night-market mood — warm amber push, punchy contrast and a
+  // heavier vignette so the neon + wok fire pop against the dark.
+  grade: {
+    tint: [1.0, 0.84, 0.72],
+    tintAmount: 0.2,
+    contrast: 1.1,
+    saturation: 1.18,
+    vignette: 0.42,
+    exposure: 1.03,
+  },
 };

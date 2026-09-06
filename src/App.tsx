@@ -121,6 +121,35 @@ export default function App() {
     });
   }, []);
 
+  // Debug bootstrap for the walkable Sukhumvit overworld. Set sessionStorage
+  // 'isekai-debug-overworld' to '1' and reload — App drops straight onto the
+  // street hub (as if the player had just cleared the hotel).
+  useEffect(() => {
+    if (window.sessionStorage.getItem('isekai-debug-overworld') !== '1') return;
+    window.sessionStorage.removeItem('isekai-debug-overworld');
+    const completedScenarioIds = lessonScenarios.slice(0, 2).map((s) => s.id);
+    const saveData = {
+      hasStarted: true,
+      completedTutorial: true,
+      activeScenarioIndex: 2,
+      completedScenarioIds,
+      lastPlayerPosition: suPosition,
+    };
+    writeSave(saveData);
+    useGameStore.setState({
+      currentScene: 'overworld',
+      hasStarted: true,
+      completedTutorial: true,
+      activeScenarioIndex: 2,
+      completedScenarioIds,
+      playerPosition: suPosition,
+      targetPosition: null,
+      dialogueIndex: 0,
+      saveData,
+      hasSavedGame: true,
+    });
+  }, []);
+
   // Debug bootstrap for any 3D stage (1-10). Set sessionStorage
   // 'isekai-debug-stage-3d-index' to a scenario index (0..9) and reload —
   // App jumps straight into that 3D stage on mount via the dispatcher.

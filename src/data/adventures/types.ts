@@ -34,6 +34,12 @@ export type AdventureCommand = AdventurePronunciationPrompt & {
   verb: AdventureVerb;
   label: string;
   successText: string;
+  /**
+   * lessonScenarios phrase id behind this command's target phrase, when the
+   * command was built from one. Lets the runtime look up Su's recorded
+   * per-phrase prompt + coaching audio (`stage-NN-<phraseId>-su` / `-coach`).
+   */
+  phraseId?: string;
   characterVoice?: AdventureCharacterVoiceLine;
   blockedText?: string;
   conversationBlockedText?: string;
@@ -44,6 +50,30 @@ export type AdventureCommand = AdventurePronunciationPrompt & {
   conversation?: AdventureConversationTurn[];
   conversationCompleteText?: string;
   completesAdventure?: boolean;
+  /** Optional in-world room transition fired after this command succeeds. */
+  entersRoom?: string;
+  /**
+   * Overworld portal: when set, succeeding at this command travels to the
+   * scenario at this index (0-based) via the host's `onEnterStage` callback,
+   * instead of completing a lesson. Used by the walkable Sukhumvit overworld so
+   * a stage "gate" hotspot — once the player says its Thai destination phrase —
+   * launches that stage. Ignored when no `onEnterStage` handler is wired.
+   */
+  entersStageIndex?: number;
+  /**
+   * When set, starting this command's conversation launches the SNES-style
+   * turn-based social duel from src/data/battleEncounters/ instead of the
+   * scrolling conversation UI. Victory marks `conversationId` complete (and
+   * honours `completesAdventure`), so all downstream gating works unchanged.
+   */
+  battleEncounterId?: string;
+  /**
+   * Marks this conversation as the stage's *lesson* drill — the one whose
+   * phrases the Stage Clear card recaps. Set on the teaching drill when a
+   * later "apply it" exchange is what actually completes the stage, so the
+   * recap still shows the full lesson rather than the short apply-it turns.
+   */
+  recapDrill?: boolean;
 };
 
 export type AdventureHotspot3D = {
@@ -146,6 +176,34 @@ export type SceneAmbiance = {
   rimColor: number;
   rimIntensity: number;
   rimPosition: [number, number, number];
+  /**
+   * Optional panoramic sky backdrop. The bare filename (no extension) of an
+   * asset dropped into `src/assets/skies/` — see `CHATGPT_IMAGE_ASSETS.md` §1.
+   * When present and the asset exists, an image-backed dome replaces the
+   * procedural gradient dome; otherwise the gradient dome is used.
+   */
+  skyTexture?: string;
+};
+
+/**
+ * Per-stage cinematic colour grade applied as the final post pass (after tone
+ * mapping). All fields optional; omitted → a tasteful neutral default. Lets
+ * each stage carry its own mood — warm lobby, hot night market, cool neon
+ * street — without touching geometry or lights.
+ */
+export type StageGrade = {
+  /** Multiplicative tint pushed into the image, 0..1 per channel. */
+  tint?: [number, number, number];
+  /** How strongly the tint is mixed in (0 = none, 1 = full). */
+  tintAmount?: number;
+  /** Contrast around mid-grey. 1 = unchanged; ~1.05–1.15 reads cinematic. */
+  contrast?: number;
+  /** Saturation. 1 = unchanged; >1 richer, <1 desaturated. */
+  saturation?: number;
+  /** Vignette strength, 0 (off) … 1 (heavy edge darkening). */
+  vignette?: number;
+  /** Overall exposure multiplier applied before grading. Default 1. */
+  exposure?: number;
 };
 
 export type AdventureSceneConfig = {
@@ -169,6 +227,11 @@ export type AdventureSceneConfig = {
    * that the original CharacterDebugPage shipped with.
    */
   introVideoUrl?: string;
+  /**
+   * Chapter card shown big on the load overlay ("Day Two — The Front Desk").
+   * Turns the between-stage load into a scene break instead of a reload.
+   */
+  chapterTitle?: string;
   /**
    * Stage-themed one-liner shown on the load overlay between the stage
    * badge and the spinner. Replaces the engineering-grade "Loading <Title>"
@@ -201,4 +264,10 @@ export type AdventureSceneConfig = {
    */
   bloomStrength?: number;
   bloomThreshold?: number;
+  /**
+   * Per-stage cinematic colour grade (final post pass). Omitted → the neutral
+   * default grade (gentle contrast + vignette). Set a `tint`/`saturation` to
+   * give the stage its own mood.
+   */
+  grade?: StageGrade;
 };

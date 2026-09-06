@@ -123,16 +123,16 @@ export function Modal({
         aria-labelledby={titleId}
         className={`flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-[12px] border border-hairline bg-ink-raised text-paper shadow-card ${className}`}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-hairline px-5 py-4 sm:px-7">
+        <header className="flex items-start justify-between gap-4 border-b border-hairline px-4 py-3 sm:px-5">
           <div className="min-w-0">
             {eyebrow ? (
-              <p className="font-display text-[10px] font-bold uppercase tracking-[0.32em] text-accent">
+              <p className="font-display text-[9px] font-bold uppercase tracking-[0.32em] text-accent">
                 {eyebrow}
               </p>
             ) : null}
             <h2
               id={titleId}
-              className="mt-1 font-display text-xl font-black uppercase tracking-tight text-paper sm:text-2xl"
+              className="mt-0.5 font-display text-lg font-black uppercase tracking-tight text-paper sm:text-xl"
             >
               {title}
             </h2>
@@ -143,9 +143,9 @@ export function Modal({
             </IconButton>
           )}
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
         {footer ? (
-          <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-hairline px-5 py-4 sm:px-7">
+          <footer className="flex flex-wrap items-center justify-end gap-2.5 border-t border-hairline px-4 py-3 sm:px-5">
             {footer}
           </footer>
         ) : null}

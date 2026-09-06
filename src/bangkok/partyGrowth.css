@@ -1,0 +1,129 @@
+.growth-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.growth-heading h2 {
+  font:
+    30px/1.2 Georgia,
+    serif;
+  color: #f0dab0;
+  margin: 10px 0;
+}
+.growth-heading > strong {
+  font:
+    30px Georgia,
+    serif;
+  color: #f0ce85;
+  white-space: nowrap;
+}
+.party-growth > p {
+  color: #bdd1c7;
+  line-height: 1.6;
+}
+.growth-track {
+  height: 6px;
+  background: #0d242b;
+  margin: 20px 0 10px;
+}
+.growth-track i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6daf9f, #efd18b);
+}
+.growth-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  flex-wrap: wrap;
+  color: #c9d8cc;
+  font-size: 12px;
+}
+.growth-stats b {
+  color: #eed198;
+}
+.growth-talents {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 22px 0;
+}
+.growth-talents button {
+  text-align: left;
+  padding: 18px;
+  border: 1px solid #c0ac7066;
+  background: #153741;
+  color: #c3d5cb;
+  border-radius: 4px;
+}
+.growth-talents button > span {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #abbbb0;
+}
+.growth-talents h3 {
+  font:
+    22px Georgia,
+    serif;
+  color: #eed3a0;
+  margin: 9px 0;
+}
+.growth-talents p {
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 42px;
+}
+.growth-talents button > strong {
+  display: block;
+  font-size: 11px;
+  color: #e0c28c;
+  margin-top: 14px;
+}
+.growth-talents button.equipped {
+  background: #25514d;
+  border-color: #e2c47f;
+  box-shadow: inset 0 0 0 1px #e2c47f;
+}
+.growth-talents button:disabled {
+  opacity: 0.8;
+}
+.growth-footnote {
+  font-size: 11px;
+}
+.rpg-growth-trigger {
+  border: 1px solid #c9ad7299;
+  border-radius: 3px;
+  padding: 3px 6px;
+  background: #183e45;
+  color: #f2d69b;
+  font:
+    10px 'Segoe UI',
+    sans-serif;
+  margin-left: 6px;
+}
+.rpg-growth-entry {
+  margin: 0 0 20px;
+  width: 100%;
+}
+@media (max-width: 700px) {
+  .growth-talents {
+    grid-template-columns: 1fr;
+  }
+  .growth-heading h2 {
+    font-size: 25px;
+  }
+  .growth-heading > strong {
+    font-size: 24px;
+  }
+  .growth-talents button {
+    padding: 15px;
+  }
+  .rpg-growth-trigger {
+    font-size: 9px;
+    padding: 4px;
+  }
+  .growth-talents h3 {
+    font-size: 21px;
+  }
+}

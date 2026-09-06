@@ -2,6 +2,7 @@ const SOUND_SETTINGS_STORAGE_KEY = 'isekai-thai-quest-sound-settings-v1';
 export const SOUND_SETTINGS_CHANGED_EVENT = 'isekai-thai-quest-sound-settings-changed';
 
 export type SoundSettings = {
+  effectsEnabled?: boolean;
   musicEnabled: boolean;
   musicVolume: number;
   guideAudioEnabled: boolean;
@@ -17,6 +18,7 @@ export type SoundSettings = {
 };
 
 const defaultSoundSettings: SoundSettings = {
+  effectsEnabled: true,
   musicEnabled: true,
   musicVolume: 0.55,
   guideAudioEnabled: true,
@@ -31,6 +33,10 @@ function clampVolume(value: unknown, fallback: number): number {
 
 function normalizeSoundSettings(settings: Partial<SoundSettings>): SoundSettings {
   return {
+    effectsEnabled:
+      typeof settings.effectsEnabled === 'boolean'
+        ? settings.effectsEnabled
+        : settings.musicEnabled !== false,
     musicEnabled:
       typeof settings.musicEnabled === 'boolean' ? settings.musicEnabled : defaultSoundSettings.musicEnabled,
     musicVolume: clampVolume(settings.musicVolume, defaultSoundSettings.musicVolume),

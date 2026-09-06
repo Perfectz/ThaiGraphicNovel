@@ -152,6 +152,11 @@ function getScenarioStartScene(scenario: LessonScenario, scenarioIndex: number):
 
 function getSceneAfterStageCompletion(nextScenarioIndex: number, completedScenarioIds: string[]): GameScene {
   if (completedScenarioIds.length >= lessonScenarios.length) return 'title';
+  // Once the player clears the hotel (Stages 1–2), travel between stages happens
+  // through the walkable Sukhumvit overworld rather than auto-advancing: beating
+  // Stage 2 (next index 2) onward drops them on the street to choose the next
+  // gate. Stage 1 → Stage 2 stays a direct hand-off so the tutorial flows.
+  if (nextScenarioIndex >= 2) return 'overworld';
   return getScenarioStartScene(getScenarioByIndex(nextScenarioIndex), nextScenarioIndex);
 }
 

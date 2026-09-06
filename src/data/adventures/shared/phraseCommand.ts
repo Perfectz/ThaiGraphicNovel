@@ -24,12 +24,17 @@ export function phraseCommand(
       | 'conversation'
       | 'conversationCompleteText'
       | 'completesAdventure'
+      | 'entersRoom'
+      | 'recapDrill'
+      | 'battleEncounterId'
+      | 'entersStageIndex'
     >
   > = {},
 ): AdventureCommand {
   return {
     verb,
     label,
+    phraseId: phrase.id,
     targetPhrase: phrase.targetPhrase,
     romanization: phrase.romanization,
     phoneticSpelling: phrase.phoneticSpelling ?? phrase.romanization,
@@ -64,6 +69,10 @@ export function customPhraseCommand(
       | 'conversation'
       | 'conversationCompleteText'
       | 'completesAdventure'
+      | 'entersRoom'
+      | 'recapDrill'
+      | 'battleEncounterId'
+      | 'entersStageIndex'
     >
   > = {},
 ): AdventureCommand {

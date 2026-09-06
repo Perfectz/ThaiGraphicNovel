@@ -1,0 +1,8 @@
+{
+  "source": "Microsoft Edge text-to-speech via edge-tts",
+  "voice": "th-TH-NiwatNeural",
+  "rate": "-8%",
+  "type": "synthetic reference speech",
+  "nativeSpeakerReviewed": false,
+  "failed": []
+}

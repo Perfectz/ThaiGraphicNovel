@@ -1,0 +1,15 @@
+.env*
+.git/
+node_modules/
+dist/
+tmp/
+artifacts/
+art/
+docs/
+humandropbox/
+contact-sheet/
+texture-previews/
+tests/
+.codex/
+.agents/
+.claude/

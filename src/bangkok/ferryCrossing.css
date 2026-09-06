@@ -1,0 +1,39 @@
+.ferry-crossing {
+  position: absolute;
+  z-index: 12;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, calc(100% - 32px));
+  padding: 22px 30px;
+  text-align: center;
+  background: linear-gradient(135deg, #102a36ed, #183e43e8);
+  border: 1px solid #c4aa6e;
+  color: #e3e8df;
+  box-shadow: 0 12px 50px #0006;
+}
+.ferry-crossing h1 {
+  font:
+    500 clamp(28px, 4vw, 43px)/1.15 Georgia,
+    serif;
+  color: #f0d79d;
+  margin: 8px 0 12px;
+}
+.ferry-crossing > p:not(.bk-eyebrow) {
+  line-height: 1.6;
+  min-height: 3.2em;
+  margin: 10px auto 18px;
+  max-width: 560px;
+}
+.rpg-screen-crossing .rpg-header nav button:not(:first-child) {
+  display: none;
+}
+@media (max-width: 699px) {
+  .ferry-crossing {
+    bottom: 14px;
+    padding: 18px;
+  }
+  .ferry-crossing .bk-button {
+    width: 100%;
+  }
+}
