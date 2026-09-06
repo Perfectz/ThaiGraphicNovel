@@ -20,9 +20,9 @@ function enemies() {
     }),
   );
 }
-test('Blender spirits fit the existing battlefield and keep four useful motion pivots', async () => {
+test('Blender spirits fit the existing battlefield and keep six useful motion pivots', async () => {
   assert(existsSync('art/blender/river-spirits.blend'));
-  assert(readFileSync('public/bangkok/models/river-spirits.glb').length < 800000);
+  assert(readFileSync('public/bangkok/models/river-spirits.glb').length < 1400000);
   const { scene } = await read();
   scene.updateMatrixWorld(true);
   let tris = 0,
@@ -30,6 +30,7 @@ test('Blender spirits fit the existing battlefield and keep four useful motion p
   for (const [name, minY, maxY, r] of [
     ['RiverKeeper', 0.05, 4.0, 1.55],
     ['LanternEcho', 0.5, 2.6, 1.05],
+    ['MurmurWisp', 0.4, 3.1, 1.2],
   ] as const) {
     const model = scene.getObjectByName(name)!;
     assert(model);
@@ -42,6 +43,8 @@ test('Blender spirits fit the existing battlefield and keep four useful motion p
     ['KeeperRightArm', 2.29, 0.63],
     ['KeeperHalo', 2.17, 0],
     ['EchoPetals', 1.5, 0],
+    ['MurmurVeils',1.9,0],
+    ['MurmurOrbit',1.9,0],
   ] as const) {
     const part = scene.getObjectByName(name)!;
     assert(part);
@@ -62,8 +65,8 @@ test('Blender spirits fit the existing battlefield and keep four useful motion p
     for (let i = 0; i < p.count; i++)
       assert(new T.Vector3().fromBufferAttribute(p, i).toArray().every(Number.isFinite));
   });
-  assert(tris > 18000 && tris < 28000);
-  assert(meshes <= 40, `material draw calls ${meshes}`);
+  assert(tris > 28000 && tris < 40000);
+  assert(meshes <= 55, `material draw calls ${meshes}`);
 });
 test('loaded spirits replace only presentation and retain articulated attack and reduced-motion poses', async () => {
   const e = enemies(),
@@ -117,4 +120,25 @@ test('a download completing after teardown is released, never attached', async (
   await flush();
   assert(disposed > 0);
   assert([...e.values()].every((g) => g.children.length === 1));
+});
+
+test('Murmur identity survives a pending load and is shared with the world without sharing animation transforms', async()=>{
+ const e=enemies(),world=new T.Group(),old=new T.Mesh(new T.SphereGeometry(.6),new T.MeshStandardMaterial());world.add(old);
+ let resolve!:(model:{scene:T.Group})=>void;const spirits=new RiverSpirits(e,()=>new Promise(r=>resolve=r));
+ spirits.bindWorldMurmur(world);spirits.setEncounter('murmur');assert.equal(e.get('main')!.userData.body.name,'MurmurFallback');
+ resolve(await read());await flush();assert.equal(spirits.state,'ready');
+ const combat=e.get('main')!.userData.body as T.Object3D,field=world.getObjectByName('LumphiniMurmur')!;
+ assert.equal(combat.name,'MurmurWisp');assert(field);assert(!old.visible);assert.equal(field.position.y,-1.9);assert.equal(combat.position.y,0);
+ spirits.updateWorld(3,false);const worldPose=field.getObjectByName('MurmurVeils')!.rotation.clone();spirits.update(4,false,'main',1);
+ assert(field.getObjectByName('MurmurVeils')!.rotation.equals(worldPose));assert(!combat.getObjectByName('MurmurVeils')!.rotation.equals(worldPose));
+ spirits.setEncounter('keeper');assert.equal(e.get('main')!.userData.body.name,'RiverKeeper');assert.equal(combat.visible,false);assert(field.visible);
+ spirits.setEncounter('murmur');assert.equal(e.get('main')!.children.filter(c=>c.visible).length,1);
+ spirits.update(50,true,'main',1);spirits.updateWorld(50,true);assert(spirits.snapshot().parts.every(p=>p.rotation.every(v=>v===0)));assert.equal(field.getObjectByName('MurmurVeils')!.rotation.x,0);
+});
+
+test('a failed model still presents a wisp for Murmur and a guardian for Keeper',async()=>{
+ const e=enemies(),original=e.get('main')!.userData.body,spirits=new RiverSpirits(e,()=>Promise.reject(Error('offline')));
+ spirits.setEncounter('murmur');await flush();assert.equal(spirits.state,'fallback');assert.equal(e.get('main')!.userData.body.name,'MurmurFallback');assert(!original.visible);
+ spirits.setEncounter('keeper');assert.equal(e.get('main')!.userData.body,original);assert(original.visible);
+ spirits.setEncounter('murmur');assert.equal(e.get('main')!.children.filter(c=>c.visible).length,1);
 });

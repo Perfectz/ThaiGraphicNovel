@@ -14,7 +14,7 @@ The standard is a coherent Thai-learning adventure, not the number of menus or l
 | --- | --- | --- |
 | Start at a Sukhumvit hotel | Fresh campaign browser run begins with Su and Mali | More ambient life and personal reasons to return |
 | Travel continuously among Bangkok-inspired places | Collision/path checks cover every district and contact; campaign walks through five districts | Compact fictional geography; transitions and district scale still need expansion |
-| Battles belong to the main story | Fresh local and public campaign runs beat Murmur and Keeper and board the ferry without practice | More enemy silhouettes, encounters and contextual tactics |
+| Battles belong to the main story | Fresh local and public campaign runs beat Murmur and Keeper and board the ferry without practice; Murmur now retains its own Blender silhouette from exploration into combat | More encounters and contextual tactics; greater animation variety |
 | Exploration beyond errands | Archive adds five connected rooms, three records, a deduction and permission-based dialogue | Local desktop and phone browser runs passed the complete quest, microphone flow and reloads; model fallback was confirmed off |
 | Speak with understood intent | English previews, reference audio and optional recorded replies | Full phrase pack needs fluent-speaker review; live pronunciation coaching is not deployed |
 | Worth an hour every day | Thirty authored outings and persistent review records exist | No hour-long learner study or month-long retention evidence; content breadth and transfer need further work |

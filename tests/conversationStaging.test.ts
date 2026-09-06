@@ -6,7 +6,7 @@ import { companionMark, conversationCamera, playerConversationMark } from '../sr
 import { ResidentPose } from '../src/bangkok/ResidentPose.ts';
 
 test('overlapping approaches step onto reachable ground without crowding the host or companion', () => {
-  for (const contact of actors.filter(a => ['innkeeper', 'cook', 'ferry', 'station', 'gardener', 'artisan', 'traveler'].includes(a.id))) {
+  for (const contact of actors.filter(a => ['innkeeper', 'cook', 'ferry', 'station', 'gardener', 'artisan', 'traveler', 'wisp'].includes(a.id))) {
     for (const [dx, dz] of [[0, 0], [.1, .1], [-.2, .1], [.1, -.2]]) {
       const start = { x: contact.x + dx, z: contact.z + dz };
       if (!walkable(start)) continue;
@@ -29,7 +29,7 @@ test('a comfortably spaced player is not moved just by opening a conversation', 
 });
 
 test('every resident has a reachable conversation mark that separates the companion and respects obstacles', () => {
-  for (const contact of actors.filter(a=>['innkeeper','cook','ferry','station','gardener','artisan','waystone','canal-lantern'].includes(a.id))) {
+  for (const contact of actors.filter(a=>['innkeeper','cook','ferry','station','gardener','artisan','waystone','canal-lantern','wisp'].includes(a.id))) {
     const player = [[-1,-1],[0,1],[1,-1],[-1,0]].map(([x,z])=>({x:contact.x+x,z:contact.z+z})).find(walkable)!;
     const start = {x:player.x+.8,z:player.z+.6};
     const mark = companionMark(player,contact,start);

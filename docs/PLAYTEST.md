@@ -12,6 +12,8 @@ This snapshot starts in the Sukhumvit hotel and includes seven connected places,
 
 Both main-story battles use the travelling party's health, provisions and talents, award persistent experience and coins, and unlock the next story objective. Their introductions explain the stakes and commands before combat. Optional Battle practice is inside Party growth; it cannot complete story encounters or grant their rewards.
 
+The Murmur you meet in Lumphini keeps its floating porcelain form in battle. The River Keeper has a separate ceremonial guardian model; both encounters include the flowerlike Lantern Echo.
+
 Report the device/browser, what you tried, what you expected, and what happened in the repository's Issues tab. Useful feedback includes confusing navigation, unreadable dialogue, audio problems, difficult controls, and whether speaking felt useful.
 
 The public snapshot uses local microphone recording and prerecorded reference voices. The optional local Whisper/Realtime coaching services are not deployed. No visitor needs an OpenAI key. Audio is AI-generated; a fluent Thai speaker has not reviewed the full pack. Physical-device performance and an hour-long learning session remain playtest questions.

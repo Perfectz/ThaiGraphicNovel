@@ -78,7 +78,8 @@ try {
     assert.equal(loaded.creatures[0].visible, id !== 'sentinel');
     if (!fallback) {
       assert(loaded.creatures.reduce((sum, c) => sum + c.meshes, 0) <= 40);
-      assert.equal(loaded.parts.length, 4);
+      assert.equal(loaded.parts.length, id==='murmur'?3:4);
+      assert.equal(loaded.creatures[0].model,id==='murmur'?'MurmurWisp':'RiverKeeper');
     }
     await capture(`${label}-arena`);
     if (phone) {
@@ -132,12 +133,12 @@ try {
     await settle(page);
     if (!reduced && !fallback && id !== 'sentinel')
       assert(
-        await page.evaluate(() =>
+        await page.evaluate((name) =>
           window.spiritReactions.some((s) =>
-            s.parts.some((p) => p.name === 'KeeperLeftArm' && p.rotation[0] > 0.13),
-          ),
+            s.parts.some((p) => p.name === name && p.rotation[0] > 0.15),
+          ), id==='murmur'?'MurmurVeils':'KeeperLeftArm',
         ),
-        'the main enemy raises its arm for its actual attack',
+        'the active creature gestures for its actual attack',
       );
     if (label === 'desktop') {
       await finishFight(page, 'keeper');

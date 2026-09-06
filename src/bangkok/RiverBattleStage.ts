@@ -279,6 +279,7 @@ export class RiverBattleStage {
   }
   set(battle: Battle | null, target: string | null) {
     this.battle = battle;
+    if (battle) this.spirits.setEncounter(battle.id);
     this.selected = target;
     this.root.visible = !!battle;
     if (battle && battle.event.seq !== this.serial) {

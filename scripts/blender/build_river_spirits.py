@@ -1,5 +1,5 @@
 """Original articulated river-fantasy creatures. Blender 4.2; game metres and Y-up."""
-import sys,math,json
+import sys,math,json,bmesh
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from build_landmarks import bpy,Vector,ROOT,MODELS,SOURCE,material,empty,mesh,box,beam,curve,bake_parts,vec,finish
@@ -117,27 +117,29 @@ for i in range(6):
     mod=petal.modifiers.new('Petal thickness','SOLIDIFY');mod.thickness=.025
     stroke('Petal luminous vein',[vs[j*3+1] for j in range(7)],.014,'River light',petals)
 
-for parent in [keeper,echo]:bake_parts(parent)
+from build_murmur import build_murmur
+murmur,veils,breeze=build_murmur(root)
+for parent in [keeper,echo,murmur]:bake_parts(parent)
 # Set actual motion pivots after applying geometry modifiers and material batching.
-for part,pivot in [(left,(0,2.29,-.63)),(right,(0,2.29,.63)),(halo,(.32,2.17,0)),(petals,(0,1.5,0))]:
+for part,pivot in [(left,(0,2.29,-.63)),(right,(0,2.29,.63)),(halo,(.32,2.17,0)),(petals,(0,1.5,0)),(veils,(0,1.9,0)),(breeze,(0,1.9,0))]:
     matrices={o:o.matrix_world.copy() for o in part.children};part.location=vec(pivot);bpy.context.view_layer.update()
     for o,matrix in matrices.items():o.matrix_world=matrix
 for o in root.children_recursive:
     if o.type=='MESH':
-        bpy.context.view_layer.objects.active=o;bpy.ops.object.select_all(action='DESELECT');o.select_set(True);bpy.ops.object.mode_set(mode='EDIT');bpy.ops.mesh.select_all(action='SELECT');bpy.ops.mesh.normals_make_consistent(inside=False);bpy.ops.object.mode_set(mode='OBJECT')
+        bm=bmesh.new();bm.from_mesh(o.data);bmesh.ops.recalc_face_normals(bm,faces=list(bm.faces));bm.to_mesh(o.data);bm.free()
 bpy.ops.object.select_all(action='DESELECT');root.select_set(True)
 for o in root.children_recursive:o.select_set(True)
 bpy.context.view_layer.objects.active=root
 bpy.ops.export_scene.gltf(filepath=str(MODELS/'river-spirits.glb'),export_format='GLB',use_selection=True,export_yup=True,export_apply=True)
 triangles=sum(sum(len(p.vertices)-2 for p in o.data.polygons) for o in root.children_recursive if o.type=='MESH')
-(OUT/'manifest.json').write_text(json.dumps({'triangles':triangles,'bytes':(MODELS/'river-spirits.glb').stat().st_size,'models':['RiverKeeper','LanternEcho'],'articulatedParts':['KeeperLeftArm','KeeperRightArm','KeeperHalo','EchoPetals']},indent=2))
+(OUT/'manifest.json').write_text(json.dumps({'triangles':triangles,'bytes':(MODELS/'river-spirits.glb').stat().st_size,'models':['RiverKeeper','LanternEcho','MurmurWisp'],'articulatedParts':['KeeperLeftArm','KeeperRightArm','KeeperHalo','EchoPetals','MurmurVeils','MurmurOrbit']},indent=2))
 # Studio arrangement is saved only after the origin-aligned game export.
-keeper.location.x=1.2;echo.location.x=-1.5
+keeper.location.x=2.3;echo.location.x=-.6;murmur.location.x=-2.8
 material('Studio',(.10,.14,.15),.92);box('Studio floor',(20,.06,20),(0,.0,0),'Studio',None,0)
 scene=bpy.context.scene;scene.render.engine='CYCLES';scene.cycles.samples=32;scene.cycles.use_denoising=True;scene.world.color=(.18,.20,.23)
 for at,power,size in [((-5,-5,8),1500,6),((5,1,7),1300,5)]:
     bpy.ops.object.light_add(type='AREA',location=at);o=bpy.context.object;o.data.energy=power;o.data.size=size;o.rotation_euler=(Vector((0,0,2))-o.location).to_track_quat('-Z','Y').to_euler()
-bpy.ops.object.camera_add(location=(-9,-10,6));camera=bpy.context.object;camera.rotation_euler=(Vector((0,0,2))-camera.location).to_track_quat('-Z','Y').to_euler();camera.data.type='ORTHO';camera.data.ortho_scale=7.2;scene.camera=camera
+bpy.ops.object.camera_add(location=(-9,-10,6));camera=bpy.context.object;camera.rotation_euler=(Vector((0,0,2))-camera.location).to_track_quat('-Z','Y').to_euler();camera.data.type='ORTHO';camera.data.ortho_scale=9.4;scene.camera=camera
 scene.render.resolution_x=1400;scene.render.resolution_y=1200;scene.render.resolution_percentage=100;scene.view_settings.view_transform='AgX';scene.render.filepath=str(OUT/'river-spirits.png')
 bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE/'river-spirits.blend'));bpy.ops.render.render(write_still=True)
 print('RIVER_SPIRITS_EXPORTED',triangles)

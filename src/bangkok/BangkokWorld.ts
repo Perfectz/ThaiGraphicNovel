@@ -203,6 +203,7 @@ export class BangkokWorld {
     this.party.position.set(-2, 0.08, 2.3);
     this.makeSpirit();
     this.combatStage = new RiverBattleStage(this.scene);
+    this.combatStage.spirits.bindWorldMurmur(this.spirit);
     this.batchStatic(this.combatStage.environmentFallback);
     this.batchStatic(this.combatStage.root);
     this.cityScenery = new CityScenery(this.scene, (root) => this.batchStatic(root));
@@ -1046,6 +1047,7 @@ export class BangkokWorld {
       this.animated.forEach((fn) => fn(this.elapsed, dt));
       this.particles.rotation.y = this.elapsed * 0.009;
     }
+    this.combatStage.spirits.updateWorld(this.elapsed, this.reducedMotion);
     const since = this.elapsed - this.hitAt;
     if (since < 1.4) {
       this.burst.children.forEach((s, i) => {
@@ -1504,7 +1506,8 @@ export class BangkokWorld {
         ? !has(this.adventure!, id) &&
           Math.hypot(site.x - this.player.x, site.z - this.player.z) <
             lanternRevealRadius(this.adventure!.lantern)
-        : !(id === 'su' && has(this.adventure!, 'intro'));
+        : !(id === 'su' && has(this.adventure!, 'intro')) &&
+          !(id === 'wisp' && this.state.conversation && this.state.contact === 'wisp');
     });
     if (import.meta.env.DEV) {
       this.host.dataset.cityArea = cityAreaAt(this.player) ?? 'roads';
@@ -1547,7 +1550,7 @@ export class BangkokWorld {
     if (
       !contact ||
       !companion ||
-      (!['waystone', 'canal-lantern'].includes(contact.id) &&
+      (!['waystone', 'canal-lantern', 'wisp'].includes(contact.id) &&
         !discoveryFor(contact.id) &&
         !this.actorObjects.get(contact.id)?.userData.appearanceReady)
     ) {
