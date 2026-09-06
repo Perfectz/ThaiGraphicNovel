@@ -16,6 +16,8 @@ The Murmur you meet in Lumphini keeps its floating porcelain form in battle. The
 
 The town map now charts the actual streets, buildings, park pond, pier and archive rooms. Choose a district for a closer view or use Whole city to see how the neighbourhoods connect. Tap an open path to preview a route, then choose Walk this route. The party follows it through the 3D city. Blocked ground is marked before departure. Keyboard users can focus the chart and move the destination with arrow keys (Shift moves farther). Unknown discoveries remain hidden until found in the world.
 
+Found city memories now have return visits. The Journal lists discovered memories ready for recall; their nearby markers turn warm gold. Walk back, read your intention in English, and try the Thai before revealing it. Recording, reference playback, hints and an untimed self-check are available. Reviews update the same spaced practice record as travel missions, while the original discovery treasure is awarded only once. A reviewed place rests for today; words needing help remain due and can be revisited again. Recordings are speaking practice, not an automatic pronunciation grade.
+
 Report the device/browser, what you tried, what you expected, and what happened in the repository's Issues tab. Useful feedback includes confusing navigation, unreadable dialogue, audio problems, difficult controls, and whether speaking felt useful.
 
 The public snapshot uses local microphone recording and prerecorded reference voices. The optional local Whisper/Realtime coaching services are not deployed. No visitor needs an OpenAI key. Audio is AI-generated; a fluent Thai speaker has not reviewed the full pack. Physical-device performance and an hour-long learning session remain playtest questions.

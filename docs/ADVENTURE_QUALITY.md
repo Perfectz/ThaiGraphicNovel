@@ -17,7 +17,7 @@ The standard is a coherent Thai-learning adventure, not the number of menus or l
 | Battles belong to the main story | Fresh local and public campaign runs beat Murmur and Keeper and board the ferry without practice; Murmur now retains its own Blender silhouette from exploration into combat | More encounters and contextual tactics; greater animation variety |
 | Exploration beyond errands | Archive adds five connected rooms, three records, a deduction and permission-based dialogue | Local desktop and phone browser runs passed the complete quest, microphone flow and reloads; model fallback was confirmed off |
 | Speak with understood intent | English previews, reference audio and optional recorded replies | Full phrase pack needs fluent-speaker review; live pronunciation coaching is not deployed |
-| Worth an hour every day | Thirty authored outings and persistent review records exist | No hour-long learner study or month-long retention evidence; content breadth and transfer need further work |
+| Worth an hour every day | Thirty authored outings and persistent review records exist; discovered city memories offer contextual return visits using the same spaced recall record | No hour-long learner study or month-long retention evidence; content breadth and transfer need further work |
 | Beautiful, coherent 3D presentation | Original Blender landmarks and connected rendered districts | Reused character models, limited animation variety and uneven staging remain visible |
 
 ## Archive verification contract
@@ -27,3 +27,7 @@ Verify a real walk from the hotel, permission and cancellation, both directions 
 ## City chart verification contract
 
 `cityAtlas.ts` routes with the same `walkable` and `findPath` functions as the world. The SVG draws the shared district, road, archive, riverside and obstacle geometry. Verify routes from the hotel to every district, rejected water/furniture/wall targets, keyboard selection, chart-to-world travel through Lumphini and the archive, reload persistence and unchanged quest flags. Run `node --test tests/cityAtlas.test.ts tests/city.test.ts tests/archive.test.ts`, build, and `node scripts/test-city-atlas.mjs` (also `--phone`). Evidence goes in `artifacts/city-atlas/`. This proves navigation behavior; it does not establish parity with the reference games or long-term learning outcomes.
+
+## Return-visit verification contract
+
+`fieldReview.ts` exposes only discovered, due memories not yet reviewed today. `RecallLine` is shared with travel missions: English intent precedes Thai, hinted attempts cannot claim unaided recall, and spoken attempts remain separate from the memory self-check. Only confirming a review writes its date. Field reviews never change adventure rewards. Verify discovery, cancellation, recording/playback, reload, due markers, a subsequent due visit, and a hinted result on desktop and phone using `scripts/test-field-review.mjs`. The test uses synthetic microphone input and controlled review dates, not a longitudinal human learning study. Recheck the shared journey flow with `scripts/test-journey-adaptation.mjs --only=familiar-hotel`. Evidence is under `artifacts/field-review/`.

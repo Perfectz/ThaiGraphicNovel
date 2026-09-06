@@ -13,6 +13,7 @@ export type TrainingSave = {
   day: number;
   xp: number;
   records: Record<string, SkillRecord>;
+  fieldReviews?: Record<string, string>;
   completed: Record<string, number[]>;
   minutes: Record<string, number>;
   dailyPractice: Record<string, { seconds: number; spoken: number; recalls: number }>;
@@ -101,6 +102,14 @@ export function normalizeTraining(value: unknown): TrainingSave {
   const next = freshTraining();
   next.day = Number.isInteger(v.day) ? Math.max(1, Math.min(30, v.day!)) : 1;
   next.xp = Number.isFinite(v.xp) ? Math.max(0, v.xp!) : 0;
+  if (v.fieldReviews && typeof v.fieldReviews === 'object') {
+    next.fieldReviews = Object.fromEntries(
+      Object.entries(v.fieldReviews).filter(
+        ([id, date]) =>
+          /^[a-z-]{1,50}$/.test(id) && typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date),
+      ),
+    );
+  }
   for (const [id, r] of Object.entries(v.records ?? {})) {
     if (
       r &&

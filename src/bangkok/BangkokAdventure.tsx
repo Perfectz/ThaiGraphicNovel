@@ -1,3 +1,5 @@
+import FieldReviewPanel from './FieldReviewPanel';
+import { fieldReviewDue, recordFieldReview } from './fieldReview';
 import CityTravelMap from './CityTravelMap';
 import ArchivePanel from './ArchivePanel';
 import { archiveSite, archiveRooms, type ArchiveActor } from './archiveLayout';
@@ -83,7 +85,7 @@ import {
 } from './eveningOuting';
 import { servicesForHost, purchaseService, type ServiceHost, type CityServiceId } from './cityServices';
 import { partyLevel, partyGrowth, talentCost } from './partyGrowth';
-import { discoveries, discoveryFor, discoveryCount, hasRiverCharm } from './discoveries';
+import { discoveries, discoveryFor, discoveryCount, hasRiverCharm, type DiscoveryId } from './discoveries';
 import {
   cityJourneys,
   journeyHosts,
@@ -126,6 +128,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
   const [serviceHost, setServiceHost] = useState<ServiceHost | null>(null);
   const [eveningOpen, setEveningOpen] = useState(false);
   const [lanternOpen, setLanternOpen] = useState(false);
+  const [memoryHost, setMemoryHost] = useState<DiscoveryId | null>(null);
+  const [reviewRevision, setReviewRevision] = useState(0);
   const [archiveHost, setArchiveHost] = useState<ArchiveActor | null>(null);
   const [reunionHost, setReunionHost] = useState<ActorId | null>(null);
   const [journal, setJournal] = useState(false);
@@ -213,6 +217,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
   }, []);
   useEffect(() => {
     if (screen !== 'crossing' && screen !== 'ending') world.current?.setDeparture(null);
+    world.current?.setMemoryReviews(fieldReviewDue(save.flags, readTraining()).map((d) => d.id));
     world.current?.configureAdventure(
       save,
       {
@@ -232,7 +237,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
         eveningOpen ||
         lanternOpen ||
         !!reunionHost ||
-        !!archiveHost,
+        !!archiveHost ||
+        !!memoryHost,
     );
     world.current?.setState({
       district: 'hotel',
@@ -247,9 +253,11 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
         eveningOpen ||
         lanternOpen ||
         !!reunionHost ||
-        !!archiveHost,
+        !!archiveHost ||
+        !!memoryHost,
       contact:
         dialogue?.actor ??
+        memoryHost ??
         archiveHost ??
         reunionHost ??
         serviceHost ??
@@ -271,6 +279,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     journeyVisit,
     growthMenu,
     archiveHost,
+    memoryHost,
+    reviewRevision,
     serviceHost,
     eveningOpen,
     lanternOpen,
@@ -432,7 +442,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
       eveningOpen ||
       lanternOpen ||
       !!reunionHost ||
-      !!archiveHost
+      !!archiveHost ||
+      !!memoryHost
     )
       return;
     const s = saveRef.current;
@@ -507,29 +518,20 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     }
     const discovery = discoveryFor(id);
     if (discovery) {
+      if (has(s, id)) {
+        setMemoryHost(discovery.id);
+        return;
+      }
       talk(
         id,
-        has(s, id)
-          ? [
-              { speaker: 'Su', text: discovery.story },
-              {
-                speaker: 'Su',
-                text: 'This memory is safe in your explorer’s journal. There are more small stories along the side paths.',
-              },
-            ]
-          : [
-              {
-                speaker: 'Su',
-                text: discovery.story,
-                phrase: discovery.phrase,
-                response: discovery.response,
-              },
-              {
-                speaker: 'Su',
-                text: `A new page for our explorer’s journal. You found ${discoveryCount(s.flags) + 1} of 6 city memories. ${discoveryCount(s.flags) === 5 ? 'Together, these memories form a River Charm. After a story battle victory, it restores 15 HP.' : 'Find all six to earn the River Charm: it restores 15 HP after each story battle victory.'}`,
-              },
-            ],
-        has(s, id) ? undefined : id,
+        [
+          { speaker: 'Su', text: discovery.story, phrase: discovery.phrase, response: discovery.response },
+          {
+            speaker: 'Su',
+            text: `A new page for our explorer’s journal. You found ${discoveryCount(s.flags) + 1} of 6 city memories. ${discoveryCount(s.flags) === 5 ? 'Together, these memories form a River Charm. After a story battle victory, it restores 15 HP.' : 'Find all six to earn the River Charm: it restores 15 HP after each story battle victory.'}`,
+          },
+        ],
+        id,
       );
       return;
     }
@@ -881,7 +883,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 eveningOpen ||
                 lanternOpen ||
                 !!reunionHost ||
-                !!archiveHost
+                !!archiveHost ||
+                !!memoryHost
               }
             >
               Journal
@@ -897,7 +900,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 eveningOpen ||
                 lanternOpen ||
                 !!reunionHost ||
-                !!archiveHost
+                !!archiveHost ||
+                !!memoryHost
               }
             >
               Journeys
@@ -912,7 +916,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 eveningOpen ||
                 lanternOpen ||
                 !!reunionHost ||
-                !!archiveHost
+                !!archiveHost ||
+                !!memoryHost
               }
             >
               Bag · {save.coins} ◈
@@ -927,7 +932,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 eveningOpen ||
                 lanternOpen ||
                 !!reunionHost ||
-                !!archiveHost
+                !!archiveHost ||
+                !!memoryHost
               }
             >
               Train at camp
@@ -984,7 +990,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                       eveningOpen ||
                       lanternOpen ||
                       !!reunionHost ||
-                      !!archiveHost
+                      !!archiveHost ||
+                      !!memoryHost
                     }
                     onClick={() => setGrowthMenu(true)}
                   >
@@ -1018,7 +1025,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
           !eveningOpen &&
           !lanternOpen &&
           !reunionHost &&
-          !archiveHost && (
+          !archiveHost &&
+          !memoryHost && (
             <>
               <aside className="rpg-objective">
                 <small>
@@ -1170,6 +1178,20 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             onClose={() => setServiceHost(null)}
             onPractice={servicePractice}
             onUse={receiveService}
+          />
+        )}
+        {memoryHost && screen === 'world' && (
+          <FieldReviewPanel
+            key={memoryHost}
+            site={memoryHost}
+            onClose={() => setMemoryHost(null)}
+            onReview={(result) => {
+              const stored = persistTraining(
+                recordFieldReview(readTraining(), saveRef.current.flags, memoryHost, result),
+              );
+              if (stored) setReviewRevision((v) => v + 1);
+              return stored;
+            }}
           />
         )}
         {archiveHost && screen === 'world' && (
@@ -1908,6 +1930,39 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
               </details>
             ))}
           </section>
+          <section className="city-road-challenge" aria-label="Memories ready to revisit">
+            <h3>Return to a place, remember its words</h3>
+            <p>
+              These discovered memories are due for recall. Walk back to try their Thai before revealing it.
+              Choose your own order.
+            </p>
+            <div className="city-map-actions">
+              {fieldReviewDue(save.flags, readTraining()).map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => {
+                    setJournal(false);
+                    requestAnimationFrame(() => {
+                      world.current?.configureAdventure(
+                        saveRef.current,
+                        { interact: (id) => interactRef.current(id), near: setNear, move: reportWorldMove },
+                        false,
+                      );
+                      world.current?.travelTo(d.id);
+                    });
+                  }}
+                >
+                  Revisit {d.name} ↗
+                </button>
+              ))}
+            </div>
+            {!fieldReviewDue(save.flags, readTraining()).length && (
+              <p>
+                No discovered memories are waiting today. Keep exploring; you can still revisit any familiar
+                place.
+              </p>
+            )}
+          </section>
           <h3>Words discovered</h3>
           <div className="rpg-journal-words">
             {save.learned.map(
@@ -1921,7 +1976,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             )}
           </div>
           <p className="rpg-chapter-note">
-            Explore six connected districts and their local stories. Camp has the 30-day practice route. Voice
+            Explore seven connected places and their local stories. Camp has the 30-day practice route. Voice
             recordings are self-checks; they do not grade Thai tones.
           </p>
         </Modal>

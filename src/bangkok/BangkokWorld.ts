@@ -144,6 +144,7 @@ export class BangkokWorld {
     return actors.map((a) => (a.id === 'traveler' ? { ...a, ...this.escort.state.position } : a));
   }
   private questMarkers = new Map<ActorId, T.Sprite>();
+  private memoryReviews = new Set<string>();
   private discoveryModels = new DiscoveryModels();
   private travelLantern?: TravelLantern;
   private player: Point = { x: -5, z: 4.8 };
@@ -1306,15 +1307,20 @@ export class BangkokWorld {
       sprite.material.color.set(
         id === goal
           ? '#ffe395'
-          : has(save, id === 'waystone' ? 'sentinel' : id === 'canal-lantern' ? 'canal-restored' : id)
-            ? '#80afa2'
-            : '#b3d7ee',
+          : this.memoryReviews.has(id)
+            ? '#edcb83'
+            : has(save, id === 'waystone' ? 'sentinel' : id === 'canal-lantern' ? 'canal-restored' : id)
+              ? '#80afa2'
+              : '#b3d7ee',
       );
       const scale = id === goal ? 1.3 : 1;
       sprite.scale.set(1.1 * scale, 0.55 * scale, 1);
     });
     if (this.chestLid) this.chestLid.rotation.x = has(save, 'chest') ? -1.1 : 0;
     this.beaconGlow.visible = has(save, 'keeper');
+  }
+  setMemoryReviews(ids: string[]) {
+    this.memoryReviews = new Set(ids);
   }
   moveDirection(x: number, z: number) {
     this.touchDirection = { x, z };
@@ -1503,7 +1509,7 @@ export class BangkokWorld {
       marker.position.y = 2.9 + Math.sin(this.elapsed * 2 + id.length) * 0.1;
       const site = discoveryFor(id);
       marker.visible = site
-        ? !has(this.adventure!, id) &&
+        ? (!has(this.adventure!, id) || this.memoryReviews.has(id)) &&
           Math.hypot(site.x - this.player.x, site.z - this.player.z) <
             lanternRevealRadius(this.adventure!.lantern)
         : !(id === 'su' && has(this.adventure!, 'intro')) &&
