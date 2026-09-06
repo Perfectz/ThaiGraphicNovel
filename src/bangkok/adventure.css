@@ -1288,3 +1288,11 @@
     flex: 1 1 145px;
   }
 }
+.rpg-story-encounters {
+  border-top: 1px solid #c5af7855;
+  padding-top: 10px;
+  margin: 10px 0 0;
+  color: #dcc78e;
+  font-size: 12px;
+  line-height: 1.7;
+}

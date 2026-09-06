@@ -324,11 +324,11 @@ export function storyObjective(s: AdventureSave): { actor: ActorId; text: string
   if (!has(s, 'intro')) return { actor: 'su', text: 'Talk to Su. Find out where the rift brought you.' };
   if (!has(s, 'innkeeper'))
     return { actor: 'innkeeper', text: 'Check in with Mali at your Sukhumvit hotel.' };
+  if (!has(s, 'murmur'))
+    return { actor: 'wisp', text: 'Travel to Lumphini with Su. Defeat the Murmur to recover the ferry’s lantern spark.' };
   if (!has(s, 'cook'))
     return { actor: 'cook', text: 'Walk to Yaowarat. Find Uncle Lek and order supper for Niran.' };
   if (!has(s, 'ferry')) return { actor: 'ferry', text: 'Take the supper to Niran at the Chao Phraya pier.' };
-  if (!has(s, 'murmur'))
-    return { actor: 'wisp', text: 'Explore Lumphini Park. Recover the missing lantern spark.' };
   if (!has(s, 'keeper'))
     return { actor: 'shrine', text: 'Take the spark to the Old Town lantern court. Face the Keeper.' };
   return {

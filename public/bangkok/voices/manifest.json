@@ -3,7 +3,7 @@
   "source": "OpenAI Speech API",
   "synthetic": true,
   "nativeSpeakerReviewed": false,
-  "generatedAt": "2026-09-06T20:42:47.959Z",
+  "generatedAt": "2026-09-06T22:47:23.272Z",
   "clips": {
     "Su|ห้องน้ำอยู่ที่ไหนครับ": {
       "id": "bathroom-where",
@@ -3280,6 +3280,97 @@
       "fingerprint": "9d4236fc6d1016d1014655214f7eedd78fd375ab39c4fe752d0321f47e442906",
       "bytes": 274560,
       "sha256": "05b403b1e15aa874b04f790278b5de9fb91832d66b8ff03695b0bbff200bd40e"
+    },
+    "Su|The missing lantern spark is caught inside that spirit. We cannot restore the last ferry until we free it. Stay beside me, Patrick. This is our first fight together.": {
+      "id": "line-3f90d8e17c7bfdec",
+      "kind": "story",
+      "speaker": "Su",
+      "text": "The missing lantern spark is caught inside that spirit. We cannot restore the last ferry until we free it. Stay beside me, Patrick. This is our first fight together.",
+      "voice": "marin",
+      "key": "Su|The missing lantern spark is caught inside that spirit. We cannot restore the last ferry until we free it. Stay beside me, Patrick. This is our first fight together.",
+      "url": "/bangkok/voices/line-3f90d8e17c7bfdec.mp3",
+      "model": "gpt-4o-mini-tts",
+      "fingerprint": "ef4d83543906beaed6a0e5916399d6a8fc5a2c7a3b1ff452fcaaae3d317d8600",
+      "bytes": 165888,
+      "sha256": "f139bbd75bca2703f6de5ada58563a5ba7c0b3c57a3a3a31d297e375fd65fb48"
+    },
+    "Su|The spark we recovered answers the lantern, but the Keeper still holds the river passage shut. Everything we brought through the city matters here: our word arts, our talents, and the food our neighbours packed.": {
+      "id": "line-113a61893b8d8b62",
+      "kind": "story",
+      "speaker": "Su",
+      "text": "The spark we recovered answers the lantern, but the Keeper still holds the river passage shut. Everything we brought through the city matters here: our word arts, our talents, and the food our neighbours packed.",
+      "voice": "marin",
+      "key": "Su|The spark we recovered answers the lantern, but the Keeper still holds the river passage shut. Everything we brought through the city matters here: our word arts, our talents, and the food our neighbours packed.",
+      "url": "/bangkok/voices/line-113a61893b8d8b62.mp3",
+      "model": "gpt-4o-mini-tts",
+      "fingerprint": "106825d43824695dfa321b7b3b0635652a6cf6ec6449c8848e145c5f57ec301b",
+      "bytes": 202368,
+      "sha256": "ace9786d298f08e2620030f585332f677293e238d85323d17aaafdb3018ead69"
+    },
+    "Su|Break or weaken the Keeper before its heavy third-round attack. Its Echo can heal it; a parry interrupts that healing. We fight together to restore the lantern. Then we can return to Niran and board the ferry.": {
+      "id": "line-5bdc07d6159241a6",
+      "kind": "story",
+      "speaker": "Su",
+      "text": "Break or weaken the Keeper before its heavy third-round attack. Its Echo can heal it; a parry interrupts that healing. We fight together to restore the lantern. Then we can return to Niran and board the ferry.",
+      "voice": "marin",
+      "key": "Su|Break or weaken the Keeper before its heavy third-round attack. Its Echo can heal it; a parry interrupts that healing. We fight together to restore the lantern. Then we can return to Niran and board the ferry.",
+      "url": "/bangkok/voices/line-5bdc07d6159241a6.mp3",
+      "model": "gpt-4o-mini-tts",
+      "fingerprint": "4182355964eb44c474b0b2a2a39436ef9882e3cbeaa87d1835e73b0adad86ef9",
+      "bytes": 209664,
+      "sha256": "371b02051bab18ae666b956572a90272bcc51453e11e7dfc1211f2a4d6d105e5"
+    },
+    "Su|When the spirit answers, choose steady guard or try a timed dodge or parry. Our rice and tea come from the bag we carry through the city. If we need to retreat, we can rest with Mali and return. Ready?": {
+      "id": "line-dbe6b1126be8a058",
+      "kind": "story",
+      "speaker": "Su",
+      "text": "When the spirit answers, choose steady guard or try a timed dodge or parry. Our rice and tea come from the bag we carry through the city. If we need to retreat, we can rest with Mali and return. Ready?",
+      "voice": "marin",
+      "key": "Su|When the spirit answers, choose steady guard or try a timed dodge or parry. Our rice and tea come from the bag we carry through the city. If we need to retreat, we can rest with Mali and return. Ready?",
+      "url": "/bangkok/voices/line-dbe6b1126be8a058.mp3",
+      "model": "gpt-4o-mini-tts",
+      "fingerprint": "a9e9926f31f7791e405c49fd0ffbe837202830d7a68bbb24a55b1e99de37035a",
+      "bytes": 211968,
+      "sha256": "5fa1e19b9c78278e27c7c9abca3abd750309c5c62bea3cdb2e8f9c660daab491"
+    },
+    "Su|The words you learned at the hotel can reach it. Patrick and I take turns: choose a word art, read what it means in English, then try the Thai aloud. We can inspect the enemy’s plan before committing. Speaking has no time limit.": {
+      "id": "line-ba28ec919509a697",
+      "kind": "story",
+      "speaker": "Su",
+      "text": "The words you learned at the hotel can reach it. Patrick and I take turns: choose a word art, read what it means in English, then try the Thai aloud. We can inspect the enemy’s plan before committing. Speaking has no time limit.",
+      "voice": "marin",
+      "key": "Su|The words you learned at the hotel can reach it. Patrick and I take turns: choose a word art, read what it means in English, then try the Thai aloud. We can inspect the enemy’s plan before committing. Speaking has no time limit.",
+      "url": "/bangkok/voices/line-ba28ec919509a697.mp3",
+      "model": "gpt-4o-mini-tts",
+      "fingerprint": "d39be3534cb6197283e44469e54e975dd02e29c9497fd790ce879ba66363a69f",
+      "bytes": 207360,
+      "sha256": "e0844520835a90e2619f94a1685b42caa9a6f31dc6ffd6acb36767b06598504f"
+    },
+    "Mali|Rest here whenever you need. That key also opens the luggage chest beside reception. Su saw the missing ferry spark drifting in Lumphini Park. Face the spirit together, then visit Uncle Lek in Yaowarat for our stranded ferryman’s supper.": {
+      "id": "line-c17e5fbde1b0c513",
+      "kind": "story",
+      "speaker": "Mali",
+      "text": "Rest here whenever you need. That key also opens the luggage chest beside reception. Su saw the missing ferry spark drifting in Lumphini Park. Face the spirit together, then visit Uncle Lek in Yaowarat for our stranded ferryman’s supper.",
+      "voice": "coral",
+      "key": "Mali|Rest here whenever you need. That key also opens the luggage chest beside reception. Su saw the missing ferry spark drifting in Lumphini Park. Face the spirit together, then visit Uncle Lek in Yaowarat for our stranded ferryman’s supper.",
+      "url": "/bangkok/voices/line-c17e5fbde1b0c513.mp3",
+      "model": "gpt-4o-mini-tts",
+      "fingerprint": "d92dd854cacbc8f1d5791a62c8e22bf5c4382543003dac677dca5b726faf1838",
+      "bytes": 279168,
+      "sha256": "3e86048e064d0e8b7af8896b2d747edd669ae36f2839dadc79dd92db02579b5e"
+    },
+    "Su|Travel to Lumphini with Su. Defeat the Murmur to recover the ferry’s lantern spark. Look around, open your map, or talk to people again. If you want to rehearse a phrase, we can train at camp.": {
+      "id": "line-f915a7e2db44dcef",
+      "kind": "story",
+      "speaker": "Su",
+      "text": "Travel to Lumphini with Su. Defeat the Murmur to recover the ferry’s lantern spark. Look around, open your map, or talk to people again. If you want to rehearse a phrase, we can train at camp.",
+      "voice": "marin",
+      "key": "Su|Travel to Lumphini with Su. Defeat the Murmur to recover the ferry’s lantern spark. Look around, open your map, or talk to people again. If you want to rehearse a phrase, we can train at camp.",
+      "url": "/bangkok/voices/line-f915a7e2db44dcef.mp3",
+      "model": "gpt-4o-mini-tts",
+      "fingerprint": "517f2180c8caef89b61df8ddaf1e9a59327bb826d8bdde7d0a3b9db16b616b93",
+      "bytes": 218496,
+      "sha256": "f2ed9660cf6041a157179b893f3cb46b85e7231b6784623a51da7b2c3136c385"
     }
   }
 }

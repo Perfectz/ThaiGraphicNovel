@@ -22,7 +22,7 @@ try{
  await card('First to Speak').click();assert.equal(await card('A Guiding Voice').isDisabled(),true);assert.equal(await card('Take Your Time').isDisabled(),true);
  await card('First to Speak').click();await card('A Guiding Voice').click();assert.deepEqual((await adventureState(page)).talents,['guiding']);
  await page.reload();await page.getByRole('button',{name:/Continue adventure/}).click();await growth();assert.equal(await card('A Guiding Voice').getAttribute('aria-pressed'),'true');
- await close();await page.getByRole('button',{name:'Battle practice',exact:true}).click();await page.locator('.exp-commands').waitFor();
+ await close();await page.getByRole('button',{name:'Party growth',exact:true}).click();await page.getByRole('button',{name:'Battle practice',exact:true}).click();await page.locator('.exp-commands').waitFor();
  assert.deepEqual((await adventureState(page)).battle.heroes.map(h=>h.ap),[3,4]);assert.equal(await page.getByRole('button',{name:'Party growth',exact:true}).count(),0);
  report.allocation=true;await checkpoint();await allocation.close();console.log('PASS talent budget, reallocation, persistence and practice AP');
  const fixture=startBattle({...base,flags:[...base.flags,'cook','ferry','murmur'],xp:1100,talents:['ready','unhurried','kindness','harmony'],hp:40},'keeper');

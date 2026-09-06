@@ -50,7 +50,7 @@ try {
   await page.getByRole('button', { name: 'Mute music', exact: true }).click(); await silent();
   await page.getByRole('button', { name: 'Play music', exact: true }).click(); await playing('stage-02');
   await step('battle entry and retreat');
-  await page.getByRole('button', { name: 'Battle practice', exact: true }).click(); await page.getByRole('button', { name: 'Retreat', exact: true }).waitFor(); await playing('stage-03');
+  await page.getByRole('button',{name:'Party growth',exact:true}).click();await page.getByRole('button', { name: 'Battle practice', exact: true }).click(); await page.getByRole('button', { name: 'Retreat', exact: true }).waitFor(); await playing('stage-03');
   await page.getByRole('button', { name: 'Retreat', exact: true }).click(); await playing('stage-02');
   await step('camp entry music');
   await page.getByRole('button', { name: 'Train at camp', exact: true }).click(); await page.getByRole('button', { name: /(Begin|Continue) your journey/ }).waitFor();

@@ -1,4 +1,5 @@
 import ReunionPanel from './ReunionPanel';
+import {storyEncounters} from './storyEncounters';
 import { advanceReunion, reunionReason, reunionStatus, reunionStep, type ReunionStep } from './reunion';
 import { cityAreas, cityAreaAt, cityWalkways, inside, canalWalk, type CityArea } from './city';
 import { useEffect, useRef, useState } from 'react';
@@ -289,6 +290,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     if (busy || saveRef.current.battle) return;
     setSave(startPracticeBattle(saveRef.current));
     setDialogue(null);
+    setGrowthMenu(false);
     setNotice('');
     setScreen('battle');
     resetPrompt();
@@ -377,9 +379,12 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     });
   }
   function beginFight(id: Battle['id']) {
+    const site=actors.find(a=>a.id===(id==='sentinel'?'waystone':storyEncounters[id].actor))!;
+    if(Math.hypot(saveRef.current.position.x-site.x,saveRef.current.position.z-site.z)>2.5)return;
     const next = startBattle(saveRef.current, id);
     if (!next.battle) return;
-    setSave((s) => startBattle(s, id));
+    saveRef.current=next;
+    setSave(next);
     setScreen('battle');
     resetPrompt();
     setNotice(
@@ -592,7 +597,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     }
     if (id === 'wisp' || id === 'shrine') {
       const battleId = id === 'wisp' ? 'murmur' : 'keeper';
-      if (canBattle(s, battleId)) beginFight(battleId);
+      if (canBattle(s, battleId)) talk(id,storyEncounters[battleId].lines,undefined,battleId);
       else
         talk(id, [
           {
@@ -918,7 +923,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
               <br />
               Six neighbourhoods wait outside.
               <br />
-              Explore Bangkok with Su. Let your Thai open the way.
+              Explore, speak, and fight beside Su to restore the last ferry.
             </p>
             <button
               className="bk-button bk-gold"
@@ -930,11 +935,6 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
               {save.flags.length || save.battle ? 'Continue adventure' : 'Step through the rift'}{' '}
               <span>→</span>
             </button>
-            {!save.battle && (
-              <button className="rpg-back rpg-sparring" onClick={beginSparring}>
-                Rehearse combat · no story progress lost
-              </button>
-            )}
             <div className="rpg-title-details">
               EXPLORE A 3D TOWN · MEET ITS PEOPLE
               <br />
@@ -1023,9 +1023,12 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 >
                   Open town map ↗
                 </button>
-                <button className="rpg-sparring" onClick={beginSparring}>
-                  Battle practice
-                </button>
+                {(!activeJourney || activeJourney.paused) && followedStory.id==='ferry' && (
+                  <p className="rpg-story-encounters" aria-label="Main story battles">
+                    {has(save,'murmur')?'✦':'◇'} Murmur · lantern spark<br/>
+                    {has(save,'keeper')?'✦':'◇'} Keeper · river passage
+                  </p>
+                )}
                 {activeJourney && !activeJourney.paused && (
                   <span className="journey-active-label">
                     {journeyDefinition.title} · {activeJourney.spoken} spoken attempts
@@ -1205,7 +1208,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                       : dialogue.reward === 'departed'
                         ? 'Board the ferry'
                         : dialogue.challenge
-                          ? 'Challenge the Waywarden'
+                          ? dialogue.challenge==='sentinel'?'Challenge the Waywarden':storyEncounters[dialogue.challenge].enter
                           : dialogue.escortStep
                             ? dialogue.escortStep === 'begin'
                               ? 'Walk with Nok'
@@ -1263,7 +1266,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                       ? 'WAYFINDER SEAL · Future battles begin with 20 resonance · +75 XP · +25 coins'
                       : b.id === 'keeper'
                         ? 'The river lantern is restored. Return to Niran!'
-                        : 'Lantern spark acquired. Take it to the river lantern.'
+                        : 'Lantern spark acquired. Follow the journal to prepare the last ferry.'
                     : b?.phase === 'defeat'
                       ? 'You wake near the inn with 35 HP. Your quest items are safe.'
                       : 'Party regrouped. Rest at Mali’s inn if you need to.',
@@ -1788,6 +1791,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             selected={save.talents ?? []}
             onToggle={(id) => setSave((s) => toggleTalent(s, id))}
           />
+          <button className="bk-button bk-outline" onClick={beginSparring}>Battle practice</button>
+          <p>Optional rehearsal with Su. Story encounters happen out in the city and use your travelling party’s supplies.</p>
         </Modal>
         <Modal
           isOpen={journal}

@@ -96,7 +96,7 @@ export const conversations: Partial<Record<ActorId, StoryLine[]>> = {
     },
     {
       speaker: 'Mali',
-      text: 'Rest here whenever you need. That key also opens the luggage chest beside reception. The door leads onto Sukhumvit. Uncle Lek in Yaowarat is making supper for our stranded ferryman—perhaps you could help.',
+      text: 'Rest here whenever you need. That key also opens the luggage chest beside reception. Su saw the missing ferry spark drifting in Lumphini Park. Face the spirit together, then visit Uncle Lek in Yaowarat for our stranded ferryman’s supper.',
     },
   ],
   cook: [

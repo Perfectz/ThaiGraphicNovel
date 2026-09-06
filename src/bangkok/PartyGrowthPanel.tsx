@@ -78,7 +78,7 @@ export default function PartyGrowthPanel({
         })}
       </div>
       <p className="growth-footnote">
-        Earn adventure XP from quests, city memories, first-time phrases and completed outings. Party levels
+        Earn adventure XP from story battles, quests, city memories, first-time phrases and completed outings. Party levels
         are game progression; your Thai recall and speaking practice are tracked separately at camp.
       </p>
     </section>

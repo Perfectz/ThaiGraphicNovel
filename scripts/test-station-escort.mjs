@@ -45,7 +45,7 @@ try {
   await page.screenshot({ path: `${out}/invitation.png` }); await reply(true);
   assert.equal((await saved()).escort.stage, 'waiting'); await page.getByRole('button', { name: /Walk with Nok/ }).click(); assert.equal((await saved()).escort.stage, 'following'); report.accepted = true;
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('bangkok-rift-training-v1')).records['go-together'].spoken), 1); report.speech = true;
-  await page.getByRole('button', { name: 'Battle practice', exact: true }).click(); await page.getByRole('button', { name: 'Retreat', exact: true }).waitFor();
+  await page.getByRole('button',{name:'Party growth',exact:true}).click();await page.getByRole('button', { name: 'Battle practice', exact: true }).click(); await page.getByRole('button', { name: 'Retreat', exact: true }).waitFor();
   const frozen = (await saved()).escort; await page.waitForTimeout(1600); assert.deepEqual((await saved()).escort, frozen);
   await page.getByRole('button', { name: 'Retreat', exact: true }).click(); report.battlePause = true;
   await route(); await page.waitForFunction(() => JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')).escort.position.x < -24, null, { timeout: 180000 });

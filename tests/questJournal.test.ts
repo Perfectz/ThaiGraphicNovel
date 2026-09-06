@@ -22,7 +22,7 @@ test('tracking survives saves, changes the world objective and grants no rewards
   assert.equal(objective(restored).actor, 'station');
   restored.flags.push('station');
   assert.equal(trackedQuest(restored).id, 'ferry');
-  assert.equal(objective(restored).actor, 'cook');
+  assert.equal(objective(restored).actor, 'wisp');
   assert(questJournal(restored).find(q => q.id === 'routes')?.complete);
   assert.equal(normalizeAdventure({ ...s, trackedQuest: 'invalid' }).trackedQuest, undefined);
 });

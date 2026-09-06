@@ -52,7 +52,7 @@ try {
     await page.waitForFunction(before => { const p = JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')).position; return Math.hypot(p.x - before.x, p.z - before.z) > .1; }, beforeMove);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     if (phone) {
-      await page.getByRole('button', { name: 'Battle practice', exact: true }).click();
+      await page.getByRole('button',{name:'Party growth',exact:true}).click();await page.getByRole('button', { name: 'Battle practice', exact: true }).click();
       await page.getByRole('button', { name: 'Retreat', exact: true }).waitFor();
       await page.waitForFunction(() => JSON.parse(document.querySelector('.bk-world').dataset.cityResidents).every(r => !r.visible && !r.moving));
       await page.getByRole('button', { name: 'Retreat', exact: true }).click(); await ready();
