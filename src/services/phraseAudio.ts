@@ -1,13 +1,13 @@
-import chaiKhrapAudio from '../../humandropbox/chai khrap.mp3';
-import bathroomWhereAudio from '../../humandropbox/hong nam yoo tee nai khrap.mp3';
-import sorryAudio from '../../humandropbox/kho thot khrap.mp3';
-import thankYouAudio from '../../humandropbox/khop khun khrap.mp3';
-import noAudio from '../../humandropbox/mai chai khrap.mp3';
-import myNameIsPatrickAudio from '../../humandropbox/phom chue Patrick khrap.mp3';
-import iAmThirstyAudio from '../../humandropbox/phom hiw naam khrap.mp3';
-import howMuchAudio from '../../humandropbox/raa khaa tao rai khrap.mp3';
-import helloAudio from '../../humandropbox/sawatdee khrap.mp3';
-import niceToMeetYouAudio from '../../humandropbox/yin dee tee dai roo jak khrap.mp3';
+import chaiKhrapAudio from '../assets/audio/legacy-phrases/chai khrap.mp3';
+import bathroomWhereAudio from '../assets/audio/legacy-phrases/hong nam yoo tee nai khrap.mp3';
+import sorryAudio from '../assets/audio/legacy-phrases/kho thot khrap.mp3';
+import thankYouAudio from '../assets/audio/legacy-phrases/khop khun khrap.mp3';
+import noAudio from '../assets/audio/legacy-phrases/mai chai khrap.mp3';
+import myNameIsPatrickAudio from '../assets/audio/legacy-phrases/phom chue Patrick khrap.mp3';
+import iAmThirstyAudio from '../assets/audio/legacy-phrases/phom hiw naam khrap.mp3';
+import howMuchAudio from '../assets/audio/legacy-phrases/raa khaa tao rai khrap.mp3';
+import helloAudio from '../assets/audio/legacy-phrases/sawatdee khrap.mp3';
+import niceToMeetYouAudio from '../assets/audio/legacy-phrases/yin dee tee dai roo jak khrap.mp3';
 import { type ThaiPhrase } from '../data/thaiPhrases';
 import { generatedPhraseAudioById } from '../generated/conversationAudioManifest';
 
