@@ -1,7 +1,9 @@
-export type CityArea = 'hotel' | 'sukhumvit' | 'lumphini' | 'yaowarat' | 'riverside' | 'oldtown';
+import { archiveFloors, archiveWalls, archiveFurniture } from './archiveLayout.ts';
+export type CityArea = 'hotel' | 'sukhumvit' | 'lumphini' | 'yaowarat' | 'riverside' | 'oldtown' | 'archive';
 export type CityPoint = { x: number; z: number };
 export type Rect = { x: number; z: number; w: number; d: number };
 export const hotelStart = { x: -57, z: 29 };
+export const cityMapBounds = { x: -65, z: -8, w: 163, d: 50 };
 // Inset from the timber deck edges; the river itself is never walkable.
 export const riverPier: Rect = { x: -0.3, z: -11.45, w: 2.6, d: 5.45 };
 export const cityAreas: {
@@ -74,6 +76,16 @@ export const cityAreas: {
     color: '#ccb7df',
     hint: 'Meet Arun at his workshop. The lost river lantern waits in the ceremonial court.',
   },
+  {
+    id: 'archive',
+    name: 'Old Town Archive',
+    thai: 'พระนคร',
+    theme: 'Teak galleries · family histories · a lost river route',
+    center: { x: 56, z: 32 },
+    bounds: { x: 49, z: 13, w: 41, d: 24 },
+    color: '#bdc9b2',
+    hint: 'Beyond the east gate, Kanya keeps the neighbourhood’s stories. Explore the galleries to recover a forgotten ferry ledger.',
+  },
 ];
 export const cityWalkways: Rect[] = [
   { x: -46, z: 37, w: 85, d: 4 },
@@ -107,7 +119,8 @@ export const oldTownWalls: Rect[] = [
   { x: 24, z: 24.5, w: 0.5, d: 11 },
   { x: 24, z: 39.5, w: 10.5, d: 0.5 },
   { x: 39.5, z: 39.5, w: 9.5, d: 0.5 },
-  { x: 48.5, z: 24.5, w: 0.5, d: 15 },
+  { x: 48.5, z: 24.5, w: 0.5, d: 5.5 },
+  { x: 48.5, z: 34, w: 0.5, d: 5.5 },
 ];
 // Geometry and navigation share footprints. Buildings cannot be walked through.
 export const parkServingTable: Rect = { x: -24.6, z: 23.9, w: 1.2, d: 0.5 };
@@ -137,6 +150,8 @@ export const cityObstacles: (Rect & { kind: 'building' | 'wall' | 'bed' | 'desk'
   { x: 39, z: 33, w: 8, d: 5, kind: 'building' },
   { x: 27.6, z: 29.7, w: 2.8, d: 1.2, kind: 'desk' },
   ...oldTownWalls.map((r) => ({ ...r, kind: 'wall' as const })),
+  ...archiveWalls.map((r) => ({ ...r, kind: 'wall' as const })),
+  ...archiveFurniture.map((r) => ({ ...r, kind: 'desk' as const })),
 ];
 export function inside(p: CityPoint, r: Rect) {
   return p.x >= r.x && p.x <= r.x + r.w && p.z >= r.z && p.z <= r.z + r.d;
@@ -148,9 +163,11 @@ export function cityAreaAt(p: CityPoint): CityArea | null {
 export function cityWalkable(p: CityPoint): boolean {
   if (inside(p, riverPier)) return true;
   return (
-    [...cityAreas.filter((a) => a.id !== 'riverside').map((a) => a.bounds), ...cityRoads].some((r) =>
-      inside(p, r),
-    ) && !cityObstacles.some((r) => inside(p, r))
+    [
+      ...cityAreas.filter((a) => a.id !== 'riverside' && a.id !== 'archive').map((a) => a.bounds),
+      ...cityRoads,
+      ...archiveFloors,
+    ].some((r) => inside(p, r)) && !cityObstacles.some((r) => inside(p, r))
   );
 }
 

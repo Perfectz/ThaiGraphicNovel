@@ -34,7 +34,7 @@ test('continuous walking reaches every NPC across corners and district seams',()
 });
 test('walking discovers districts once and discoveries survive a reload',()=>{
  let s=freshAdventure();for(const a of cityAreas){s=moveAdventure(s,a.center);s=moveAdventure(s,a.center);}
- assert.equal(s.visited.length,6);assert.deepEqual(normalizeAdventure(JSON.parse(JSON.stringify(s))),s);
+ assert.equal(s.visited.length,cityAreas.length);assert.deepEqual(normalizeAdventure(JSON.parse(JSON.stringify(s))),s);
 });
 test('return transit needs the station favour and a prior visit; it cannot bypass a battle',()=>{
  const fresh=freshAdventure();assert.equal(transitTo(fresh,'sukhumvit'),fresh);

@@ -1,3 +1,4 @@
+import {archiveStatus,archiveDestinations} from './archiveQuest.ts';
 import { actors, storyObjective, type ActorId, type AdventureSave, type Point } from './adventure.ts';
 import { canalApproach, canalStatus } from './canalErrand.ts';
 import { escortStatus } from './stationEscort.ts';
@@ -6,6 +7,7 @@ import { lanternName, lanternPrices } from './lanternTrade.ts';
 import { reunionDestinations, reunionStatus } from './reunion.ts';
 
 export const questIds = [
+  'archive',
   'ferry',
   'reunion',
   'routes',
@@ -67,6 +69,7 @@ export function questJournal(s: AdventureSave): QuestEntry[] {
       destinations: reunionDestinations(s).map((id) => destination(id)),
     });
   if (!has('innkeeper')) return entries;
+  entries.push({id:'archive',title:'The House of Returning Maps',kind:'Exploration story',complete:has('archive-complete'),text:archiveStatus(s),purpose:'Explore connected galleries, assemble a forgotten river story and make polite requests in Thai.',reward:'100 XP · 25 coins · Two teas · The ferry ledger',destinations:archiveDestinations(s).map(id=>destination(id))});
   entries.push(
     {
       id: 'travel-lantern',

@@ -15,7 +15,7 @@ if (phoneOnly) {
 }
 const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')));
 async function mark(name) { report.milestones.push(name); await writeFile(`${out}/progress.json`, JSON.stringify(report, null, 2)); console.log('PASS', name); }
-const ready = () => page.waitForFunction(() => document.querySelector('.bk-world')?.dataset.npcReady === '6' && !document.querySelector('.bk-loading'), null, { timeout: 120000 });
+const ready = () => page.waitForFunction(() => document.querySelector('.bk-world')?.dataset.npcReady === '7' && !document.querySelector('.bk-loading'), null, { timeout: 120000 });
 const journal = () => page.getByRole('button', { name: 'Journal', exact: true }).click();
 const card = id => page.locator(`.quest-card[data-quest="${id}"]`);
 const at = point => page.waitForFunction(point => { const p = JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')).position; return Math.hypot(p.x - point.x, p.z - point.z) < .2; }, point, { timeout: 180000 });

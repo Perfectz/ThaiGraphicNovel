@@ -14,6 +14,7 @@ import {
   conversationCamera,
   playerConversationMark,
 } from './conversationStaging';
+import { archiveSite } from './archiveLayout';
 import { discoveryFor } from './discoveries';
 import { DiscoveryModels } from './DiscoveryModels';
 import { TravelLantern } from './TravelLantern';
@@ -1513,8 +1514,11 @@ export class BangkokWorld {
         this.cityScenery.cutaways.find(({ object }) => object.name === 'hotel-north-wall')?.object.visible,
       );
       this.host.dataset.npcReady = String(
-        [...this.actorObjects.entries()].filter(([id, g]) => id !== 'traveler' && g.userData.appearanceReady)
-          .length,
+        [...this.actorObjects.entries()].filter(
+          ([id, g]) =>
+            ['innkeeper', 'cook', 'ferry', 'station', 'gardener', 'artisan', 'archivist'].includes(id) &&
+            g.userData.appearanceReady,
+        ).length,
       );
       this.host.dataset.playerX = this.player.x.toFixed(2);
       this.host.dataset.escort = JSON.stringify({
@@ -1523,6 +1527,7 @@ export class BangkokWorld {
         ready: !!traveler?.userData.appearanceReady,
       });
       this.host.dataset.playerZ = this.player.z.toFixed(2);
+      this.host.dataset.archive = JSON.stringify(this.cityScenery?.archive.snapshot());
     }
   }
   private clearConversationStaging() {
@@ -1654,8 +1659,16 @@ export class BangkokWorld {
       this.scene.add(group);
       this.actorObjects.set(a.id, group);
       const discovery = discoveryFor(a.id);
-      if (discovery) this.discoveryModels.add(discovery, group, (root) => this.batchStatic(root));
-      else if (['innkeeper', 'cook', 'ferry', 'station', 'gardener', 'artisan', 'traveler'].includes(a.id)) {
+      if (archiveSite(a.id) && a.id !== 'archivist') {
+        // The archive model owns the records and their furniture; markers remain interactive.
+        group.userData.appearanceReady = true;
+        this.box([0.55, 0.035, 0.4], [0, 0.88, 0.7], '#e1c98c', group);
+      } else if (discovery) this.discoveryModels.add(discovery, group, (root) => this.batchStatic(root));
+      else if (
+        ['innkeeper', 'cook', 'ferry', 'station', 'gardener', 'artisan', 'traveler', 'archivist'].includes(
+          a.id,
+        )
+      ) {
         const fallback = new T.Group();
         group.add(fallback);
         this.cylinder(0.28, 0.85, [0, 0.85, 0], a.color, fallback, 0.2);

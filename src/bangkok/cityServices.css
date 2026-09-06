@@ -110,3 +110,11 @@
     padding: 15px;
   }
 }
+.archive-floorplan {padding:16px;border:1px solid #d3bb7655;background:#151f21;margin:14px 0}
+.archive-floorplan h4 {margin:0 0 6px;color:#e4ce98;font:20px Georgia,serif}
+.archive-floorplan p {font-size:13px;line-height:1.5;color:#c5cfca}
+.archive-floorplan > div {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.archive-floorplan button {padding:12px;border:1px solid #d3bb7655;background:#243333;color:#eee2c9;text-align:left;cursor:pointer;min-height:48px}
+.archive-floorplan button:hover,.archive-floorplan button:focus-visible {background:#3a4944;border-color:#dcc68b}
+.archive-collections {display:grid;gap:10px}
+.archive-collections button {min-height:75px}

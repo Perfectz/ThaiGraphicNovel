@@ -6,7 +6,7 @@ const out = 'artifacts/close-conversations'; await mkdir(out, { recursive: true 
 const browser = await chromium.launch({ headless: true });
 const report = { scenes: [], finished: false }, errors = []; let page;
 const checkpoint = () => writeFile(`${out}/progress.json`, JSON.stringify(report, null, 2));
-const ready = () => page.waitForFunction(() => document.querySelector('.bk-world')?.dataset.npcReady === '6' && !document.querySelector('.bk-loading'), null, { timeout: 120000 });
+const ready = () => page.waitForFunction(() => document.querySelector('.bk-world')?.dataset.npcReady === '7' && !document.querySelector('.bk-loading'), null, { timeout: 120000 });
 const settled = () => page.waitForFunction(() => { const c = JSON.parse(document.querySelector('.bk-world')?.dataset.conversationCast ?? 'null'); return c && !c.moving; });
 const read = () => page.evaluate(() => JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')));
 try {

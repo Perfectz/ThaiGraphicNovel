@@ -8,7 +8,7 @@ let browser;const report={scenes:[],finished:false},errors=[];let page;
 const checkpoint=()=>writeFile(`${out}/progress.json`,JSON.stringify(report,null,2));
 const saved=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')));
 const display=async()=>JSON.parse(await page.locator('.bk-world').getAttribute('data-city-evening'));
-const ready=()=>page.waitForFunction(()=>{const h=document.querySelector('.bk-world');const d=JSON.parse(h?.dataset.cityEvening??'null');return h?.dataset.npcReady==='6'&&d&&d.state!=='loading'&&!document.querySelector('.bk-loading');},null,{timeout:120000});
+const ready=()=>page.waitForFunction(()=>{const h=document.querySelector('.bk-world');const d=JSON.parse(h?.dataset.cityEvening??'null');return h?.dataset.npcReady==='7'&&d&&d.state!=='loading'&&!document.querySelector('.bk-loading');},null,{timeout:120000});
 async function reply(meaning){await page.locator('.thai-choice-list > button').filter({has:page.locator('.choice-meaning',{hasText:meaning})}).click();await page.getByRole('heading',{name:meaning,exact:true}).waitFor();await page.getByRole('button',{name:'Use text only this time',exact:true}).click();}
 async function castReady(){await page.waitForFunction(()=>{const c=JSON.parse(document.querySelector('.bk-world')?.dataset.conversationCast??'null');return c&&!c.moving;});}
 try{

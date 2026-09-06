@@ -7,7 +7,7 @@ const browser = await chromium.launch({ headless: true }); let page;
 const report = { desktop: false, phone: false, remount: false, finished: false }, errors = [];
 const checkpoint = () => writeFile(`${out}/progress.json`, JSON.stringify(report, null, 2));
 const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')));
-const ready = () => page.waitForFunction(() => !document.querySelector('.bk-loading') && document.querySelector('.bk-world')?.dataset.npcReady === '6' && document.querySelector('.bk-world')?.dataset.cityProps === 'ready', null, { timeout: 120000 });
+const ready = () => page.waitForFunction(() => !document.querySelector('.bk-loading') && document.querySelector('.bk-world')?.dataset.npcReady === '7' && document.querySelector('.bk-world')?.dataset.cityProps === 'ready', null, { timeout: 120000 });
 const at = point => page.waitForFunction(point => { const p = JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')).position; return Math.hypot(p.x - point.x, p.z - point.z) < .15; }, point, { timeout: 180000 });
 async function open(phone = false) {
   const context = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 900 }, isMobile: phone, hasTouch: phone });

@@ -9,7 +9,7 @@ const report = { scenes: [], finished: false }, errors = []; let page;
 const checkpoint = () => writeFile(`${out}/progress.json`, JSON.stringify(report, null, 2));
 const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')));
 const training = () => page.evaluate(() => JSON.parse(localStorage.getItem('bangkok-rift-training-v1')));
-const ready = () => page.waitForFunction(() => document.querySelector('.bk-world')?.dataset.npcReady === '6' && !document.querySelector('.bk-loading'), null, { timeout: 120000 });
+const ready = () => page.waitForFunction(() => document.querySelector('.bk-world')?.dataset.npcReady === '7' && !document.querySelector('.bk-loading'), null, { timeout: 120000 });
 async function reply(meaning, spoken = false) {
   const row = page.locator('.thai-choice-list > button').filter({ has: page.locator('.choice-meaning', { hasText: meaning }) });
   assert((await row.locator('.choice-meaning').innerText()).length > 0); await row.click();

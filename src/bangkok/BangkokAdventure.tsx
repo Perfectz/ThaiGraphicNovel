@@ -1,7 +1,10 @@
+import ArchivePanel from './ArchivePanel';
+import { archiveSite, archiveRooms, type ArchiveActor } from './archiveLayout';
+import { advanceArchive } from './archiveQuest';
 import ReunionPanel from './ReunionPanel';
-import {storyEncounters} from './storyEncounters';
+import { storyEncounters } from './storyEncounters';
 import { advanceReunion, reunionReason, reunionStatus, reunionStep, type ReunionStep } from './reunion';
-import { cityAreas, cityAreaAt, cityWalkways, inside, canalWalk, type CityArea } from './city';
+import { cityMapBounds, cityAreas, cityAreaAt, cityWalkways, inside, canalWalk, type CityArea } from './city';
 import { useEffect, useRef, useState } from 'react';
 import { BangkokWorld } from './BangkokWorld';
 import FerryCrossing from './FerryCrossing';
@@ -122,6 +125,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
   const [serviceHost, setServiceHost] = useState<ServiceHost | null>(null);
   const [eveningOpen, setEveningOpen] = useState(false);
   const [lanternOpen, setLanternOpen] = useState(false);
+  const [archiveHost, setArchiveHost] = useState<ArchiveActor | null>(null);
   const [reunionHost, setReunionHost] = useState<ActorId | null>(null);
   const [journal, setJournal] = useState(false);
   const [map, setMap] = useState(false);
@@ -226,7 +230,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
         !!serviceHost ||
         eveningOpen ||
         lanternOpen ||
-        !!reunionHost,
+        !!reunionHost ||
+        !!archiveHost,
     );
     world.current?.setState({
       district: 'hotel',
@@ -235,9 +240,16 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
       boss: save.battle?.id === 'keeper',
       reunion: !!reunionHost && ['welcome', 'finish'].includes(reunionStep(save, reunionHost) ?? ''),
       conversation:
-        !!dialogue || journeyVisit || !!serviceHost || eveningOpen || lanternOpen || !!reunionHost,
+        !!dialogue ||
+        journeyVisit ||
+        !!serviceHost ||
+        eveningOpen ||
+        lanternOpen ||
+        !!reunionHost ||
+        !!archiveHost,
       contact:
         dialogue?.actor ??
+        archiveHost ??
         reunionHost ??
         serviceHost ??
         (lanternOpen ? 'artisan' : undefined) ??
@@ -257,6 +269,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     journeyBoard,
     journeyVisit,
     growthMenu,
+    archiveHost,
     serviceHost,
     eveningOpen,
     lanternOpen,
@@ -379,11 +392,11 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     });
   }
   function beginFight(id: Battle['id']) {
-    const site=actors.find(a=>a.id===(id==='sentinel'?'waystone':storyEncounters[id].actor))!;
-    if(Math.hypot(saveRef.current.position.x-site.x,saveRef.current.position.z-site.z)>2.5)return;
+    const site = actors.find((a) => a.id === (id === 'sentinel' ? 'waystone' : storyEncounters[id].actor))!;
+    if (Math.hypot(saveRef.current.position.x - site.x, saveRef.current.position.z - site.z) > 2.5) return;
     const next = startBattle(saveRef.current, id);
     if (!next.battle) return;
-    saveRef.current=next;
+    saveRef.current = next;
     setSave(next);
     setScreen('battle');
     resetPrompt();
@@ -417,7 +430,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
       serviceHost ||
       eveningOpen ||
       lanternOpen ||
-      !!reunionHost
+      !!reunionHost ||
+      !!archiveHost
     )
       return;
     const s = saveRef.current;
@@ -483,6 +497,11 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
           undefined,
           'sentinel',
         );
+      return;
+    }
+    const archive = archiveSite(id);
+    if (archive) {
+      setArchiveHost(archive.id);
       return;
     }
     const discovery = discoveryFor(id);
@@ -597,7 +616,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     }
     if (id === 'wisp' || id === 'shrine') {
       const battleId = id === 'wisp' ? 'murmur' : 'keeper';
-      if (canBattle(s, battleId)) talk(id,storyEncounters[battleId].lines,undefined,battleId);
+      if (canBattle(s, battleId)) talk(id, storyEncounters[battleId].lines, undefined, battleId);
       else
         talk(id, [
           {
@@ -860,7 +879,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 !!serviceHost ||
                 eveningOpen ||
                 lanternOpen ||
-                !!reunionHost
+                !!reunionHost ||
+                !!archiveHost
               }
             >
               Journal
@@ -875,7 +895,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 !!serviceHost ||
                 eveningOpen ||
                 lanternOpen ||
-                !!reunionHost
+                !!reunionHost ||
+                !!archiveHost
               }
             >
               Journeys
@@ -889,7 +910,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 !!serviceHost ||
                 eveningOpen ||
                 lanternOpen ||
-                !!reunionHost
+                !!reunionHost ||
+                !!archiveHost
               }
             >
               Bag · {save.coins} ◈
@@ -903,7 +925,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 !!serviceHost ||
                 eveningOpen ||
                 lanternOpen ||
-                !!reunionHost
+                !!reunionHost ||
+                !!archiveHost
               }
             >
               Train at camp
@@ -921,7 +944,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             <p>
               Wake in a Sukhumvit hotel.
               <br />
-              Six neighbourhoods wait outside.
+              Seven places wait outside.
               <br />
               Explore, speak, and fight beside Su to restore the last ferry.
             </p>
@@ -959,7 +982,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                       !!serviceHost ||
                       eveningOpen ||
                       lanternOpen ||
-                      !!reunionHost
+                      !!reunionHost ||
+                      !!archiveHost
                     }
                     onClick={() => setGrowthMenu(true)}
                   >
@@ -992,7 +1016,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
           !serviceHost &&
           !eveningOpen &&
           !lanternOpen &&
-          !reunionHost && (
+          !reunionHost &&
+          !archiveHost && (
             <>
               <aside className="rpg-objective">
                 <small>
@@ -1023,10 +1048,11 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 >
                   Open town map ↗
                 </button>
-                {(!activeJourney || activeJourney.paused) && followedStory.id==='ferry' && (
+                {(!activeJourney || activeJourney.paused) && followedStory.id === 'ferry' && (
                   <p className="rpg-story-encounters" aria-label="Main story battles">
-                    {has(save,'murmur')?'✦':'◇'} Murmur · lantern spark<br/>
-                    {has(save,'keeper')?'✦':'◇'} Keeper · river passage
+                    {has(save, 'murmur') ? '✦' : '◇'} Murmur · lantern spark
+                    <br />
+                    {has(save, 'keeper') ? '✦' : '◇'} Keeper · river passage
                   </p>
                 )}
                 {activeJourney && !activeJourney.paused && (
@@ -1145,6 +1171,27 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             onUse={receiveService}
           />
         )}
+        {archiveHost && screen === 'world' && (
+          <ArchivePanel
+            key={`${archiveHost}:${save.flags.length}`}
+            save={save}
+            actor={archiveHost}
+            onClose={() => setArchiveHost(null)}
+            onPractice={servicePractice}
+            onAdvance={(action, answer) => {
+              const next = advanceArchive(saveRef.current, archiveHost, action, answer);
+              if (next !== saveRef.current) {
+                saveRef.current = next;
+                setSave(next);
+                if (action === 'archive-complete') {
+                  setNotice('THE FERRY LEDGER RECOVERED · +100 XP · +25 coins · Two teas');
+                  world.current?.celebrate();
+                }
+                if (!['archive-document', 'archive-accepted'].includes(action)) setArchiveHost(null);
+              }
+            }}
+          />
+        )}
         {dialogue && (
           <section className="rpg-dialogue" aria-label="Story conversation">
             <div className="rpg-dialogue-heading">
@@ -1166,7 +1213,9 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             <div className={`rpg-conversation-body ${phrase ? 'has-phrase' : ''}`} data-speaking-scroll>
               <div className="rpg-conversation-context">
                 <p className="rpg-story-text">{line?.text}</p>
-                {line && !answered && <CharacterVoice speaker={line.speaker} text={line.text} disabled={busy} />}
+                {line && !answered && (
+                  <CharacterVoice speaker={line.speaker} text={line.text} disabled={busy} />
+                )}
                 {phrase && (
                   <>
                     <p className="rpg-lesson-label">SU TEACHES · {phrase.translation}</p>
@@ -1189,7 +1238,11 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                       {feedback}
                     </p>
                     {answered && line?.response && (
-                      <CharacterVoice speaker={line.responseSpeaker ?? line.speaker} text={line.response} disabled={busy} />
+                      <CharacterVoice
+                        speaker={line.responseSpeaker ?? line.speaker}
+                        text={line.response}
+                        disabled={busy}
+                      />
                     )}
                   </>
                 )}
@@ -1208,7 +1261,9 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                       : dialogue.reward === 'departed'
                         ? 'Board the ferry'
                         : dialogue.challenge
-                          ? dialogue.challenge==='sentinel'?'Challenge the Waywarden':storyEncounters[dialogue.challenge].enter
+                          ? dialogue.challenge === 'sentinel'
+                            ? 'Challenge the Waywarden'
+                            : storyEncounters[dialogue.challenge].enter
                           : dialogue.escortStep
                             ? dialogue.escortStep === 'begin'
                               ? 'Walk with Nok'
@@ -1501,9 +1556,13 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
         >
           <p>Walk the city with Su. Select a district, then choose a person or a route.</p>
           <div className="rpg-map city-map">
-            <svg viewBox="-65 -8 120 50" preserveAspectRatio="none" aria-hidden="true">
+            <svg
+              viewBox={`${cityMapBounds.x} ${cityMapBounds.z} ${cityMapBounds.w} ${cityMapBounds.d}`}
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
               <path
-                d="M-45 13H43 M-20 13V39 M1 13V0 M36 13V39 M-54 28V14 M-54 28H-44V39H37 M-9 13V39"
+                d="M-45 13H43 M-20 13V39 M1 13V0 M36 13V39 M-54 28V14 M-54 28H-44V39H37 M-9 13V39 M37 32H84 M70 32V18H84V32"
                 fill="none"
                 stroke="#729591"
                 strokeWidth="1.2"
@@ -1516,8 +1575,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 data-area={a.id}
                 className={mapArea === a.id ? 'current' : ''}
                 style={{
-                  left: `${((a.center.x + 65) / 120) * 100}%`,
-                  top: `${((a.center.z + 8) / 50) * 100}%`,
+                  left: `${(((a.id === 'archive' ? 79 : a.center.x) - cityMapBounds.x) / cityMapBounds.w) * 100}%`,
+                  top: `${(((a.id === 'archive' ? 18 : a.center.z) + 8) / 50) * 100}%`,
                 }}
                 onClick={() => setMapArea(a.id)}
               >
@@ -1529,7 +1588,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
               className="city-you"
               title="Your position"
               style={{
-                left: `${((save.position.x + 65) / 120) * 100}%`,
+                left: `${((save.position.x - cityMapBounds.x) / cityMapBounds.w) * 100}%`,
                 top: `${((save.position.z + 8) / 50) * 100}%`,
               }}
             >
@@ -1600,12 +1659,43 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
               The southern canal walk links the hotel, Lumphini and Old Town. Take the smaller street beside
               the park to return to the main road.
             </p>
+            {mapArea === 'archive' && save.visited.includes('archive') && (
+              <section className="archive-floorplan" aria-label="Archive floor plan">
+                <h4>Gallery plan</h4>
+                <p>Walk through the rooms and look for records beside the collection cabinets.</p>
+                <div>
+                  {archiveRooms.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => {
+                        setMap(false);
+                        requestAnimationFrame(() => {
+                          world.current?.configureAdventure(
+                            saveRef.current,
+                            {
+                              interact: (actor) => interactRef.current(actor),
+                              near: setNear,
+                              move: reportWorldMove,
+                            },
+                            false,
+                          );
+                          world.current?.travelPoint({ x: r.x + r.w / 2, z: r.z + r.d / 2 });
+                        });
+                      }}
+                    >
+                      Walk to {r.name}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
             <div className="city-contacts">
               {actors
                 .filter(
                   (a) =>
                     a.id !== 'su' &&
                     a.id !== 'traveler' &&
+                    (!archiveSite(a.id) || a.id === 'archivist' || has(save, a.id)) &&
                     cityAreaAt(a) === mapArea &&
                     (!discoveryFor(a.id) || has(save, a.id)),
                 )
@@ -1791,8 +1881,13 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             selected={save.talents ?? []}
             onToggle={(id) => setSave((s) => toggleTalent(s, id))}
           />
-          <button className="bk-button bk-outline" onClick={beginSparring}>Battle practice</button>
-          <p>Optional rehearsal with Su. Story encounters happen out in the city and use your travelling party’s supplies.</p>
+          <button className="bk-button bk-outline" onClick={beginSparring}>
+            Battle practice
+          </button>
+          <p>
+            Optional rehearsal with Su. Story encounters happen out in the city and use your travelling
+            party’s supplies.
+          </p>
         </Modal>
         <Modal
           isOpen={journal}

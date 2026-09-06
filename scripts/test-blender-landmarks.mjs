@@ -7,7 +7,7 @@ const out = `artifacts/blender-landmarks/browser${only ? '/' + only : ''}`; awai
 const browser=await chromium.launch({headless:true}); const report={scenes:[],finished:false},errors=[]; let page;
 const checkpoint=()=>writeFile(`${out}/progress.json`,JSON.stringify(report,null,2));
 const read=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')));
-const ready=()=>page.waitForFunction(()=>{ const host=document.querySelector('.bk-world'); const models=JSON.parse(host?.dataset.cityLandmarks ?? '[]'); return host?.dataset.npcReady==='6' && !document.querySelector('.bk-loading') && models.length===2 && models.every(m=>m.state!=='loading'); },null,{timeout:120000});
+const ready=()=>page.waitForFunction(()=>{ const host=document.querySelector('.bk-world'); const models=JSON.parse(host?.dataset.cityLandmarks ?? '[]'); return host?.dataset.npcReady==='7' && !document.querySelector('.bk-loading') && models.length===2 && models.every(m=>m.state!=='loading'); },null,{timeout:120000});
 async function capture(label) { await page.waitForTimeout(900); await page.screenshot({path:`${out}/${label}.png`}); assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)); }
 try {
   for(const config of [

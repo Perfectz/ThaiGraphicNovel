@@ -1,4 +1,6 @@
 import * as T from 'three';
+import { CityArchive } from './CityArchive';
+import { archiveRooms, archiveFloors } from './archiveLayout';
 import { groupHotelNorthWall } from './HotelCutaway';
 import {
   cityAreas,
@@ -43,6 +45,7 @@ export class CityScenery {
   readonly props: CityProps;
   readonly life: CityLife;
   readonly landmarks: CityLandmarks;
+  readonly archive: CityArchive;
   readonly shophouses = new CityShophouses();
   readonly evening: CityEvening;
   readonly foodStall: CityFoodStall;
@@ -56,26 +59,27 @@ export class CityScenery {
       scene.add(g);
       this.chunks.set(area.id, g);
       const { x, z, w, d } = area.bounds;
-      this.surface(
-        g,
-        [w, 0.16, area.id === 'sukhumvit' ? d - 1 : d],
-        [x + w / 2, 0, z + d / 2 - (area.id === 'sukhumvit' ? 0.5 : 0)],
-        area.id === 'lumphini'
-          ? 'grass'
-          : area.id === 'hotel'
-            ? 'marble'
-            : area.id === 'oldtown'
-              ? 'pavers'
-              : 'asphalt',
-        area.id === 'lumphini' ? '#789674' : area.id === 'hotel' ? '#e6dac3' : '#bfc3bc',
-      );
+      if (area.id !== 'archive')
+        this.surface(
+          g,
+          [w, 0.16, area.id === 'sukhumvit' ? d - 1 : d],
+          [x + w / 2, 0, z + d / 2 - (area.id === 'sukhumvit' ? 0.5 : 0)],
+          area.id === 'lumphini'
+            ? 'grass'
+            : area.id === 'hotel'
+              ? 'marble'
+              : area.id === 'oldtown'
+                ? 'pavers'
+                : 'asphalt',
+          area.id === 'lumphini' ? '#789674' : area.id === 'hotel' ? '#e6dac3' : '#bfc3bc',
+        );
       // The hotel owns the overlapping western strip; avoid two floors at the same height.
       if (area.id === 'sukhumvit') this.surface(g, [12, 0.16, 1], [-38, 0, 23.5], 'asphalt', '#bfc3bc');
     }
     const roads = new T.Group();
     scene.add(roads);
     this.chunks.set('roads', roads);
-    this.surface(roads, [170, 0.3, 67], [-5, -0.25, 31.5], 'grass', '#526758');
+    this.surface(roads, [210, 0.3, 67], [15, -0.25, 31.5], 'grass', '#526758');
     for (const r of cityRoads) {
       const walking = cityWalkways.includes(r);
       this.surface(
@@ -107,6 +111,40 @@ export class CityScenery {
     this.park();
     this.yaowarat();
     this.oldtown();
+    const archive = this.chunks.get('archive')!;
+    for (const r of archiveFloors)
+      this.surface(archive, [r.w, 0.1, r.d], [r.x + r.w / 2, -0.01, r.z + r.d / 2], 'teak', '#b8a179');
+    for (const r of archiveRooms) {
+      const stand = new T.Group();
+      archive.add(stand);
+      for (const x of [r.x + r.w / 2 - 1.65, r.x + r.w / 2 + 1.65])
+        this.box(stand, [0.08, 2.35, 0.08], [x, 1.23, r.z + 0.125], '#69503a');
+      this.sign(
+        stand,
+        r.name.toUpperCase(),
+        [r.x + r.w / 2, 1.85, r.z + 0.35],
+        '#f0d6a4',
+        3.5,
+        false,
+        1,
+        0,
+        false,
+      );
+      this.cutaway(stand);
+    }
+    const entry = new T.Group();
+    archive.add(entry);
+    for (const x of [48, 52]) this.box(entry, [0.12, 2.9, 0.12], [x, 1.5, 29.4], '#69503a');
+    this.sign(entry, 'HOUSE OF RETURNING MAPS →', [50, 2.3, 29.4], '#e1c891', 4.5, false, 1, 0, false);
+    this.cutaway(entry);
+    for (const [x, z, scale] of [
+      [62, 19, 0.8],
+      [93, 29, 1.1],
+      [77, 10, 0.85],
+      [76, 23.2, 0.6],
+    ])
+      this.tree(archive, x, z, scale);
+    this.archive = new CityArchive(archive, batch, (root) => this.cutaway(root));
     this.connections(roads);
     for (const site of wayfindingSites) {
       const frame = this.wayfinding.build(this.chunks.get(site.area)!, site, (root) =>
@@ -729,6 +767,7 @@ export class CityScenery {
     for (const { group, support } of this.wayfinding.signs)
       if (support && !support.visible) group.visible = false;
     this.landmarks.syncVisibility();
+    this.archive.reveal(focalPoints);
     this.life.clipCookingSteam(this.foodStall.cookingVisible);
   }
   dispose() {
@@ -737,6 +776,7 @@ export class CityScenery {
     this.evening.dispose();
     this.shophouses.dispose();
     this.landmarks.dispose();
+    this.archive.dispose();
     this.wayfinding.dispose();
     this.groundLight.dispose();
     this.surfaces.dispose();

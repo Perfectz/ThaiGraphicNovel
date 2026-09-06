@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {createServer} from 'vite';
 
 export const speechModel='gpt-4o-mini-tts';
-export const cast={Su:'marin',Mali:'coral',Dao:'sage',Pim:'shimmer',Arun:'cedar','Uncle Lek':'onyx',Niran:'ash',Nok:'verse',Narrator:'ballad'};
+export const cast={Su:'marin',Mali:'coral',Dao:'sage',Pim:'shimmer',Arun:'cedar','Uncle Lek':'onyx',Niran:'ash',Nok:'verse',Kanya:'nova',Narrator:'ballad'};
 export const normalizeSpeaker=s=>s.split(' ·')[0];
 export const lineKey=(speaker,text)=>`${normalizeSpeaker(speaker)}|${text}`;
 export async function voicePlan(){
@@ -43,6 +43,10 @@ export async function voicePlan(){
   }
   const server=await createServer({server:{middlewareMode:true,hmr:false},logLevel:'silent'});
   try{
+    const {archiveScene,archiveStatus}=await server.ssrLoadModule('/src/bangkok/archiveQuest.ts');
+    const {archiveSites}=await server.ssrLoadModule('/src/bangkok/archiveLayout.ts');
+    const archiveProgress=['innkeeper','archive-accepted','archive-cargo','archive-river','archive-lantern','archive-found','archive-document','archive-complete'];
+    for(let i=0;i<=archiveProgress.length;i++){const state={flags:archiveProgress.slice(0,i)};for(const site of archiveSites){const scene=archiveScene(state,site.id);add(scene.speaker,scene.text);}add('Su',`${archiveStatus(state)} Look around, open your map, or talk to people again. If you want to rehearse a phrase, we can train at camp.`);}
     const {phrases}=await server.ssrLoadModule('/src/bangkok/curriculum.ts');
     for(const p of Object.values(phrases))add('Su',p.targetPhrase,'phrase',p.id);
     const {freshAdventure,objective}=await server.ssrLoadModule('/src/bangkok/adventure.ts');

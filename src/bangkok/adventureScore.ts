@@ -11,5 +11,6 @@ export function adventureScore(area: CityArea | null, screen: string): ScoreThem
     yaowarat: 'market',
     riverside: 'street',
     oldtown: 'journey',
+    archive: 'hotel',
   }[area] as ScoreTheme;
 }

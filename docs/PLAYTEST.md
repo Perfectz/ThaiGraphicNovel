@@ -1,6 +1,6 @@
 # Bangkok Rift playtest snapshot
 
-This snapshot starts in the Sukhumvit hotel and includes six connected districts, The Last Ferry, the branching A Promise Kept follow-up, side quests, party battles, thirty practice outings, and 256 prerecorded OpenAI voice clips.
+This snapshot starts in the Sukhumvit hotel and includes seven connected places, The Last Ferry, the branching A Promise Kept follow-up, side quests, party battles, thirty practice outings, and 277 prerecorded OpenAI voice clips.
 
 ## A useful first session
 
@@ -16,4 +16,4 @@ Report the device/browser, what you tried, what you expected, and what happened 
 
 The public snapshot uses local microphone recording and prerecorded reference voices. The optional local Whisper/Realtime coaching services are not deployed. No visitor needs an OpenAI key. Audio is AI-generated; a fluent Thai speaker has not reviewed the full pack. Physical-device performance and an hour-long learning session remain playtest questions.
 
-The interrupted archive expansion is preserved locally under `tmp/archive-wip-20260906/` and excluded from this playable snapshot.
+The House of Returning Maps is a new exploration story beyond Old Town’s east gate. After hotel check-in, select it in the Journal and walk to Kanya. Ask permission, explore the five galleries, collect three records, compare their evidence, and request the original ferry ledger. The town map provides a gallery plan after your first visit. The rooms are connected on foot, and your notebook and rewards survive reloads.

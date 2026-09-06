@@ -18,7 +18,7 @@ async function ready() {
       const h = document.querySelector('.bk-world');
       const b = JSON.parse(h?.dataset.riverBoats ?? 'null');
       return (
-        h?.dataset.npcReady === '6' && b && b.state !== 'loading' && !document.querySelector('.bk-loading')
+        h?.dataset.npcReady === '7' && b && b.state !== 'loading' && !document.querySelector('.bk-loading')
       );
     },
     null,

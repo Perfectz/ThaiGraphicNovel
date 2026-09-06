@@ -14,14 +14,18 @@ test('hotel north wall cutaway includes attached art while preserving floors and
   const structure = new T.Mesh(new T.BoxGeometry(16, 3.6, 0.22), new T.MeshStandardMaterial());
   structure.position.set(-54, 1.8, 23);
   root.add(structure);
+  // The counter is supplied by the Blender furnishing asset, outside HotelInterior.
+  // Include its footprint here to keep testing furniture preservation independently.
+  const counter = new T.Mesh(new T.BoxGeometry(6, 1.1, 1.1), new T.MeshStandardMaterial());
+  counter.position.set(-49, 0.6, 24.55);
+  root.add(counter);
   const original = new T.Box3().setFromObject(structure);
   const group = groupHotelNorthWall(root);
   assert.equal(structure.parent, group);
   assert(group.children.length > 10, 'attached reception art follows the wall');
   assert(new T.Box3().setFromObject(structure).equals(original));
   assert(root.getObjectByName('bedroom-timber-floor')?.parent !== group);
-  const reception = root.getObjectByName('reception-craftwork')!;
-  assert(reception.children.length > 20, 'counter trim remains in the room');
+  assert.equal(counter.parent, root, 'reception counter remains in the room');
   const bounds = new T.Box3().setFromObject(group);
   assert(blocksCityView(bounds, { x: -51, y: 7.4, z: 29.5 }, { x: -57, y: 1.55, z: 18.7 }));
   assert(!blocksCityView(bounds, { x: -55, y: 7.4, z: 46 }, { x: -61, y: 1.55, z: 35.7 }));

@@ -55,3 +55,6 @@ docs/storyboards/vr-wormhole-thai-quest-storyboard-v4-game-style.png
 artifacts/
 *.blend1
 *.blend2
+
+__pycache__/
+*.pyc

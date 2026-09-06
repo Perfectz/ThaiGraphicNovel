@@ -39,7 +39,7 @@ const training = () => page.evaluate(() => JSON.parse(localStorage.getItem('bang
 const ready = () =>
   page.waitForFunction(
     () =>
-      document.querySelector('.bk-world')?.dataset.npcReady === '6' && !document.querySelector('.bk-loading'),
+      document.querySelector('.bk-world')?.dataset.npcReady === '7' && !document.querySelector('.bk-loading'),
     null,
     { timeout: 180000 },
   );

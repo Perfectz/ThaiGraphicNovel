@@ -10,7 +10,7 @@ const only = process.argv.find(arg => arg.startsWith('--only='))?.slice(7);
 const browser = await chromium.launch({ headless: true });
 const report = { scenes: [], remount: false, finished: false }, errors = []; let page;
 const checkpoint = () => writeFile(`${out}/progress.json`, JSON.stringify(report, null, 2));
-const ready = () => page.waitForFunction(() => !document.querySelector('.bk-loading') && document.querySelector('.bk-world')?.dataset.cityProps === 'ready' && document.querySelector('.bk-world')?.dataset.npcReady === '6', null, { timeout: 120000 });
+const ready = () => page.waitForFunction(() => !document.querySelector('.bk-loading') && document.querySelector('.bk-world')?.dataset.cityProps === 'ready' && document.querySelector('.bk-world')?.dataset.npcReady === '7', null, { timeout: 120000 });
 try {
   for (const [name, position, phone, conversation] of [
     ...(backdrop ? [['hotel', { x: -57, z: 29 }, false, false], ['river', { x: 1, z: -2 }, false, false]] : []),

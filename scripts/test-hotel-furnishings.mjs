@@ -16,7 +16,7 @@ const ready = () =>
     () => {
       const h = document.querySelector('.bk-world');
       return (
-        h?.dataset.npcReady === '6' &&
+        h?.dataset.npcReady === '7' &&
         h.dataset.cityProps !== 'loading' &&
         JSON.parse(h.dataset.hotelFurnishings ?? '{}').state !== 'loading' &&
         !document.querySelector('.bk-loading')

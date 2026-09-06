@@ -18,7 +18,7 @@ try {
     page = await context.newPage(); page.setDefaultTimeout(45000);
     page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto('http://127.0.0.1:5188/'); await page.getByRole('button', { name: /Continue adventure/ }).click();
-    await page.waitForFunction(() => !document.querySelector('.bk-loading') && document.querySelector('.bk-world')?.dataset.cityProps === 'ready' && document.querySelector('.bk-world')?.dataset.npcReady === '6', null, { timeout: 120000 });
+    await page.waitForFunction(() => !document.querySelector('.bk-loading') && document.querySelector('.bk-world')?.dataset.cityProps === 'ready' && document.querySelector('.bk-world')?.dataset.npcReady === '7', null, { timeout: 120000 });
     await page.waitForTimeout(1800);
     const detail = JSON.parse(await page.locator('.bk-world').getAttribute('data-ground-light'));
     assert(detail.patches > 70 && detail.visible > 0 && detail.batches <= 12);

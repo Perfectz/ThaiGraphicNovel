@@ -8,7 +8,7 @@ const browser = await chromium.launch({ headless: true });
 const report = { scenes: [], finished: false }, errors = []; let page;
 const checkpoint = () => writeFile(`${out}/progress.json`, JSON.stringify(report, null, 2));
 const residents = () => page.evaluate(() => JSON.parse(document.querySelector('.bk-world').dataset.cityResidents));
-const ready = () => page.waitForFunction(() => !document.querySelector('.bk-loading') && document.querySelector('.bk-world')?.dataset.npcReady === '6' && JSON.parse(document.querySelector('.bk-world')?.dataset.cityResidents ?? '[]').filter(r => r.ready).length === 6, null, { timeout: 120000 });
+const ready = () => page.waitForFunction(() => !document.querySelector('.bk-loading') && document.querySelector('.bk-world')?.dataset.npcReady === '7' && JSON.parse(document.querySelector('.bk-world')?.dataset.cityResidents ?? '[]').filter(r => r.ready).length === 6, null, { timeout: 120000 });
 try {
   for (const [name, position, phone, reduced] of [
     ['sukhumvit', { x: -39, z: 17.5 }, false, false],

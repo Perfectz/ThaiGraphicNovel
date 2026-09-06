@@ -18,7 +18,7 @@ const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('bangkok
 async function ready() {
   await page.waitForFunction(
     () =>
-      document.querySelector('.bk-world')?.dataset.npcReady === '6' && !document.querySelector('.bk-loading'),
+      document.querySelector('.bk-world')?.dataset.npcReady === '7' && !document.querySelector('.bk-loading'),
     null,
     { timeout: 120000 },
   );

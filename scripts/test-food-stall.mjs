@@ -19,7 +19,7 @@ const ready = () =>
       const h = document.querySelector('.bk-world');
       const s = JSON.parse(h?.dataset.cityFoodStall ?? 'null');
       return (
-        h?.dataset.npcReady === '6' &&
+        h?.dataset.npcReady === '7' &&
         s &&
         s.state !== 'loading' &&
         !document.querySelector('.bk-loading') &&

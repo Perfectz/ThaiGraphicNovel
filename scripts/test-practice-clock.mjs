@@ -23,7 +23,7 @@ async function open(save, phone = false) {
   page = await context.newPage(); page.setDefaultTimeout(45000);
   page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto('http://127.0.0.1:5188/'); await page.getByRole('button', { name: /Continue adventure/ }).click();
-  await page.waitForFunction(battle => !document.querySelector('.bk-loading') && (battle || document.querySelector('.bk-world')?.dataset.npcReady === '6'), !!save.battle, { timeout: 120000 });
+  await page.waitForFunction(battle => !document.querySelector('.bk-loading') && (battle || document.querySelector('.bk-world')?.dataset.npcReady === '7'), !!save.battle, { timeout: 120000 });
   return context;
 }
 async function pauses() { const before = await seconds(); await page.waitForTimeout(3300); assert.equal(await seconds(), before); }

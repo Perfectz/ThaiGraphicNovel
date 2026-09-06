@@ -74,7 +74,7 @@ const ready = () =>
     () => {
       const h = document.querySelector('.bk-world');
       return (
-        h?.dataset.npcReady === '6' &&
+        h?.dataset.npcReady === '7' &&
         JSON.parse(h.dataset.cityEvening ?? '{}').state === 'ready' &&
         !document.querySelector('.bk-loading')
       );

@@ -12,6 +12,8 @@ import { battleSpoils, createBattle, restoreBattle, type Battle } from './expedi
 import { partyGrowth, talentReason, type TalentId } from './partyGrowth.ts';
 import { discoveries, discoveryFor, hasRiverCharm, type DiscoveryId } from './discoveries.ts';
 import { canalFlags } from './canalErrand.ts';
+import {archiveSites,type ArchiveActor} from './archiveLayout.ts';
+import {archiveFlags,normalizeArchiveFlags} from './archiveQuest.ts';
 import { eveningFlags, normalizeEveningFlags } from './eveningOuting.ts';
 import { reunionFlags, normalizeReunionFlags } from './reunion.ts';
 import { freshLanternTrade, normalizeLanternTrade, type LanternTrade } from './lanternTrade.ts';
@@ -30,6 +32,7 @@ import {
 export type { Battle } from './expeditionCombat.ts';
 export type Point = { x: number; z: number };
 export type ActorId =
+  | ArchiveActor
   | DiscoveryId
   | 'su'
   | 'innkeeper'
@@ -61,6 +64,7 @@ actors.push(
   { id: 'gardener', name: 'Pim · park volunteer', x: -25, z: 25, color: '#a4c395' },
   { id: 'artisan', name: 'Arun · lantern maker', x: 29, z: 29, color: '#ccb7df' },
 );
+actors.push(...archiveSites);
 actors.push(...discoveries.map((d) => ({ id: d.id, name: d.name, x: d.x, z: d.z, color: d.color })));
 export const RPG_KEY = 'bangkok-rift-adventure-v1';
 export type AdventureSave = {
@@ -134,6 +138,7 @@ export function normalizeAdventure(value: unknown): AdventureSave {
   fresh.lantern = normalizeLanternTrade(s.lantern);
   if (questIds.includes(s.trackedQuest as QuestId)) fresh.trackedQuest = s.trackedQuest;
   const flags = [
+    ...archiveFlags,
     ...eveningFlags,
     ...reunionFlags,
     ...canalFlags,
@@ -155,6 +160,7 @@ export function normalizeAdventure(value: unknown): AdventureSave {
     if (Number.isFinite(s[k])) fresh[k] = Math.max(0, Math.min(k === 'hp' ? 100 : 99999, Math.floor(s[k])));
   fresh.talents = partyGrowth(fresh.xp, s.talents).talents;
   fresh.flags = Array.isArray(s.flags) ? [...new Set(s.flags.filter((f) => flags.includes(f)))] : [];
+  fresh.flags = normalizeArchiveFlags(fresh.flags);
   fresh.flags = normalizeEveningFlags(fresh.flags);
   fresh.flags = normalizeReunionFlags(fresh.flags);
   if (!fresh.flags.includes('canal-accepted'))

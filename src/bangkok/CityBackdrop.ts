@@ -4,7 +4,7 @@ export const cityBackdropZones = [
   { id: 'west-residences', centers: [-1, 0, 1].map((n) => ({ x: -72, z: 24 + n * 12 })), tall: true },
   { id: 'sukhumvit-skyline', centers: [-60, -49, -38, -24].map((x) => ({ x, z: -6 })), tall: true },
   { id: 'east-skyline', centers: [26, 37, 48, 59].map((x) => ({ x, z: -6 })), tall: true },
-  { id: 'east-neighbourhood', centers: [12, 25, 38].map((z) => ({ x: 62, z })), tall: false },
+  { id: 'east-neighbourhood', centers: [12, 25, 38].map((z) => ({ x: 100, z })), tall: false },
   { id: 'canal-neighbourhood', centers: [-38, -22, -6, 10, 26, 42].map((x) => ({ x, z: 54 })), tall: false },
 ] as const;
 

@@ -11,7 +11,7 @@ async function mark(name) { report.milestones.push(name); await checkpoint(); co
 const playing = track => page.waitForFunction(track => window.__scoreAudio.some(a => a.dataset.gameMusic && a.src.includes(track) && !a.paused && a.volume > .08 && a.currentTime > .2 && a.readyState >= 2), track);
 const silent = () => page.waitForFunction(() => window.__scoreAudio.filter(a => a.dataset.gameMusic).every(a => a.paused && a.volume === 0));
 const snapshot = () => page.evaluate(() => window.__scoreAudio.filter(a => a.dataset.gameMusic && a.src).map(a => ({ src: a.src.split('/').at(-1), time: a.currentTime, paused: a.paused, volume: a.volume, error: a.error?.code })));
-const ready = () => page.waitForFunction(() => !document.querySelector('.bk-loading') && document.querySelector('.bk-world')?.dataset.npcReady === '6', null, { timeout: 120000 });
+const ready = () => page.waitForFunction(() => !document.querySelector('.bk-loading') && document.querySelector('.bk-world')?.dataset.npcReady === '7', null, { timeout: 120000 });
 async function open(phone = false) {
   const context = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 900 }, isMobile: phone, hasTouch: phone, permissions: ['microphone'] });
   const save = freshAdventure(); save.flags = ['intro', 'innkeeper']; save.position = phone ? { x: 34, z: 16 } : { x: -46, z: 23.5 };

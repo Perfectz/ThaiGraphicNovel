@@ -11,7 +11,7 @@ const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('bangkok
 const ready = () => page.waitForFunction(() => {
   const host = document.querySelector('.bk-world');
   const shops = JSON.parse(host?.dataset.cityShophouses ?? '[]');
-  return host?.dataset.npcReady === '6' && !document.querySelector('.bk-loading') && shops.length === 14 && shops.every(s => s.state !== 'loading');
+  return host?.dataset.npcReady === '7' && !document.querySelector('.bk-loading') && shops.length === 14 && shops.every(s => s.state !== 'loading');
 }, null, { timeout: 120000 });
 try {
   for (const config of [

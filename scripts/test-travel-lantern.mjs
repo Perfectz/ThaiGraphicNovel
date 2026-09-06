@@ -22,7 +22,7 @@ const ready = () =>
       const h = document.querySelector('.bk-world'),
         l = JSON.parse(h?.dataset.travelLantern ?? 'null');
       return (
-        h?.dataset.npcReady === '6' && l && l.state !== 'loading' && !document.querySelector('.bk-loading')
+        h?.dataset.npcReady === '7' && l && l.state !== 'loading' && !document.querySelector('.bk-loading')
       );
     },
     null,
