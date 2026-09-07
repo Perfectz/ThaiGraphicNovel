@@ -18,10 +18,11 @@
 - Touch gameplay passed at 360×640, 390×844 and 844×390, including conversation, battle turns, defense and reload.
 - Both required local voice health endpoints returned 200 through port 5188.
 - GitHub implementation commit: `118dc310aa4d4d07a66db37e2027d0f5998ca0fb`; hosted packaging fix: `7ab8514b58fe52196304d1f22eabf6c2fc0f8e17`.
-- [Shared playtest](https://bangkok-rift-playtest.vercel.app/) points to verified deployment `dpl_3Rk5jN3CjJWD6E9Cret58T5T7J2n`. Hosted function health and the missing-key fallback passed through the actual phone browser UI, with the turn preserved and normal base-damage play available.
+- [Shared playtest](https://bangkok-rift-playtest.vercel.app/) points to verified deployment `dpl_Axkji8iQV7HMBi2YdJRtEDt2q73k`. After explicit user authorization, the existing project key was configured as a hidden, server-only Vercel Secret scoped to the `codex/playtest-20260906` preview branch. No key was added to source or browser configuration.
+- Real hosted Realtime assessment and spoken coaching passed on the deployment URL and shared playtest URL through an emulated phone browser with prerecorded Thai microphone input. Clear produced 22 damage; the turn stayed unchanged until confirmation, and reload preserved the resolved battle. The local build, eight pronunciation tests, ten Whisper tests, local phone retry flow, and both local voice health endpoints passed again after activation.
 
 ## Remaining limits
 
 AI pronunciation estimates are experimental and cover the First Light greeting only. They are not calibrated against Thai-speaker ratings. Physical phone microphones and speakers were not tested. The footage's Thai input is prerecorded and explicitly labeled; it is not a human learning-outcome demonstration.
 
-Hosted Realtime calls remain disabled because Vercel has no server key. An explicit exception to the project's no-persistent-key rule was requested; no hosted key was stored. The local Realtime service is configured and verified. The MP4 is delivered locally, not uploaded to a video hosting service.
+Hosted Realtime calls are enabled for the shared playtest. The local Realtime service remains configured and verified. The MP4 is delivered locally, not uploaded to a video hosting service.
