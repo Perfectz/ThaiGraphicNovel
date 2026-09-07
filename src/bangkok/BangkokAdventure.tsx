@@ -1150,7 +1150,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 </small>
               </div>
               <div className="rpg-explore-bar">
-                <span>{lookMode ? 'Drag to look · Pinch or scroll to zoom · Arrows move' : 'WASD / arrows · Click to walk · Right-drag to look'}</span>
+                <span className="rpg-desktop-hint">{lookMode ? 'Drag to look · Scroll to zoom · Arrows move' : 'WASD / arrows · Click to walk · Right-drag to look'}</span>
+                <span className="rpg-touch-hint">{lookMode ? 'Drag to look · Pinch to zoom' : 'Tap a path or hold the arrows to walk'}</span>
                 <div className="rpg-camera-tools" aria-label="Exploration camera">
                   <button aria-pressed={lookMode} onClick={() => {
                     world.current?.setExplorationLook(!lookMode); setLookMode(!lookMode);

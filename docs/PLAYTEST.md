@@ -8,6 +8,10 @@ During exploration, right-drag to turn the camera and scroll to zoom. On touch s
 
 ## A useful first session
 
+Phone controls work in portrait and landscape: hold the on-screen arrows to walk, tap a path, or choose Look around to drag the camera. Movement and exploration buttons have at least 44px touch targets. The landscape quest card expands on demand so it does not cover the walking controls. Speaking and battle menus scroll when needed.
+
+`node scripts/test-phone-playability.mjs` checks touch-only exploration, camera controls, dialogue, English preview, recording/replay with a synthetic microphone, text replies, enemy defense and battle reload at 360×640, 390×844 and 844×390. Set `PLAYTEST_BASE_URL` to check the hosted playtest. These are Chrome phone-emulation checks; physical iPhone/Android microphones, Safari and device frame rates still need a real-device playtest.
+
 1. Begin a new adventure, meet Su, and check in with Mali.
 2. Read the English meaning, listen to Thai, and try recording a reply. Text replies remain available.
 3. Follow the main objective to the Murmur in Lumphini. Fight beside Su to recover the ferry spark, then bring supper from Uncle Lek to Niran and face the Keeper in Old Town.
