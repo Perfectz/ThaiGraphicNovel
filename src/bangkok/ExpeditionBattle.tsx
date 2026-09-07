@@ -484,6 +484,7 @@ export default function ExpeditionBattle({ battle: b, onChange, onLeave, onScene
                       <strong lang="en">“{phrases[m.phrase].translation}”</strong>
                       <span lang="th">{phrases[m.phrase].targetPhrase}</span>
                       <small>{moveEffect(b, m)}</small>
+                      {moveReason(b, m) && <small className="exp-move-reason">{moveReason(b, m)}</small>}
                     </button>
                   ))}
               </div>
@@ -526,10 +527,11 @@ export default function ExpeditionBattle({ battle: b, onChange, onLeave, onScene
                     const full = 'ap' in t && (move?.id === 'mend' || item === 'rice') && t.hp === t.maxHp;
                     const refreshed =
                       'ap' in t && (move?.id === 'water' || item === 'tea') && t.hp === t.maxHp && t.ap === 6;
+                    const protectedAlly = 'ap' in t && move?.id === 'shelter' && t.guard && t.ap === 6;
                     return (
                       <button
                         key={t.id}
-                        disabled={dead || full || refreshed}
+                        disabled={dead || full || refreshed || protectedAlly}
                         onMouseEnter={() => setTarget(t.id)}
                         onFocus={() => setTarget(t.id)}
                         onClick={() => {

@@ -85,7 +85,7 @@ export function questJournal(s: AdventureSave): QuestEntry[] {
     purpose: 'Use left, right, straight and stop instructions to navigate a real canal course.', reward: '100 XP · 30 coins · Two teas · Flowers along three quays',
     destinations: has('canal-garden') ? [] : [destination(onWestBank(s.position) ? 'canal-boat' : 'ferry')],
   });
-  entries.push({id:'archive',title:'The House of Returning Maps',kind:'Exploration story',complete:has('archive-complete'),text:archiveStatus(s),purpose:'Explore connected galleries, assemble a forgotten river story and make polite requests in Thai.',reward:'100 XP · 25 coins · Two teas · The ferry ledger',destinations:archiveDestinations(s).map(id=>destination(id))});
+  entries.push({id:'archive',title:'The House of Returning Maps',kind:'Exploration story',complete:has('archive-complete'),text:archiveStatus(s),purpose:'Explore connected galleries, assemble a forgotten river story and make polite requests in Thai.',reward:'An Open Book word art · 100 XP · 25 coins · Two teas · The ferry ledger',destinations:archiveDestinations(s).map(id=>destination(id))});
   entries.push(
     {
       id: 'travel-lantern',
@@ -145,7 +145,7 @@ export function questJournal(s: AdventureSave): QuestEntry[] {
       complete: has('canal-restored'),
       text: canalStatus(s),
       purpose: 'Ask for slower speech, choose a material and thank your neighbours.',
-      reward: '80 XP · 25 coins · rice · tea',
+      reward: 'Lantern Shelter word art · 80 XP · 25 coins · rice · tea',
       destinations: has('canal-restored')
         ? []
         : !has('canal-accepted') || (has('canal-paper') && has('canal-frame'))

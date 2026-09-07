@@ -12,6 +12,7 @@ import {
 } from './city.ts';
 import { battleSpoils, createBattle, restoreBattle, type Battle } from './expeditionCombat.ts';
 import { partyGrowth, talentReason, type TalentId } from './partyGrowth.ts';
+import { earnedWorldArts } from './worldArts.ts';
 import { discoveries, discoveryFor, hasRiverCharm, type DiscoveryId } from './discoveries.ts';
 import { canalFlags } from './canalErrand.ts';
 import { canalBoatContact, normalizeCanalBoat, type CanalBoatSave } from './canalNavigation.ts';
@@ -211,6 +212,7 @@ export function normalizeAdventure(value: unknown): AdventureSave {
         b.practice === true,
         partyGrowth(fresh.xp, fresh.talents),
         has(fresh, 'sentinel'),
+        earnedWorldArts(fresh.flags),
       ),
     );
   return fresh;
@@ -289,6 +291,7 @@ export function startBattle(s: AdventureSave, id: Battle['id']): AdventureSave {
       false,
       partyGrowth(s.xp, s.talents),
       has(s, 'sentinel'),
+      earnedWorldArts(s.flags),
     ),
   };
 }
@@ -305,6 +308,7 @@ export function startPracticeBattle(s: AdventureSave): AdventureSave {
       true,
       partyGrowth(s.xp, s.talents),
       has(s, 'sentinel'),
+      earnedWorldArts(s.flags),
     ),
   };
 }

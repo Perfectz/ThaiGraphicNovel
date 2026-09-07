@@ -63,7 +63,11 @@ try {
   await p.waitForTimeout(2000);
   await p.screenshot({ path: `${out}/01-arena.png` });
   await p.getByRole('button', { name: /^✦ Word arts/ }).click();
-  assert.equal(await p.locator('.exp-word-grid strong[lang=en]').count(), 4);
+  assert.equal(await p.locator('.exp-word-grid strong[lang=en]').count(), 5);
+  assert.equal(await p.locator('.exp-word-grid button:enabled strong[lang=en]').count(), 4, 'the four starting arts stay available');
+  const earnedArt = p.locator('.exp-word-grid button').filter({hasText:'An Open Book'});
+  assert(await earnedArt.isDisabled());
+  assert((await earnedArt.innerText()).includes('House of Returning Maps'));
   await p.screenshot({ path: `${out}/02-word-arts.png` });
   const before = await state(p);
   await p.locator('.exp-word-grid button').filter({ hasText: 'First Light' }).click();

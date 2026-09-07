@@ -88,6 +88,15 @@
 .rpg-game.rpg-screen-title .bk-vignette {
   background: linear-gradient(90deg, #08222bf5, #10283199 42%, transparent 78%);
 }
+.rpg-world-arts { margin-top: 28px; }
+.rpg-world-arts article { border: 1px solid #bba16b66; padding: 18px; margin: 14px 0; background: #193439; }
+.rpg-world-arts article[data-unlocked='true'] { border-color: #b6d0a9; }
+.rpg-world-arts h4 { font: 24px Georgia, serif; color: #efd19b; margin: 12px 0; }
+.rpg-world-arts article > small { color: #d0bc8f; }
+.rpg-world-arts article > p { font-size: 13px; line-height: 1.6; }
+.rpg-world-arts article > p[lang='th'] { font-size: 19px; }
+.rpg-world-arts article > strong { color: #bcd9c8; font-size: 13px; }
+.rpg-world-arts .bk-button { max-width: 100%; white-space: normal; }
 .rpg-party-panel {
   position: absolute;
   top: 98px;

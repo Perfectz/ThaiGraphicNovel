@@ -71,6 +71,7 @@ import SpeakChoice from './SpeakChoice';
 import ExpeditionBattle from './ExpeditionBattle';
 import JourneyVisit from './JourneyVisit';
 import PartyGrowth from './PartyGrowthPanel';
+import WorldArtsPanel from './WorldArtsPanel';
 import QuestJournal from './QuestJournalPanel';
 import { trackQuest, trackedQuest, questJournal, type QuestId, type QuestDestination } from './questJournal';
 import CityServicePanel from './CityServicePanel';
@@ -767,7 +768,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
         setSave(next);
         setNotice(
           dialogue.canalStep === 'canal-restored'
-            ? 'A LIGHT FOR LATE WALKERS · +80 XP · +25 coins · Rice and tea'
+            ? 'A LIGHT FOR LATE WALKERS · Su learned Lantern Shelter · +80 XP · +25 coins · Rice and tea'
             : canalStatus(next),
         );
         world.current?.celebrate();
@@ -1291,7 +1292,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 saveRef.current = next;
                 setSave(next);
                 if (action === 'archive-complete') {
-                  setNotice('THE FERRY LEDGER RECOVERED · +100 XP · +25 coins · Two teas');
+                  setNotice('THE FERRY LEDGER RECOVERED · Patrick learned An Open Book · +100 XP · +25 coins · Two teas');
                   world.current?.celebrate();
                 }
                 if (!['archive-document', 'archive-accepted'].includes(action)) setArchiveHost(null);
@@ -1997,6 +1998,10 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             Optional rehearsal with Su. Story encounters happen out in the city and use your travelling
             party’s supplies.
           </p>
+          <WorldArtsPanel flags={save.flags} onTrack={quest => {
+            setSave(s => trackQuest(s, quest));
+            setGrowthMenu(false);
+          }} />
         </Modal>
         <Modal
           isOpen={journal}

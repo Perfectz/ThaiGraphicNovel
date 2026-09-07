@@ -1,5 +1,6 @@
 /** Deterministic party combat. Speaking practice never pretends to be a pronunciation score. */
 import { normalizeTalents, type PartyGrowth, type TalentId } from './partyGrowth.ts';
+import { worldArts, normalizeWorldArts } from './worldArts.ts';
 export type HeroId = 'patrick' | 'su';
 export type Hero = { id: HeroId; name: string; hp: number; maxHp: number; ap: number; guard: boolean };
 export type Foe = {
@@ -22,6 +23,7 @@ export type BattleEvent = {
   text: string;
 };
 export type Battle = {
+  arts?: string[];
   growth?: PartyGrowth;
   version: 2;
   practice: boolean;
@@ -131,6 +133,7 @@ export const moves: Move[] = [
     detail: 'Ask for water. Refresh an ally so they can use a stronger ability next turn.',
   },
 ];
+moves.push(...worldArts);
 export const actor = (b: Battle) => b.order[b.turn];
 export const activeHero = (b: Battle) => b.heroes.find((h) => h.id === actor(b));
 export const battleSpoils = (id: Battle['id']) =>
@@ -148,6 +151,7 @@ export function createBattle(
   practice = false,
   growth?: PartyGrowth,
   wayfinder = false,
+  arts: string[] = [],
 ): Battle {
   const foe = (id: string, name: string, hp: number, role: Foe['role']): Foe => ({
     id,
@@ -167,6 +171,7 @@ export function createBattle(
         ? [foe('keeper', 'Keeper of Unsaid Words', 230, 'keeper'), foe('echo', 'Lantern Echo', 76, 'echo')]
         : [foe('murmur', 'Murmur Wisp', 100, 'murmur'), foe('echo', 'Lantern Echo', 56, 'echo')];
   return {
+    arts: normalizeWorldArts(arts),
     ...(growth ? { growth: { level: growth.level, talents: [...growth.talents] } } : {}),
     version: 2,
     practice,
@@ -215,6 +220,7 @@ export function createBattle(
 function copy(b: Battle): Battle {
   return {
     ...b,
+    ...(b.arts ? { arts: [...b.arts] } : {}),
     heroes: b.heroes.map((h) => ({ ...h })),
     foes: b.foes.map((f) => ({ ...f })),
     log: [...b.log],
@@ -277,6 +283,8 @@ function strike(foe: Foe, amount: number, pressure: number) {
 export function moveReason(b: Battle, move: Move): string | null {
   const hero = activeHero(b);
   if (b.phase !== 'command' || !hero || move.owner !== hero.id) return 'Not this character’s turn';
+  const discovery = worldArts.find(a => a.id === move.id);
+  if (discovery && !b.arts?.includes(move.id)) return `Learn by completing ${discovery.source}`;
   if (hero.ap < move.cost) return `Needs ${move.cost} AP`;
   return null;
 }
@@ -305,17 +313,18 @@ export function performMove(original: Battle, moveId: string, target: string): B
     return original;
   if (ally && move.id === 'mend' && ally.hp === ally.maxHp) return original;
   if (ally && move.id === 'water' && ally.hp === ally.maxHp && ally.ap === 6) return original;
+  if (ally && move.id === 'shelter' && ally.guard && ally.ap === 6) return original;
   hero.ap -= move.cost;
   if (!move.cost) hero.ap = Math.min(6, hero.ap + 2);
   b.resonance = Math.min(100, b.resonance + 20);
   let amount = 0,
     extra = '';
   if (foe) {
-    const power = { greet: 18, resolve: 42, slow: 12, cool: 24, thanks: 16, reveal: 10 }[move.id] ?? 0;
+    const power = { greet: 18, resolve: 42, slow: 12, cool: 24, thanks: 16, reveal: 10, 'open-book': 12 }[move.id] ?? 0;
     amount = strike(
       foe,
       power,
-      move.id === 'slow' ? (hasTalent(b, 'unhurried') ? 80 : 65) : move.id === 'resolve' ? 25 : 20,
+      move.id === 'slow' ? (hasTalent(b, 'unhurried') ? 80 : 65) : move.id === 'resolve' ? 25 : move.id === 'open-book' ? 10 : 20,
     );
     if (move.id === 'reveal' && foe.hp) {
       foe.exposed = true;
@@ -325,8 +334,20 @@ export function performMove(original: Battle, moveId: string, target: string): B
       foe.weakened = true;
       extra = ' · WEAKENED';
     }
+    if (move.id === 'open-book' && foe.hp) {
+      foe.exposed = true;
+      foe.weakened = true;
+      extra = ' · EXPOSED · WEAKENED';
+    }
     if (foe.staggered && foe.hp) extra += ' · BREAK! Next turn cancelled';
   } else if (ally) {
+    if (move.id === 'shelter') {
+      ally.guard = true;
+      ally.ap = Math.min(6, ally.ap + 1);
+      event(b, { source: hero.id, target, kind: 'guard', value: 0, text: `${hero.name} · Lantern Shelter: ${ally.name} is guarded until their next turn · +1 AP.` });
+      advance(b);
+      return b;
+    }
     const heal = move.id === 'mend' ? (ally.hp ? 38 : 24) + (hasTalent(b, 'kindness') ? 10 : 0) : 20;
     amount = Math.min(ally.maxHp - ally.hp, heal);
     ally.hp += amount;
@@ -572,5 +593,5 @@ export function restoreBattle(value: unknown, fallback: Battle): Battle {
     (b.phase === 'defeat' && b.heroes.some((h) => h.hp))
   )
     return fallback;
-  return { ...copy(b), practice: b.practice === true, ward: fallback.ward };
+  return { ...copy(b), arts: normalizeWorldArts(fallback.arts ?? []), practice: b.practice === true, ward: fallback.ward };
 }
