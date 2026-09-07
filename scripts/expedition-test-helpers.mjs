@@ -19,12 +19,13 @@ export async function word(p, name, target, spoken=false) {
   await settle(p);
 }
 export async function finishFight(p,id) {
+  const practice = !!(await adventureState(p)).battle?.practice;
   for(let i=0;i<110;i++) {
     await settle(p);
     const s=await adventureState(p),b=s.battle;
     console.log(`Combat ${id}: round ${b?.round ?? '-'} · ${b?.phase ?? 'complete'}`);
-    if(!b) { assert(s.flags.includes(id));return; }
-    if(b.phase==='victory') { await p.getByRole('button',{name:'Claim rewards & continue',exact:true}).click();continue; }
+    if(!b) { if(!practice) assert(s.flags.includes(id));return; }
+    if(b.phase==='victory') { await p.getByRole('button',{name:practice?'Finish sparring':'Claim rewards & continue',exact:true}).click();continue; }
     assert.notEqual(b.phase,'defeat','Battle must be winnable with no-timing defenses');
     if(b.phase==='defense') { await p.getByRole('button',{name:'Steady guard · no timing',exact:true}).click();continue; }
     const hero=b.heroes.find(h=>h.id===b.order[b.turn]);

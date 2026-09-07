@@ -14,11 +14,17 @@ The standard is a coherent Thai-learning adventure, not the number of menus or l
 | --- | --- | --- |
 | Start at a Sukhumvit hotel | Fresh campaign browser run begins with Su and Mali | More ambient life and personal reasons to return |
 | Travel among Bangkok-inspired places | Eight areas now include an explorable Thonburi canal quarter; the ferry moves the saved party between banks, with walking routes within each bank and a two-bridge canal loop | Compact fictional geography; district scale and activities still need expansion |
-| Battles belong to the main story | Fresh local and public campaign runs beat Murmur and Keeper and board the ferry without practice; Murmur now retains its own Blender silhouette from exploration into combat | More encounters and contextual tactics; greater animation variety |
+| Battles belong to the main story | Fresh local and public campaign runs beat Murmur and Keeper and board the ferry without practice; story formations now stand on their actual world terrain, with the Murmur retaining its exploration silhouette | More encounters and contextual tactics; greater animation variety |
 | Exploration beyond errands | Archive adds five connected rooms, three records, a deduction and permission-based dialogue | Local desktop and phone browser runs passed the complete quest, microphone flow and reloads; model fallback was confirmed off |
 | Speak with understood intent | English previews, reference audio and optional recorded replies | Full phrase pack needs fluent-speaker review; live pronunciation coaching is not deployed |
 | Worth an hour every day | Thirty authored outings and persistent review records exist; discovered city memories offer contextual return visits using the same spaced recall record | No hour-long learner study or month-long retention evidence; content breadth and transfer need further work |
 | Beautiful, coherent 3D presentation | Original Blender landmarks and connected rendered districts; Sukhumvit now has a modeled two-car elevated train and guideway | Reused character models, limited animation variety and uneven staging remain visible |
+
+## Battles within the districts
+
+`battleStaging.ts` places the party and opponents on Lumphini, Old Town and crossroads terrain. Combat never changes the saved approach position. The same world geometry, district streaming, lighting and view cutaways serve exploration and story battles; the separate river platform remains a practice setting. This strengthens continuity between finding an encounter and fighting it. It does not add encounters or establish the tactical depth, animation quality or learning outcomes of the reference games.
+
+Verify the formation and lunge/dodge envelopes against real world collision data using `tests/battleStaging.test.ts`. `scripts/test-battle-sites.mjs` checks actual rendered cast coordinates, phone silhouette separation, English preview without spending a turn, recorded replies, reload, defense and retreat for all three encounters and practice. Run desktop, phone and reduced-motion cases, inspect screenshots for occlusion, then run the fresh hotel-to-ferry campaign. The original arena’s loaded and fallback models are checked in practice by `scripts/test-river-arena.mjs`. Evidence belongs under `artifacts/battle-sites/`. Phone viewport tests use synthetic microphone input; physical phones and human speech evaluation remain unverified.
 
 ## Thonburi assessment
 

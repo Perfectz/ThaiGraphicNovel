@@ -2,14 +2,17 @@ import * as T from 'three';
 import { RiverArena } from './RiverArena';
 import { RiverSpirits } from './RiverSpirits';
 import { actor, enemyIntent, type Battle } from './expeditionCombat';
+import { battleSite, battleMark, battleWorldPoint, battleCamera } from './battleStaging';
 
 /** Original river-guardian arena; presentation follows the combat model, never the reverse. */
 export class RiverBattleStage {
   readonly root = new T.Group();
   readonly environmentFallback = new T.Group();
+  readonly practiceEnvironment = new T.Group();
   readonly environment: RiverArena;
   readonly spirits: RiverSpirits;
   private enemies = new Map<string, T.Group>();
+  private shadows = new Map<string, T.Mesh>();
   private rings: T.Mesh[] = [];
   private marker: T.Mesh;
   private bolt: T.Mesh;
@@ -28,7 +31,10 @@ export class RiverBattleStage {
     scene.add(this.root);
     this.environmentFallback.name = 'river-arena-fallback';
     this.environmentFallback.userData.animated = true;
-    this.root.add(this.environmentFallback);
+    this.practiceEnvironment.name = 'practice-arena';
+    this.practiceEnvironment.userData.animated = true;
+    this.root.add(this.practiceEnvironment);
+    this.practiceEnvironment.add(this.environmentFallback);
     this.mesh(new T.CylinderGeometry(7.8, 8.1, 0.4, 80), '#182e38', this.environmentFallback, [0, -0.25, 0]);
     this.mesh(
       new T.CylinderGeometry(7.4, 7.4, 0.055, 80),
@@ -73,7 +79,7 @@ export class RiverBattleStage {
     );
     water.rotation.x = -Math.PI / 2;
     water.position.y = -0.5;
-    this.root.add(water);
+    this.practiceEnvironment.add(water);
     for (let i = 0; i < 7; i++) {
       const x = (i - 3) * 3.4,
         z = -6 - Math.abs(i - 3) * 0.35;
@@ -83,7 +89,7 @@ export class RiverBattleStage {
       this.mesh(new T.BoxGeometry(0.45, 0.5, 0.45), '#f1c981', this.environmentFallback, [x, 2.67, z], 2);
       this.mesh(new T.SphereGeometry(0.07, 8, 6), '#eecf92', this.environmentFallback, [x, 3.55, z], 2);
     }
-    this.environment = new RiverArena(this.root, this.environmentFallback);
+    this.environment = new RiverArena(this.practiceEnvironment, this.environmentFallback);
     const warm = new T.PointLight('#ffcf87', 18, 18, 2);
     warm.position.set(4, 5, 0);
     this.root.add(warm);
@@ -94,12 +100,12 @@ export class RiverBattleStage {
     this.enemies.set('echo', this.guardian(true));
     this.enemies.set('sentinel', this.waywarden());
     this.spirits = new RiverSpirits(this.enemies);
-    for (const [x, z, r] of [
+    for (const [index, [x, z, r]] of [
       [-3.5, 1.8, 0.45],
       [-3.7, -0.2, 0.42],
       [2.6, 0.6, 0.8],
       [0.1, -3.1, 0.5],
-    ]) {
+    ].entries()) {
       const shadow = new T.Mesh(
         new T.CircleGeometry(r, 32),
         new T.MeshBasicMaterial({ color: '#020d17', transparent: true, opacity: 0.4, depthWrite: false }),
@@ -107,6 +113,8 @@ export class RiverBattleStage {
       shadow.rotation.x = -Math.PI / 2;
       shadow.position.set(x, 0.03, z);
       shadow.scale.y = 0.7;
+      shadow.userData.animated = true;
+      this.shadows.set(['patrick', 'su', 'main', 'echo'][index], shadow);
       this.root.add(shadow);
     }
     this.marker = this.mesh(new T.TorusGeometry(0.85, 0.025, 8, 64), '#ffe2a3', this.root, [0, 0.05, 0], 2);
@@ -279,7 +287,23 @@ export class RiverBattleStage {
   }
   set(battle: Battle | null, target: string | null) {
     this.battle = battle;
-    if (battle) this.spirits.setEncounter(battle.id);
+    if (battle) {
+      this.spirits.setEncounter(battle.id);
+      const site = battleSite(battle);
+      this.root.position.set(site.origin.x, site.origin.y, site.origin.z);
+      this.root.rotation.y = site.yaw;
+      this.practiceEnvironment.visible = !!battle.practice;
+      this.enemies.forEach((group, id) => {
+        const mark = battleMark(battle, id);
+        group.position.x = mark.x;
+        group.position.z = mark.z;
+      });
+      this.shadows.forEach((shadow, id) => {
+        const mark = battleMark(battle, id);
+        shadow.position.set(mark.x, .03, mark.z);
+        shadow.visible = (battle.heroes.find(h => h.id === id) ?? battle.foes[id === 'echo' ? 1 : 0]).hp > 0;
+      });
+    }
     this.selected = target;
     this.root.visible = !!battle;
     if (battle && battle.event.seq !== this.serial) {
@@ -295,13 +319,27 @@ export class RiverBattleStage {
     this.charge = progress;
   }
   private local(id: string): T.Vector3 {
-    return id === 'patrick'
-      ? new T.Vector3(-3.5, 1.3, 1.8)
-      : id === 'su'
-        ? new T.Vector3(-3.7, 1.3, -0.2)
-        : id === 'echo'
-          ? new T.Vector3(0.1, 1.8, -3.1)
-          : new T.Vector3(2.6, 2, 0.6);
+    const mark = battleMark(this.battle!, id);
+    return new T.Vector3(mark.x, mark.y, mark.z);
+  }
+  get site() {
+    return this.battle ? battleSite(this.battle) : null;
+  }
+  focalPoints() {
+    if (!this.battle) return [];
+    return ['patrick', 'su', ...this.battle.foes.filter(f => f.hp > 0).map(f => f.id)]
+      .map(id => battleWorldPoint(battleSite(this.battle!), battleMark(this.battle!, id)));
+  }
+  snapshot(camera: T.Camera, width: number, height: number, party: T.Group) {
+    const cast = [...party.children.filter(o => o.userData.basePosition), ...this.enemies.values()]
+      .filter(o => o.visible && this.battle)
+      .map(o => {
+        const world = o.getWorldPosition(new T.Vector3());
+        const torso = world.clone().add(new T.Vector3(0, 1.25, 0)).project(camera);
+        return { id: o.userData.basePosition ? o.userData.player ? 'patrick' : 'su' : [...this.enemies].find(([,g]) => g === o)![0],
+          world: { x: world.x, y: world.y, z: world.z }, screen: { x: (torso.x + 1) * width / 2, y: (1 - torso.y) * height / 2 } };
+      });
+    return { site: this.site, practiceEnvironment: this.root.visible && this.practiceEnvironment.visible, cast };
   }
   update(
     time: number,
@@ -314,8 +352,9 @@ export class RiverBattleStage {
     this.elapsed = time;
     const b = this.battle;
     if (!b) return;
-    party.position.set(0, 0.1, 29);
-    party.rotation.set(0, 0, 0);
+    const site = battleSite(b);
+    party.position.copy(this.root.position);
+    party.rotation.set(0, site.yaw, 0);
     const since = time - this.eventTime,
       action = since < 0.95 && b.event.seq > 0;
     this.spirits.update(
@@ -388,8 +427,9 @@ export class RiverBattleStage {
       this.aura.scale.setScalar(0.5 + since * 2);
       this.aura.rotation.set(Math.PI / 2, 0, 0);
     }
-    camera.set(narrow ? -15 : -8, narrow ? 9 : 5.4, narrow ? 57 : 42.8);
-    look.set(narrow ? -0.4 : 0.8, !narrow && this.selected?.includes('echo') ? 0.6 : 1, 28.7);
+    const framing = battleCamera(site, narrow);
+    camera.set(framing.position.x, framing.position.y, framing.position.z);
+    look.set(framing.look.x, framing.look.y, framing.look.z);
     if (!reduced && action && ['strike', 'duet', 'parry'].includes(b.event.kind)) {
       camera.x += Math.sin(since * Math.PI) * 1.5;
       camera.z -= Math.sin(since * Math.PI) * 1.7;

@@ -15,6 +15,8 @@ Both main-story battles use the travelling party's health, provisions and talent
 
 The Murmur you meet in Lumphini keeps its floating porcelain form in battle. The River Keeper has a separate ceremonial guardian model; both encounters include the flowerlike Lantern Echo.
 
+Story combat now happens on the world terrain you explored: the Murmur beside Lumphini’s lake, the Keeper in Old Town’s lantern court, and the optional Waywarden at the crossroads. Buildings and roofs cut away when they obscure the combatants. Retreat returns you to your saved approach, and reloading a fight restores its location and turn. The river platform is reserved for optional practice. On phones, the compact command panel leaves more of the district and party visible while retaining the English preview and untimed speaking controls.
+
 The town map now charts the actual streets, buildings, park pond, pier and archive rooms. Choose a district for a closer view or use Whole city to see how the neighbourhoods connect. Tap an open path to preview a route, then choose Walk this route. The party follows it through the 3D city. Blocked ground is marked before departure. Keyboard users can focus the chart and move the destination with arrow keys (Shift moves farther). Unknown discoveries remain hidden until found in the world.
 
 Sukhumvit's elevated railway now uses an original Blender train and guideway, with detailed carriages, cab glazing, running gear and piers. Walk north from the hotel to see it overhead on the way to Dao. Phone quest cards start compact: open Quest details for the full objective and story battle checklist. The walking and town map buttons remain available while details are closed.

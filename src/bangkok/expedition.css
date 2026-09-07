@@ -8,6 +8,26 @@
   pointer-events: none;
   font-family: 'Segoe UI', sans-serif;
 }
+.exp-location {
+  position: absolute;
+  left: 30px;
+  top: 138px;
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: .08em;
+  color: #e4c994;
+  text-shadow: 0 2px 5px #081820;
+}
+@media (max-width: 700px) {
+  .exp-location { left: 12px; top: 89px; font-size: 8px; letter-spacing: .04em; }
+  .exp-command-panel[data-pane='menu'] .exp-turn-copy > h2,
+  .exp-command-panel[data-pane='menu'] .exp-turn-copy > p { display: none; }
+  .exp-command-panel[data-pane='menu'] .exp-turn-copy {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px;
+  }
+  .exp-command-panel[data-pane='menu'] .exp-turn-copy > small { margin: 0; line-height: 1.5; }
+  .exp-command-panel[data-pane='menu'] .exp-read-plans { margin: 0; min-height: 44px; max-width: 138px; }
+}
 .exp-battle button {
   cursor: pointer;
   color: var(--ivory);

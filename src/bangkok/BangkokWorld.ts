@@ -795,8 +795,10 @@ export class BangkokWorld {
     this.renderer.toneMappingExposure = battle ? 0.83 : 1.12;
     this.combatStage.set(battle, target);
     if (battle) this.spirit.visible = false;
-    else
+    else {
+      this.party.rotation.set(0, 0, 0);
       this.party.children.forEach((member) => member.rotation.set(0, member.userData.baseRotation ?? 0, 0));
+    }
     if (changedMode) this.setState(this.state);
   }
   setDefenseCharge(progress: number | null) {
@@ -972,7 +974,8 @@ export class BangkokWorld {
       });
       this.resize();
     }
-    this.cityScenery.update(this.player, this.state.mode === 'adventure' || this.state.mode === 'home');
+    const battleSite = this.combatStage.site;
+    this.cityScenery.update(battleSite?.origin ?? this.player, this.state.mode === 'adventure' || this.state.mode === 'home' || !!battleSite && battleSite.id !== 'practice');
     this.cityScenery.life.update(now / 1000, this.reducedMotion);
     this.riverBoats.setPassage(this.departure === null ? null : crossingPose(this.departure,this.returningFerry));
     this.riverBoats.update(this.elapsed, this.reducedMotion);
@@ -1018,23 +1021,21 @@ export class BangkokWorld {
     );
     this.cityPeople.update(dt, this.player, this.reducedMotion, this.state.contact);
     this.updateReunion();
-    const sunAnchor =
-      this.state.mode === 'adventure' || this.state.mode === 'home' ? this.player : { x: 0, z: 0 };
+    const sunAnchor = battleSite?.origin ??
+      (this.state.mode === 'adventure' || this.state.mode === 'home' ? this.player : { x: 0, z: 0 });
     this.sunlight.position.set(sunAnchor.x - 12, 18, sunAnchor.z + 9);
     this.sunlight.target.position.set(sunAnchor.x, 0, sunAnchor.z);
-    if (this.state.mode === 'adventure' || this.state.mode === 'home') {
-      const focalPoints = [{ x: this.player.x, y: 1.55, z: this.player.z }];
+    if (this.state.mode === 'adventure' || this.state.mode === 'home' || this.combat) {
+      const focalPoints = this.combat ? this.combatStage.focalPoints() : [{ x: this.player.x, y: 1.55, z: this.player.z }];
       if (this.state.canalBoat) focalPoints.push({ x: this.canalGarden.boat.position.x, y: .6, z: this.canalGarden.boat.position.z });
       this.party.children.forEach((actor) => {
-        if (actor.userData.basePosition)
-          focalPoints.push({
-            x: this.party.position.x + actor.position.x,
-            y: 1.55,
-            z: this.party.position.z + actor.position.z,
-          });
+        if (actor.userData.basePosition) {
+          const p = actor.getWorldPosition(new T.Vector3());
+          focalPoints.push({ x: p.x, y: p.y + 1.55, z: p.z });
+        }
       });
       const contact = this.worldActors().find((a) => a.id === this.nearest);
-      if (contact) focalPoints.push({ x: contact.x, y: 1.55, z: contact.z });
+      if (contact && !this.combat) focalPoints.push({ x: contact.x, y: 1.55, z: contact.z });
       if (this.reunionGathering.root.visible)
         this.reunionGathering.root.children.forEach((guest) => {
           const p = new T.Box3().setFromObject(guest).getCenter(new T.Vector3());
@@ -1101,6 +1102,10 @@ export class BangkokWorld {
       this.host.dataset.renderPixelRatio = String(this.renderer.getPixelRatio());
       this.host.dataset.drawCalls = String(this.renderer.info.render.calls);
       this.host.dataset.riverArena = JSON.stringify(this.combatStage.environment.snapshot());
+      this.host.dataset.battleSite = JSON.stringify({
+        ...this.combatStage.snapshot(this.camera, this.host.clientWidth, this.host.clientHeight, this.party),
+        districts: [...this.cityScenery.chunks].filter(([, g]) => g.visible).map(([id]) => id),
+      });
       this.host.dataset.riverSpirits = JSON.stringify(
         this.combatStage.spirits.snapshot(this.camera, this.host.clientWidth, this.host.clientHeight),
       );

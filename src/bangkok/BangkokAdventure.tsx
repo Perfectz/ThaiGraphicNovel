@@ -425,13 +425,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     setSave(next);
     setScreen('battle');
     resetPrompt();
-    setNotice(
-      id === 'sentinel'
-        ? 'OPTIONAL CHALLENGE · THE WAYWARDEN'
-        : id === 'keeper'
-          ? 'BOSS · THE KEEPER OF UNSAID WORDS'
-          : 'ENCOUNTER · A MURMUR IN THE MIST',
-    );
+    setNotice('');
   }
   function findWaystone() {
     setMap(false);

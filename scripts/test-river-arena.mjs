@@ -1,7 +1,7 @@
 import { chromium } from 'playwright-core';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { freshAdventure, flag, startBattle } from '../src/bangkok/adventure.ts';
+import { freshAdventure, flag, startPracticeBattle } from '../src/bangkok/adventure.ts';
 import { settle, word, finishFight, adventureState as state } from './expedition-test-helpers.mjs';
 const out = 'artifacts/blender-river-arena/browser';
 await mkdir(out, { recursive: true });
@@ -29,6 +29,7 @@ async function capture(name) {
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 }
 try {
+  await checkpoint();
   for (const label of ['desktop', 'phone', 'fallback']) {
     console.log(`Opening ${label}`);
     const phone = label === 'phone';
@@ -38,8 +39,8 @@ try {
       hasTouch: phone,
     });
     let s = freshAdventure();
-    for (const f of ['intro', 'innkeeper', 'cook', 'ferry', 'chest', 'murmur']) s = flag(s, f);
-    s = startBattle(s, 'keeper');
+    for (const f of ['intro', 'innkeeper', 'cook', 'ferry', 'chest', 'murmur', 'keeper']) s = flag(s, f);
+    s = startPracticeBattle(s);
     await context.addInitScript((s) => {
       if (!localStorage.getItem('bangkok-rift-adventure-v1'))
         localStorage.setItem('bangkok-rift-adventure-v1', JSON.stringify(s));
@@ -72,6 +73,7 @@ try {
     await settle(page);
     console.log(`Models ready ${label}`);
     const loaded = await arena();
+    assert.equal(await page.locator('.bk-world').evaluate(h => JSON.parse(h.dataset.battleSite).practiceEnvironment), true, 'the preserved arena belongs to practice');
     assert.equal(loaded.fallback, label === 'fallback');
     if (label !== 'fallback') assert(loaded.meshes > 0 && loaded.meshes <= 20);
     await capture(`${label}-arena`);
@@ -102,10 +104,12 @@ try {
     assert.deepEqual((await state(page)).battle, saved);
     if (label === 'desktop') {
       await finishFight(page, 'keeper');
-      assert((await state(page)).flags.includes('keeper'));
+      const after = await state(page);
+      assert.deepEqual(after.flags, before.flags, 'sparring cannot change story progress');
+      for (const key of ['hp', 'rice', 'tea', 'coins']) assert.equal(after[key], before[key]);
       await capture('desktop-victory-return');
     }
-    report.cases.push({ label, loaded, reloadPreserved: true, finishedBattle: label === 'desktop' });
+    report.cases.push({ label, mode: 'practice', loaded, reloadPreserved: true, finishedBattle: label === 'desktop' });
     await checkpoint();
     await context.close();
   }

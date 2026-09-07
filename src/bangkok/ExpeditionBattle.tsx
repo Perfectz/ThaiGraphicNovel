@@ -23,6 +23,7 @@ import { useBattleAudio } from './useBattleAudio';
 import { useSoundSettings } from '../hooks/useSoundSettings';
 import { saveSoundSettings } from '../services/soundSettings';
 import './expedition.css';
+import { battleSite } from './battleStaging';
 
 type Props = {
   battle: Battle;
@@ -239,6 +240,7 @@ export default function ExpeditionBattle({ battle: b, onChange, onLeave, onScene
           })}
         </div>
       </section>
+      <p className="exp-location" aria-label="Battle location">{battleSite(b).name}</p>
       <aside className="exp-foes" aria-label="Enemy party">
         {b.foes.map((f) => (
           <div key={f.id} className={`${!f.hp ? 'defeated' : ''} ${target === f.id ? 'selected' : ''}`}>
@@ -320,6 +322,7 @@ export default function ExpeditionBattle({ battle: b, onChange, onLeave, onScene
       </div>
       <section
         className={`exp-command-panel ${pane === 'speak' ? 'rehearsing' : ''} ${pane === 'intel' ? 'scouting' : ''}`}
+        data-pane={pane}
         aria-label="Battle commands"
       >
         {terminal ? (
