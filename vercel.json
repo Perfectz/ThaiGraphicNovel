@@ -5,7 +5,7 @@
   "framework": "vite",
   "trailingSlash": false,
   "functions": {
-    "api/realtime/battle.mjs": { "maxDuration": 60 }
+    "api/realtime/battle.mjs": { "maxDuration": 60, "includeFiles": "src/bangkok/speechPower.ts" }
   },
   "headers": [
     {
