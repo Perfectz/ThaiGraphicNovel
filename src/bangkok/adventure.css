@@ -293,6 +293,10 @@
   max-height: 54vh;
   overflow: auto;
 }
+.rpg-camera-tools { display: flex; gap: 6px; justify-content: center; }
+.rpg-camera-tools button { padding: 7px 10px; min-height: 36px; border: 1px solid #acbca775; border-radius: 4px; background: #14343ce8; color: #e8dbb9; font: inherit; font-size: 11px; cursor: pointer; }
+.rpg-camera-tools button[aria-pressed=true] { background: #d8bd81; color: #17363b; }
+.rpg-camera-tools button:focus-visible { outline: 2px solid #f1da98; outline-offset: 2px; }
 .rpg-speaking-context {
   display: none;
 }

@@ -10,6 +10,7 @@ import { CityPeople } from './CityPeople';
 import { CityResidents } from './CityResidents';
 import { EscortFollower, type EscortSave } from './stationEscort';
 import { cameraBlend } from './cityMotion';
+import { explorationDirection } from './explorationCamera';
 import { acrossRiver, ferryApproach, thonburiSite, onWestBank } from './thonburi';
 import {
   companionMark,
@@ -117,6 +118,12 @@ export class BangkokWorld {
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   private pointerStart = { x: 0, y: 0 };
   private interactingUntil = 0;
+  private lookMode = false;
+  private orbiting = false;
+  private explorationView: T.Vector3 | null = null;
+  private orbitDelta = new T.Vector3();
+  private pointerIds = new Set<number>();
+  private cameraPointer = false;
   private particles: T.Points;
   private backgroundTexture?: T.Texture;
   private qualityFrames = 0;
@@ -200,8 +207,10 @@ export class BangkokWorld {
     this.controls.maxPolarAngle = Math.PI / 2.2;
     this.controls.target.copy(this.targetLook);
     this.controls.addEventListener('start', this.handleOrbit);
+    this.controls.addEventListener('end', this.endOrbit);
     this.renderer.domElement.addEventListener('pointerdown', this.pointerDown);
     this.renderer.domElement.addEventListener('pointerup', this.pointerUp);
+    this.renderer.domElement.addEventListener('pointercancel', this.cancelPointer);
     this.renderer.domElement.addEventListener('webglcontextlost', this.contextLost);
     this.lighting();
     this.buildRiver();
@@ -261,13 +270,37 @@ export class BangkokWorld {
   }
 
   private handleOrbit = () => {
-    this.interactingUntil = performance.now() + 9000;
+    if (this.canLookAround()) this.orbiting = true;
+    else this.interactingUntil = performance.now() + 9000;
   };
+  private endOrbit = () => {
+    if (this.orbiting && this.canLookAround())
+      this.explorationView = this.camera.position.clone().sub(this.controls.target);
+    this.orbiting = false;
+  };
+  private canLookAround() {
+    return this.state.mode === 'adventure' && !this.adventurePaused && !this.combat &&
+      !this.state.conversation && !this.state.canalBoat && this.departure === null;
+  }
+  setExplorationLook(enabled: boolean) {
+    this.lookMode = enabled;
+    if (enabled) { this.path = []; this.walkingTo = null; }
+  }
   private pointerDown = (e: PointerEvent) => {
+    this.pointerIds.add(e.pointerId);
+    if (this.pointerIds.size > 1 || e.button !== 0 || this.lookMode) this.cameraPointer = true;
     this.pointerStart = { x: e.clientX, y: e.clientY };
   };
+  private cancelPointer = (e: PointerEvent) => {
+    this.pointerIds.delete(e.pointerId);
+    if (!this.pointerIds.size) { this.cameraPointer = false; this.endOrbit(); }
+  };
   private pointerUp = (e: PointerEvent) => {
+    const cameraPointer = this.cameraPointer;
+    this.pointerIds.delete(e.pointerId);
+    if (!this.pointerIds.size) this.cameraPointer = false;
     if (this.state.mode === 'adventure') {
+      if (e.button !== 0 || this.lookMode || cameraPointer) return;
       this.adventureClick(e);
       return;
     }
@@ -843,7 +876,7 @@ export class BangkokWorld {
         state.mode === 'adventure' &&
         Math.hypot(g.position.x - this.player.x, g.position.z - this.player.z) < 25;
     });
-    this.controls.enabled = state.mode === 'home' || state.mode === 'explore';
+    this.controls.enabled = this.canLookAround() || state.mode === 'home' || state.mode === 'explore';
     const core = this.spirit.children[0] as T.Mesh<T.BufferGeometry, T.MeshStandardMaterial>;
     core.material.color.set(state.boss ? '#d7a3f0' : '#75dccf');
     core.material.emissive.set(state.boss ? '#b27de3' : '#75dccf');
@@ -914,6 +947,9 @@ export class BangkokWorld {
     );
   }
   resetCamera() {
+    this.explorationView = null;
+    this.orbiting = false;
+    this.lookMode = false;
     this.interactingUntil = 0;
     this.setState(this.state);
   }
@@ -1009,7 +1045,22 @@ export class BangkokWorld {
       this.targetPosition.set(p.x + 3.5, 10, p.z + 12);
       this.targetLook.set(p.x, -.1, p.z - .4);
     }
-    if (now > this.interactingUntil) {
+    const looking = this.canLookAround();
+    this.controls.enabled = looking || this.state.mode === 'home' || this.state.mode === 'explore';
+    this.controls.enableDamping = !looking && !this.reducedMotion;
+    this.controls.mouseButtons.LEFT = looking && !this.lookMode ? null : T.MOUSE.ROTATE;
+    this.controls.mouseButtons.RIGHT = T.MOUSE.ROTATE;
+    this.controls.touches.ONE = looking && !this.lookMode ? null : T.TOUCH.ROTATE;
+    this.controls.maxPolarAngle = looking ? 1.3 : Math.PI / 2.2;
+    if (!looking) this.orbiting = false;
+    if (looking && this.orbiting) {
+      this.orbitDelta.copy(this.targetLook).sub(this.controls.target);
+      this.camera.position.add(this.orbitDelta);
+      this.controls.target.copy(this.targetLook);
+    }
+    if (looking && this.explorationView && !this.orbiting)
+      this.targetPosition.copy(this.targetLook).add(this.explorationView);
+    if (!this.orbiting && (looking || now > this.interactingUntil)) {
       const smooth = cameraBlend(rawMs / 1000, this.reducedMotion);
       this.camera.position.lerp(this.targetPosition, smooth);
       this.controls.target.lerp(this.targetLook, smooth);
@@ -1111,6 +1162,11 @@ export class BangkokWorld {
     this.renderer.render(this.scene, this.camera);
     if (import.meta.env.DEV && this.qualityFrames % 20 === 0) {
       this.host.dataset.frameMs = this.averageFrameMs.toFixed(1);
+      this.host.dataset.explorationCamera = JSON.stringify({
+        enabled: this.canLookAround(), lookMode: this.lookMode, custom: !!this.explorationView,
+        position: this.camera.position.toArray(), target: this.controls.target.toArray(),
+        offset: this.explorationView?.toArray() ?? null,
+      });
       this.host.dataset.cityAtmosphere = JSON.stringify(this.atmosphere.snapshot());
       this.host.dataset.graphicsQuality = this.qualityReduced ? 'low' : 'high';
       this.host.dataset.shadowsEnabled = String(this.renderer.shadowMap.enabled);
@@ -1395,6 +1451,7 @@ export class BangkokWorld {
     if (this.nearest && !this.adventurePaused) this.adventureCallbacks?.interact(this.nearest);
   }
   private clearKeys = () => {
+    this.pointerIds.clear(); this.cameraPointer = false; this.endOrbit();
     this.keys.clear();
     this.touchDirection = { x: 0, z: 0 };
   };
@@ -1477,12 +1534,9 @@ export class BangkokWorld {
         (this.keys.has('s') || this.keys.has('arrowdown') ? 1 : 0) -
         (this.keys.has('w') || this.keys.has('arrowup') ? 1 : 0);
       if (dx || dz) {
-        const len = Math.hypot(dx, dz);
-        const a = Math.atan2(8, 15);
-        const x = dx / len,
-          z = dz / len;
-        dx = x * Math.cos(a) + z * Math.sin(a);
-        dz = -x * Math.sin(a) + z * Math.cos(a);
+        const view = this.orbiting ? this.orbitDelta.copy(this.camera.position).sub(this.controls.target) : this.explorationView;
+        const direction = explorationDirection(dx, dz, view);
+        dx = direction.x; dz = direction.z;
       }
       const previous = this.player;
       if (dx || dz) this.player = stepPlayer(this.player, dx * dt * 4.5, dz * dt * 4.5);
@@ -1909,9 +1963,11 @@ export class BangkokWorld {
     window.removeEventListener('keyup', this.keyUp);
     window.removeEventListener('blur', this.clearKeys);
     this.controls.removeEventListener('start', this.handleOrbit);
+    this.controls.removeEventListener('end', this.endOrbit);
     this.controls.dispose();
     this.renderer.domElement.removeEventListener('pointerdown', this.pointerDown);
     this.renderer.domElement.removeEventListener('pointerup', this.pointerUp);
+    this.renderer.domElement.removeEventListener('pointercancel', this.cancelPointer);
     this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost);
     this.mixers.forEach((m) => {
       m.stopAllAction();

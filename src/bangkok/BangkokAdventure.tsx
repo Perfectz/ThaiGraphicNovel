@@ -150,6 +150,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
   const [journeyBoard, setJourneyBoard] = useState(false);
   const [journeyVisit, setJourneyVisit] = useState(false);
   const [mapArea, setMapArea] = useState<CityArea>('hotel');
+  const [lookMode, setLookMode] = useState(false);
   const [status, setStatus] = useState('loading');
   const [saveError, setSaveError] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -1149,7 +1150,13 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 </small>
               </div>
               <div className="rpg-explore-bar">
-                <span>WASD / arrows · Click ground to walk</span>
+                <span>{lookMode ? 'Drag to look · Pinch or scroll to zoom · Arrows move' : 'WASD / arrows · Click to walk · Right-drag to look'}</span>
+                <div className="rpg-camera-tools" aria-label="Exploration camera">
+                  <button aria-pressed={lookMode} onClick={() => {
+                    world.current?.setExplorationLook(!lookMode); setLookMode(!lookMode);
+                  }}>{lookMode ? 'Return to walking' : 'Look around'}</button>
+                  <button onClick={() => {world.current?.resetCamera();setLookMode(false);}}>Reset view</button>
+                </div>
                 {save.escort.stage === 'arrived' &&
                   Math.hypot(save.position.x + 40, save.position.z - 17.5) < 2.5 && (
                     <button className="bk-button" onClick={() => talkEscort(true)}>
