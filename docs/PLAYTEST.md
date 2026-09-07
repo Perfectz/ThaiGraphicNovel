@@ -7,7 +7,7 @@ This snapshot starts in the Sukhumvit hotel and includes eight places connected 
 1. Begin a new adventure, meet Su, and check in with Mali.
 2. Read the English meaning, listen to Thai, and try recording a reply. Text replies remain available.
 3. Follow the main objective to the Murmur in Lumphini. Fight beside Su to recover the ferry spark, then bring supper from Uncle Lek to Niran and face the Keeper in Old Town.
-4. In battle, inspect enemy plans, try different party word arts, and practise guarding or parrying.
+4. In battle, inspect enemy plans, try different party word arts, and practise guarding or parrying. The party now casts, heals, braces and reacts through distinct body gestures; Guard holds its defensive pose until that character's next turn. Reduced motion uses static stances.
 5. Board the ferry after the Keeper. Choose Explore Thonburi at arrival, read the landing notice, and deliver Niran's letter by following the canal directions. Two footbridges make a walkable loop; the landing has a return ferry.
 6. Reload and continue. Even a crossing in progress is saved. Progress belongs to this browser and this site address; it does not sync between devices.
 

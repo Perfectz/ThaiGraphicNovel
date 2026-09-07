@@ -396,7 +396,7 @@ export class RiverBattleStage {
       const spot = this.local(id);
       h.position.set(spot.x + (base.x - (id === 'patrick' ? -1.05 : 1.1)), base.y, spot.z + base.z);
       h.rotation.set(0, Math.PI / 2, hero.hp ? 0 : -1.15);
-      if (!reduced && action && b.event.source === id)
+      if (!reduced && action && b.event.source === id && ['strike', 'duet', 'parry'].includes(b.event.kind))
         h.position.x += Math.sin(Math.min(1, since / 0.95) * Math.PI) * 0.9;
       if (!reduced && action && b.event.target === id && b.event.kind === 'dodge')
         h.position.z += Math.sin((since / 0.95) * Math.PI) * 1.4;

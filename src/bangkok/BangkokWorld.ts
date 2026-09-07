@@ -24,6 +24,7 @@ import { lanternRevealRadius } from './lanternTrade';
 import { cityAreaAt } from './city';
 import { blocksCityView } from './cityVisibility';
 import { RiverBattleStage } from './RiverBattleStage';
+import { BattleGesture } from './BattleGesture';
 import type { Battle } from './expeditionCombat';
 import * as T from 'three';
 import { WorldQuality } from './WorldQuality';
@@ -90,6 +91,7 @@ export class BangkokWorld {
   private lastTime = 0;
   private elapsed = 0;
   private mixers: T.AnimationMixer[] = [];
+  private battleGestures: BattleGesture[] = [];
   private animated: Array<(time: number, dt: number) => void> = [];
   private riverBoats!: RiverBoats;
   private ferryPassengers!: FerryPassengers;
@@ -780,6 +782,7 @@ export class BangkokWorld {
         });
       }
       this.mixers.push(mixer);
+      this.battleGestures.push(new BattleGesture(actor, url === patrickUrl ? 'patrick' : 'su'));
       if (this.adventure) this.loadWalkClips();
       this.readyCount++;
       if (this.readyCount === 2) this.statusCallback('ready');
@@ -1050,10 +1053,11 @@ export class BangkokWorld {
         object.visible = true;
       });
     }
+    this.battleGestures.forEach(g => g.clear());
     this.walkClips.forEach(({ idle, walk, player }) => {
       if (walk) {
         const moving =
-          this.state.mode === 'adventure' &&
+          this.state.mode === 'adventure' && !this.combat &&
           ((this.isWalking && !this.adventurePaused) ||
             (player ? !!this.staging?.playerPath.length : !!this.staging?.path.length));
         const weight = this.reducedMotion
@@ -1069,6 +1073,9 @@ export class BangkokWorld {
       this.particles.rotation.y = this.elapsed * 0.009;
     }
     this.combatStage.spirits.updateWorld(this.elapsed, this.reducedMotion);
+    this.battleGestures.forEach(g => g.apply(this.combat, this.elapsed, this.reducedMotion));
+    if (import.meta.env.DEV)
+      this.host.dataset.battleGestures = JSON.stringify(this.battleGestures.map(g => g.snapshot()));
     const since = this.elapsed - this.hitAt;
     if (since < 1.4) {
       this.burst.children.forEach((s, i) => {
