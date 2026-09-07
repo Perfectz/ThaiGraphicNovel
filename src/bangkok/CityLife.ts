@@ -4,7 +4,8 @@ import { trainPosition, steamPoint } from './cityMotion';
 
 /** Moving scenery is grouped apart from static district batches. No collision or quest state. */
 export class CityLife {
-  private train = new T.Group();
+  readonly train = new T.Group();
+  readonly trainFallback = new T.Group();
   private market = new T.Group();
   private park = new T.Group();
   private lanterns: T.Group[] = [];
@@ -46,6 +47,10 @@ export class CityLife {
     this.box(this.train, [0.32, 0.64, 1.35], [0, 0.62, 0], '#46535c');
     this.train.position.set(-43, 4.62, 9.3);
     batch(this.train);
+    this.trainFallback.name = 'skytrain-fallback';
+    this.trainFallback.userData.animated = true;
+    for (const child of [...this.train.children]) this.trainFallback.add(child);
+    this.train.add(this.trainFallback);
     for (let i = 0; i < 9; i++) {
       const x = 24 + i * 3,
         z = 12 + (x % 2) * 2;

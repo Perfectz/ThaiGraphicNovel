@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { CityRailway } from './CityRailway';
 import { CityArchive } from './CityArchive';
 import { archiveRooms, archiveFloors } from './archiveLayout';
 import { groupHotelNorthWall } from './HotelCutaway';
@@ -44,6 +45,7 @@ export class CityScenery {
   readonly backdrop: CityBackdrop;
   readonly props: CityProps;
   readonly life: CityLife;
+  readonly railway: CityRailway;
   readonly landmarks: CityLandmarks;
   readonly archive: CityArchive;
   readonly shophouses = new CityShophouses();
@@ -182,6 +184,14 @@ export class CityScenery {
     );
     this.props = new CityProps(this.chunks, batch);
     this.life = new CityLife(this.chunks, batch);
+    const street = this.chunks.get('sukhumvit')!;
+    this.railway = new CityRailway(
+      street,
+      street.getObjectByName('guideway-fallback') as T.Group,
+      this.life.train,
+      this.life.trainFallback,
+      batch,
+    );
     this.evening = new CityEvening(this.chunks, batch);
     this.groundLight.build();
   }
@@ -569,10 +579,15 @@ export class CityScenery {
         'modern',
       ),
     );
-    for (let x = -60; x <= -32; x += 7) this.box(g, [0.5, 4.3, 0.8], [x, 2.1, 9.3], '#687a80');
-    this.box(g, [30, 0.35, 2.7], [-46, 4.3, 9.3], '#8c9c9d');
-    this.box(g, [30, 0.1, 0.12], [-46, 4.6, 8.6], '#364955');
-    this.box(g, [30, 0.1, 0.12], [-46, 4.6, 10], '#364955');
+    const railway = new T.Group();
+    railway.name = 'guideway-fallback';
+    railway.userData.animated = true;
+    g.add(railway);
+    for (let x = -60; x <= -32; x += 7) this.box(railway, [0.5, 4.3, 0.8], [x, 2.1, 9.3], '#687a80');
+    this.box(railway, [30, 0.35, 2.7], [-46, 4.3, 9.3], '#8c9c9d');
+    this.box(railway, [30, 0.1, 0.12], [-46, 4.6, 8.6], '#364955');
+    this.box(railway, [30, 0.1, 0.12], [-46, 4.6, 10], '#364955');
+    this.batch(railway);
     for (const x of [-56, -47, -34]) {
       this.lamp(g, x, 15.9);
       this.tree(g, x, 18, 0.65);
@@ -771,6 +786,7 @@ export class CityScenery {
     this.life.clipCookingSteam(this.foodStall.cookingVisible);
   }
   dispose() {
+    this.railway.dispose();
     this.hotelFurnishings.dispose();
     this.foodStall.dispose();
     this.evening.dispose();

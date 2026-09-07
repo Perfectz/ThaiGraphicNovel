@@ -134,6 +134,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
   const [reunionHost, setReunionHost] = useState<ActorId | null>(null);
   const [journal, setJournal] = useState(false);
   const [map, setMap] = useState(false);
+  const [objectiveDetails, setObjectiveDetails] = useState(false);
   const [journeyBoard, setJourneyBoard] = useState(false);
   const [journeyVisit, setJourneyVisit] = useState(false);
   const [mapArea, setMapArea] = useState<CityArea>('hotel');
@@ -1028,13 +1029,21 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
           !archiveHost &&
           !memoryHost && (
             <>
-              <aside className="rpg-objective">
+              <aside className={`rpg-objective${objectiveDetails ? ' details-open' : ''}`}>
                 <small>
                   {activeJourney && !activeJourney.paused
                     ? `TRAVEL MISSION ${activeJourney.id} · STOP ${activeJourney.stop + 1}/3`
                     : `${followedStory.kind.toUpperCase()} · ${followedStory.title.toUpperCase()}`}
                 </small>
-                <h2>{goal.text}</h2>
+                <button
+                  className="rpg-objective-toggle"
+                  aria-expanded={objectiveDetails}
+                  aria-controls="rpg-objective-text"
+                  onClick={() => setObjectiveDetails((v) => !v)}
+                >
+                  {objectiveDetails ? 'Hide quest details ▴' : 'Quest details ▾'}
+                </button>
+                <h2 id="rpg-objective-text">{goal.text}</h2>
                 {(!activeJourney || activeJourney.paused) && followedStory.destinations.length > 0 && (
                   <button onClick={() => walkQuest(followedStory.id, followedStory.destinations[0])}>
                     Walk to {followedStory.destinations[0].label} ↗

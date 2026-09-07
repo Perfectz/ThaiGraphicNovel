@@ -1052,6 +1052,12 @@
     bottom: 10px;
   }
 }
+.rpg-objective .rpg-objective-toggle { display: none; }
+@media (max-width: 700px) {
+  .rpg-objective .rpg-objective-toggle { display: block; font-size: 10px; padding: 7px 0; }
+  .rpg-objective:not(.details-open) h2,
+  .rpg-objective:not(.details-open) .rpg-story-encounters { display: none; }
+}
 .city-map {
   height: 280px;
   background: radial-gradient(ellipse at 50% 20%, #245867, #172e37 70%);

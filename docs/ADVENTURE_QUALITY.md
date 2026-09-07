@@ -18,7 +18,7 @@ The standard is a coherent Thai-learning adventure, not the number of menus or l
 | Exploration beyond errands | Archive adds five connected rooms, three records, a deduction and permission-based dialogue | Local desktop and phone browser runs passed the complete quest, microphone flow and reloads; model fallback was confirmed off |
 | Speak with understood intent | English previews, reference audio and optional recorded replies | Full phrase pack needs fluent-speaker review; live pronunciation coaching is not deployed |
 | Worth an hour every day | Thirty authored outings and persistent review records exist; discovered city memories offer contextual return visits using the same spaced recall record | No hour-long learner study or month-long retention evidence; content breadth and transfer need further work |
-| Beautiful, coherent 3D presentation | Original Blender landmarks and connected rendered districts | Reused character models, limited animation variety and uneven staging remain visible |
+| Beautiful, coherent 3D presentation | Original Blender landmarks and connected rendered districts; Sukhumvit now has a modeled two-car elevated train and guideway | Reused character models, limited animation variety and uneven staging remain visible |
 
 ## Archive verification contract
 
@@ -31,3 +31,7 @@ Verify a real walk from the hotel, permission and cancellation, both directions 
 ## Return-visit verification contract
 
 `fieldReview.ts` exposes only discovered, due memories not yet reviewed today. `RecallLine` is shared with travel missions: English intent precedes Thai, hinted attempts cannot claim unaided recall, and spoken attempts remain separate from the memory self-check. Only confirming a review writes its date. Field reviews never change adventure rewards. Verify discovery, cancellation, recording/playback, reload, due markers, a subsequent due visit, and a hinted result on desktop and phone using `scripts/test-field-review.mjs`. The test uses synthetic microphone input and controlled review dates, not a longitudinal human learning study. Recheck the shared journey flow with `scripts/test-journey-adaptation.mjs --only=familiar-hotel`. Evidence is under `artifacts/field-review/`.
+
+## Sukhumvit railway verification contract
+
+Parse the actual exported geometry to verify its train motion envelope, wheel height, pier footprints and download budget. Browser checks must confirm the requested model loaded, walk from the hotel to the street and Dao, exercise normal and reduced motion, preserve fallbacks after a failed download, and return using the city pass before reloading. On phones, verify the compact quest card retains navigation and its details can be reopened. Run `tests/cityRailway.test.ts` and `scripts/test-skytrain.mjs`; store evidence under `artifacts/blender-skytrain/`. This improves the identity and visibility of Sukhumvit but does not resolve the larger geography, animation or learning-study gaps above.
