@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { buildThonburi } from './CityThonburi';
 import { CityRailway } from './CityRailway';
+import { CanalHouses } from './CanalHouses';
 import { CityArchive } from './CityArchive';
 import { archiveRooms, archiveFloors } from './archiveLayout';
 import { groupHotelNorthWall } from './HotelCutaway';
@@ -47,6 +48,7 @@ export class CityScenery {
   readonly props: CityProps;
   readonly life: CityLife;
   readonly railway: CityRailway;
+  readonly canalHouses: CanalHouses;
   readonly landmarks: CityLandmarks;
   readonly archive: CityArchive;
   readonly shophouses = new CityShophouses();
@@ -119,6 +121,7 @@ export class CityScenery {
       sign:(g,text,p,color,width)=>{this.sign(g,text,p,color,width,false,1,0,false);},
       cutaway:g=>this.cutaway(g),tree:(g,x,z,s)=>this.tree(g,x,z,s),lamp:(g,x,z)=>this.lamp(g,x,z),
     });
+    this.canalHouses = new CanalHouses(this.chunks.get('thonburi')!, batch, root => this.cutaway(root));
     const archive = this.chunks.get('archive')!;
     for (const r of archiveFloors)
       this.surface(archive, [r.w, 0.1, r.d], [r.x + r.w / 2, -0.01, r.z + r.d / 2], 'teak', '#b8a179');
@@ -792,6 +795,7 @@ export class CityScenery {
     this.life.clipCookingSteam(this.foodStall.cookingVisible);
   }
   dispose() {
+    this.canalHouses.dispose();
     this.railway.dispose();
     this.hotelFurnishings.dispose();
     this.foodStall.dispose();

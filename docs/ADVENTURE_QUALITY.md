@@ -22,7 +22,7 @@ The standard is a coherent Thai-learning adventure, not the number of menus or l
 
 ## Thonburi assessment
 
-The Thonburi addition gives the ferry a playable destination and a return route. Its delivery asks the player to request repetition, identify a footbridge, and find coloured shutters beside a tree. It moves closer to the reference criterion that words and observation lead somewhere in the world. The quarter still uses simple timber architecture and a reused character rig; its visual finish and activity density remain below the target. Canal-side timber houses and everyday boat traffic are visual references, not a geographic recreation: [Thonburi canal observations](https://www.travelfish.org/sight_profile/thailand/bangkok_and_surrounds/bangkok/bangkok/1785).
+The Thonburi addition gives the ferry a playable destination and a return route. Its delivery asks the player to request repetition, identify a footbridge, and find coloured shutters beside a tree. It moves closer to the reference criterion that words and observation lead somewhere in the world. Four original Blender timber-house instances now replace the simple blocks, with louvred shutters, doors, carved trim and tiled roofs. Separate facade and roof cutaways preserve the blue-shutter landmark during conversation. Repeated house forms, a reused character rig, sparse waterside detail and limited activity density still keep this quarter below the target. Canal-side timber houses and everyday boat traffic are visual references, not a geographic recreation: [Thonburi canal observations](https://www.travelfish.org/sight_profile/thailand/bangkok_and_surrounds/bangkok/bangkok/1785).
 
 ## Thonburi verification contract
 

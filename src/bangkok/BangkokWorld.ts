@@ -1105,6 +1105,7 @@ export class BangkokWorld {
       );
       this.host.dataset.cityEvening = JSON.stringify(this.cityScenery.evening.snapshot());
       this.host.dataset.cityRailway = JSON.stringify(this.cityScenery.railway.snapshot());
+      this.host.dataset.canalHouses = JSON.stringify(this.cityScenery.canalHouses.snapshot());
       this.host.dataset.travelLantern = JSON.stringify(this.travelLantern?.snapshot() ?? null);
       this.host.dataset.visibleMemories = JSON.stringify(
         [...this.questMarkers].filter(([id, marker]) => discoveryFor(id) && marker.visible).map(([id]) => id),

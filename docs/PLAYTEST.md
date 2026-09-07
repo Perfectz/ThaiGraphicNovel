@@ -21,6 +21,8 @@ Sukhumvit's elevated railway now uses an original Blender train and guideway, wi
 
 Found city memories now have return visits. The Journal lists discovered memories ready for recall; their nearby markers turn warm gold. Walk back, read your intention in English, and try the Thai before revealing it. Recording, reference playback, hints and an untimed self-check are available. Reviews update the same spaced practice record as travel missions, while the original discovery treasure is awarded only once. A reviewed place rests for today; words needing help remain due and can be revisited again. Recordings are speaking practice, not an automatic pronunciation grade.
 
+Thonburi's four canal homes now use detailed Blender timber architecture. Look for their distinct shutter colours while following the delivery directions. The blue frontage remains visible when speaking with Suda; roof and wall cutaways keep the party in view independently.
+
 Report the device/browser, what you tried, what you expected, and what happened in the repository's Issues tab. Useful feedback includes confusing navigation, unreadable dialogue, audio problems, difficult controls, and whether speaking felt useful.
 
 The public snapshot uses local microphone recording and prerecorded reference voices. The optional local Whisper/Realtime coaching services are not deployed. No visitor needs an OpenAI key. Audio is AI-generated; a fluent Thai speaker has not reviewed the full pack. Physical-device performance and an hour-long learning session remain playtest questions.

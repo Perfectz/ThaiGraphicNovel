@@ -50,10 +50,14 @@ export function buildThonburi(
   for (const h of canalHouses) {
     const x = h.x + h.w / 2,
       z = h.z + h.d / 2;
-    box(root, [h.w, 0.25, h.d], [x, 0.13, z], '#755338');
+    const fallback = new T.Group();
+    fallback.name = `thonburi-${h.id}-fallback`;
+    fallback.userData.animated = true;
+    root.add(fallback);
+    box(fallback, [h.w, 0.25, h.d], [x, 0.13, z], '#755338');
     const house = new T.Group();
     house.name = `thonburi-${h.id}-house`;
-    root.add(house);
+    fallback.add(house);
     box(house, [h.w, 2.75, h.d], [x, 1.6, z], '#96734f');
     for (let y = 0.45; y < 2.85; y += 0.23)
       for (const side of [-1, 1])

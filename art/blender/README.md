@@ -90,6 +90,14 @@ Keep `RiverKeeper`, `LanternEcho`, `MurmurWisp`, the named faces, and six articu
 
 Verify `node --test tests/riverSpirits.test.ts tests/conversationStaging.test.ts tests/expeditionCombat.test.ts tests/worldResources.test.ts`, build, and run `node scripts/test-river-spirits.mjs` plus `node scripts/test-murmur-continuity.mjs` at localhost:5188. The latter walks from the checked-in hotel to the story encounter, checks separated conversation positions, reloads combat, records a reply and wins through the normal commands. Add `--phone` for the narrow viewport. Evidence lives under `artifacts/blender-river-spirits/` and `artifacts/murmur-continuity/`.
 
+## Thonburi canal houses
+
+`thonburi-canal-house.blend` contains the original timber-house kit: horizontal weatherboards, paneled doors, louvred shutters and hinges, transom fretwork, porch braces, individual clay tiles and carved gable trim. Regenerate with Blender 5.1 and `--background --python scripts/blender/build_canal_house.py`. The GLB contains 39,614 triangles and is 2,579,892 bytes; studio floor, camera and lights stay in the editable scene only.
+
+Keep `CanalHouse` and its six structural groups: `HouseBase`, `HouseFront`, `HouseBack`, `HouseEast`, `HouseWest`, `HouseRoof`. The normalized footprint is 8 by 5 metres, scaled only in X/Z to the four collision rectangles in `thonburi.ts`. Doors keep their height. Below head height the geometry stays inside those rectangles; elevated roof overhangs do not narrow walking lanes. `CanalHouses` loads once, batches before cloning, shares geometry, and gives each instance its own `ShutterPaint` material. Roof and four facades cut away independently; the base stays visible. The enclosing fallback group prevents per-frame cutaway updates from reviving the replaced primitive house. Late downloads are disposed after world teardown.
+
+Verify `tests/canalHouses.test.ts`, the Thonburi/city/visibility/resource/staging tests, build, and `scripts/test-canal-houses.mjs` (desktop, `--phone`, and `--fallback`). The focused browser test walks to Suda from the canal bridge, verifies the exact GLB response and checks that the blue frontage remains visible during conversation. Recheck `scripts/test-thonburi.mjs` for the complete letter delivery and both ferry directions. Evidence lives under `artifacts/canal-houses/` and `artifacts/thonburi/`.
+
 ## Sukhumvit elevated railway
 
 `sukhumvit-railway.blend` contains an original two-car train and elevated guideway. Rebuild with Blender 5.1 and `--background --python scripts/blender/build_skytrain.py`. The script exports game origins before elevating the train for the editable studio scene. Current export: 24,556 triangles, 1,681,492 bytes and 18 meshes before runtime batching, without external textures. Studio lighting, floor and camera are excluded.
