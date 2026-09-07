@@ -16,7 +16,8 @@ test('crossing stays on the river, moves bow-first, and pauses elapsed time whil
     assert(b.z < a.z);
     assert(a.z <= -13);
     assert(a.y === -0.6);
-    assert(a.yaw >= 0 && a.yaw < 0.23);
+    assert(a.yaw >= 0 && a.yaw <= Math.atan2(24,18));
+    const reverse=crossingPose(1-p,true);assert(Math.abs(reverse.x-a.x)<1e-7);assert(Math.abs(reverse.z-a.z)<1e-7);
   }
   assert.equal(crossingTime(5, 3, true), 5);
   assert.equal(crossingTime(5, 3, false), 5.25);

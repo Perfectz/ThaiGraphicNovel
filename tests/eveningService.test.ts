@@ -48,7 +48,7 @@ test('new table is solid, keeps every actor reachable, and recovers Patrick and 
   assert.equal(restored.escort.stage, 'following');
   assert.deepEqual(restored.flags, s.flags);
   assert.equal(restored.xp, s.xp);
-  for (const actor of actors) assert(findPath(hotelStart, actor).length, actor.name);
+  for (const actor of actors) assert(findPath(actor.z < -30 ? {x:17,z:-41} : hotelStart, actor).length, actor.name);
 });
 test('Blender serving parts fit their supports and keep a small geometry budget', async () => {
   const bytes = readFileSync('public/bangkok/models/evening-service.glb');

@@ -16,6 +16,7 @@ import { discoveries, discoveryFor, hasRiverCharm, type DiscoveryId } from './di
 import { canalFlags } from './canalErrand.ts';
 import {archiveSites,type ArchiveActor} from './archiveLayout.ts';
 import {archiveFlags,normalizeArchiveFlags} from './archiveQuest.ts';
+import { thonburiSites, thonburiFlags, thonburiSite, completeThonburi, acrossRiver, onWestBank, eastLanding, type ThonburiActor, type RiverBank } from './thonburi.ts';
 import { eveningFlags, normalizeEveningFlags } from './eveningOuting.ts';
 import { reunionFlags, normalizeReunionFlags } from './reunion.ts';
 import { freshLanternTrade, normalizeLanternTrade, type LanternTrade } from './lanternTrade.ts';
@@ -34,6 +35,7 @@ import {
 export type { Battle } from './expeditionCombat.ts';
 export type Point = { x: number; z: number };
 export type ActorId =
+  | ThonburiActor
   | ArchiveActor
   | DiscoveryId
   | 'su'
@@ -67,6 +69,7 @@ actors.push(
   { id: 'artisan', name: 'Arun · lantern maker', x: 29, z: 29, color: '#ccb7df' },
 );
 actors.push(...archiveSites);
+actors.push(...thonburiSites);
 actors.push(...discoveries.map((d) => ({ id: d.id, name: d.name, x: d.x, z: d.z, color: d.color })));
 export const RPG_KEY = 'bangkok-rift-adventure-v1';
 export type AdventureSave = {
@@ -83,6 +86,7 @@ export type AdventureSave = {
   xp: number;
   learned: string[];
   battle: Battle | null;
+  passage?: RiverBank;
   journeys: JourneySave;
   escort: EscortSave;
   lantern: LanternTrade;
@@ -140,6 +144,7 @@ export function normalizeAdventure(value: unknown): AdventureSave {
   fresh.lantern = normalizeLanternTrade(s.lantern);
   if (questIds.includes(s.trackedQuest as QuestId)) fresh.trackedQuest = s.trackedQuest;
   const flags = [
+    ...thonburiFlags,
     ...archiveFlags,
     ...eveningFlags,
     ...reunionFlags,
@@ -165,6 +170,9 @@ export function normalizeAdventure(value: unknown): AdventureSave {
   fresh.flags = normalizeArchiveFlags(fresh.flags);
   fresh.flags = normalizeEveningFlags(fresh.flags);
   fresh.flags = normalizeReunionFlags(fresh.flags);
+  if (!fresh.flags.includes('departed')) fresh.flags = fresh.flags.filter(f=>!thonburiFlags.includes(f as typeof thonburiFlags[number]));
+  if (!fresh.flags.includes('canal-post')) fresh.flags = fresh.flags.filter(f=>f!=='canal-junction'&&f!=='blue-house');
+  if (!fresh.flags.includes('canal-junction')) fresh.flags = fresh.flags.filter(f=>f!=='blue-house');
   if (!fresh.flags.includes('canal-accepted'))
     fresh.flags = fresh.flags.filter((f) => !canalFlags.includes(f as (typeof canalFlags)[number]));
   else if (!fresh.flags.includes('canal-paper') || !fresh.flags.includes('canal-frame'))
@@ -174,11 +182,13 @@ export function normalizeAdventure(value: unknown): AdventureSave {
     : [];
   if (s.position && walkable(s.position)) fresh.position = { x: s.position.x, z: s.position.z };
   else if (s.position) fresh.position = recoverCityPosition(s.position) ?? fresh.position;
+  if(onWestBank(fresh.position) && !fresh.flags.includes('departed')) fresh.position={...eastLanding};
   fresh.visited = Array.isArray(s.visited)
     ? [...new Set(s.visited.filter((id) => cityAreas.some((a) => a.id === id)))]
     : ['riverside'];
   const currentArea = cityAreaAt(fresh.position);
   if (currentArea && !fresh.visited.includes(currentArea)) fresh.visited.push(currentArea);
+  if((s.passage==='thonburi'||s.passage==='riverside')&&fresh.flags.includes('keeper')&&!s.battle) fresh.passage=s.passage;
   const b = s.battle;
   if (b && ['murmur', 'keeper', 'sentinel'].includes(b.id) && (!has(fresh, b.id) || b.practice === true))
     fresh.battle = restoreBattle(
@@ -215,6 +225,7 @@ export function flag(s: AdventureSave, id: string): AdventureSave {
   return has(s, id) ? s : { ...s, flags: [...s.flags, id] };
 }
 export function completeConversation(s: AdventureSave, id: ActorId): AdventureSave {
+  if(thonburiSite(id))return completeThonburi(s,id as ThonburiActor);
   if (has(s, id)) return s;
   const find = discoveryFor(id);
   if (find)
@@ -315,6 +326,7 @@ export function moveAdventure(s: AdventureSave, position: Point): AdventureSave 
 export function transitTo(s: AdventureSave, id: CityArea): AdventureSave {
   if (!has(s, 'station') || !s.visited.includes(id) || s.battle || s.escort.stage === 'following') return s;
   const destination = cityAreas.find((a) => a.id === id);
+  if(destination && acrossRiver(s.position,destination.center)) return s;
   return destination ? moveAdventure(s, destination.center) : s;
 }
 export function objective(s: AdventureSave): { actor: ActorId; text: string } {

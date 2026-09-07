@@ -5,8 +5,10 @@ import { escortStatus } from './stationEscort.ts';
 import { eveningHost, eveningStatus } from './eveningOuting.ts';
 import { lanternName, lanternPrices } from './lanternTrade.ts';
 import { reunionDestinations, reunionStatus } from './reunion.ts';
+import { onWestBank } from './thonburi.ts';
 
 export const questIds = [
+  'thonburi',
   'archive',
   'ferry',
   'reunion',
@@ -56,6 +58,12 @@ export function questJournal(s: AdventureSave): QuestEntry[] {
       destinations: has('departed') ? [] : [destination(main.actor)],
     },
   ];
+  if (has('departed')) entries.push({
+    id:'thonburi',title:'The House Across the Water',kind:'Exploration story · Thonburi',complete:has('blue-house'),
+    text:has('blue-house')?'Suda received Niran’s letter. Explore the other footbridge or take the ferry home.':!onWestBank(s.position)?'Niran has a letter for the other bank. Take the ferry to Thonburi.':!has('canal-post')?'Read the landing notice with Su. Find the address on Niran’s sealed letter.':'Follow the quay left, cross the narrow bridge, then turn right. Find blue shutters beside the tamarind tree on the far quay.',
+    purpose:'Ask for repeated directions, understand a route and find a house by observing its surroundings.',reward:'80 XP · 20 coins · Tea · A welcome on the other bank',
+    destinations:has('blue-house')?[]:[destination(!onWestBank(s.position)?'ferry':!has('canal-post')?'canal-post':'canal-junction')],
+  });
   if (has('departed'))
     entries.push({
       id: 'reunion',
@@ -183,6 +191,7 @@ export function trackedQuest(s: AdventureSave): QuestEntry {
   const entries = questJournal(s);
   return (
     entries.find((q) => q.id === s.trackedQuest && !q.complete) ??
+    entries.find((q) => onWestBank(s.position) && q.id === 'thonburi' && !q.complete) ??
     entries.find((q) => q.id === 'reunion' && !q.complete) ??
     entries[0]
   );

@@ -2,6 +2,7 @@ import {chromium} from 'playwright-core';
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {freshAdventure,walkable} from '../src/bangkok/adventure.ts';
+import {cityAreas} from '../src/bangkok/city.ts';
 const phone=process.argv.includes('--phone'),base=process.env.PLAYTEST_BASE_URL??'http://127.0.0.1:5188/';
 const out=`artifacts/city-atlas/${base.includes('127.0.0.1')?'local':'public'}-${phone?'phone':'desktop'}`;
 await mkdir(out,{recursive:true});const report={finished:false,base,phone,steps:[],errors:[]};
@@ -17,7 +18,7 @@ async function choose(x,z){await chart().scrollIntoViewIfNeeded();const p=await 
 async function arrive(x,z){await page.getByRole('button',{name:'Walk this route →',exact:true}).click();await page.waitForFunction(p=>{const s=JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1'));return Math.hypot(s.position.x-p.x,s.position.z-p.z)<.25;},{x,z},{timeout:180000});}
 try{
  await page.goto(base,{waitUntil:'domcontentloaded'});await page.getByRole('button',{name:/Continue adventure/}).click();await page.waitForFunction(()=>!document.querySelector('.bk-loading'));
- const before=await saved();await open('lumphini');assert.equal(await page.locator('.atlas-districts button').count(),7);
+ const before=await saved();await open('lumphini');assert.equal(await page.locator('.atlas-districts button').count(),cityAreas.length);
  await choose(-23,32);assert.equal(await chart().getAttribute('data-route-status'),'blocked');assert(await page.getByRole('button',{name:'Walk this route →',exact:true}).isDisabled());
  await choose(-13.5,35);assert.equal(await chart().getAttribute('data-route-status'),'ready');const points=(await page.getByTestId('walking-route').getAttribute('points')).split(' ').map(s=>{const[x,z]=s.split(',').map(Number);return{x,z};});assert(points.every(walkable));
  await chart().focus();await page.keyboard.press('ArrowRight');assert.equal(await chart().getAttribute('data-target'),'-13,35');await page.keyboard.press('ArrowLeft');

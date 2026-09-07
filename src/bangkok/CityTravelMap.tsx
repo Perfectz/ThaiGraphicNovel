@@ -13,6 +13,7 @@ import { archiveFloors } from './archiveLayout';
 import { atlasBounds, atlasRoute, atlasView } from './cityAtlas';
 import type { AdventureSave } from './adventure';
 import './cityAtlas.css';
+import { thonburiFloors } from './thonburi';
 
 export default function CityTravelMap({
   save,
@@ -91,7 +92,7 @@ export default function CityTravelMap({
         >
           <title>Bangkok Rift walking chart</title>
           <rect x={-200} y={-100} width={500} height={250} fill="#142e34" />
-          <rect x={-70} y={-15} width={170} height={8.5} fill="#275765" />
+          <rect x={-70} y={-79} width={170} height={72.5} fill="#275765" />
           <rect x={-47} y={41.4} width={97} height={3.3} fill="#275765" />
           <text x={-9} y={-10} className="atlas-water">
             CHAO PHRAYA
@@ -100,7 +101,7 @@ export default function CityTravelMap({
             SOUTHERN CANAL
           </text>
           {cityAreas
-            .filter((a) => a.id !== 'archive' && a.id !== 'riverside')
+            .filter((a) => a.id !== 'archive' && a.id !== 'riverside' && a.id !== 'thonburi')
             .map((a) => (
               <rect
                 key={a.id}
@@ -115,7 +116,7 @@ export default function CityTravelMap({
                 strokeWidth={0.15}
               />
             ))}
-          {[...cityRoads, ...riversideFloors].map((r, i) => (
+          {[...cityRoads, ...riversideFloors, ...thonburiFloors].map((r, i) => (
             <rect
               key={`road-${i}`}
               x={r.x}
@@ -174,7 +175,7 @@ export default function CityTravelMap({
                 {a.id === 'hotel' ? 'HOTEL' : a.id === 'riverside' ? 'RIVERSIDE' : a.id.toUpperCase()}
               </text>
             ))}
-          {route.status === 'ready' && (
+          {(route.status === 'ready' || route.status === 'ferry') && (
             <polyline
               data-testid="walking-route"
               points={route.points.map((p) => `${p.x},${p.z}`).join(' ')}
@@ -221,12 +222,19 @@ export default function CityTravelMap({
         <p role="status">
           {route.status === 'ready'
             ? 'A route through the streets is ready.'
-            : route.status === 'arrived'
-              ? 'Your party is already here.'
-              : 'That point is blocked. Choose an open path or doorway.'}
+            : route.status === 'ferry'
+              ? save.flags.includes('keeper')
+                ? 'This destination is across the river. Walk to the landing and take the ferry.'
+                : 'Restore the last ferry in the main story to reach the other bank.'
+              : route.status === 'arrived'
+                ? 'Your party is already here.'
+                : 'That point is blocked. Choose an open path or doorway.'}
         </p>
-        <button disabled={route.status !== 'ready'} onClick={() => walk(route.end)}>
-          Walk this route →
+        <button
+          disabled={route.status !== 'ready' && route.status !== 'ferry'}
+          onClick={() => walk(route.end)}
+        >
+          {route.status === 'ferry' ? 'Walk to the ferry →' : 'Walk this route →'}
         </button>
       </div>
     </div>

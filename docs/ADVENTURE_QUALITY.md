@@ -13,12 +13,22 @@ The standard is a coherent Thai-learning adventure, not the number of menus or l
 | Requirement | Evidence | Remaining gap |
 | --- | --- | --- |
 | Start at a Sukhumvit hotel | Fresh campaign browser run begins with Su and Mali | More ambient life and personal reasons to return |
-| Travel continuously among Bangkok-inspired places | Collision/path checks cover every district and contact; the chart uses actual streets and obstacle-aware routes to freely selected walking points | Compact fictional geography; transitions and district scale still need expansion |
+| Travel among Bangkok-inspired places | Eight areas now include an explorable Thonburi canal quarter; the ferry moves the saved party between banks, with walking routes within each bank and a two-bridge canal loop | Compact fictional geography; district scale and activities still need expansion |
 | Battles belong to the main story | Fresh local and public campaign runs beat Murmur and Keeper and board the ferry without practice; Murmur now retains its own Blender silhouette from exploration into combat | More encounters and contextual tactics; greater animation variety |
 | Exploration beyond errands | Archive adds five connected rooms, three records, a deduction and permission-based dialogue | Local desktop and phone browser runs passed the complete quest, microphone flow and reloads; model fallback was confirmed off |
 | Speak with understood intent | English previews, reference audio and optional recorded replies | Full phrase pack needs fluent-speaker review; live pronunciation coaching is not deployed |
 | Worth an hour every day | Thirty authored outings and persistent review records exist; discovered city memories offer contextual return visits using the same spaced recall record | No hour-long learner study or month-long retention evidence; content breadth and transfer need further work |
 | Beautiful, coherent 3D presentation | Original Blender landmarks and connected rendered districts; Sukhumvit now has a modeled two-car elevated train and guideway | Reused character models, limited animation variety and uneven staging remain visible |
+
+## Thonburi assessment
+
+The Thonburi addition gives the ferry a playable destination and a return route. Its delivery asks the player to request repetition, identify a footbridge, and find coloured shutters beside a tree. It moves closer to the reference criterion that words and observation lead somewhere in the world. The quarter still uses simple timber architecture and a reused character rig; its visual finish and activity density remain below the target. Canal-side timber houses and everyday boat traffic are visual references, not a geographic recreation: [Thonburi canal observations](https://www.travelfish.org/sight_profile/thailand/bangkok_and_surrounds/bangkok/bangkok/1785).
+
+## Thonburi verification contract
+
+`thonburi.ts` shares floor rectangles, house footprints, contacts, delivery rules and landing positions across navigation, rendering and saves. Require the Keeper victory and proximity before boarding. Persist a crossing destination; arrival moves the party without replay rewards. Cross-river map routes lead to the departure landing, while the city pass cannot jump between banks. Existing east-bank reunion progress retains its objective.
+
+Run the city, atlas, ferry and Thonburi unit checks, build, and `scripts/test-thonburi.mjs` on desktop and phone. Verify a resumed outward crossing, actual arrival, cancellation, wrong-house rejection, both direction steps, a spoken reply, one-time delivery rewards, reload, walking both footbridges and returning by ferry. Recheck the fresh main-story route. Store evidence under `artifacts/thonburi/`. Voice decoding confirms playable files, not native-speaker review or learning efficacy.
 
 ## Archive verification contract
 

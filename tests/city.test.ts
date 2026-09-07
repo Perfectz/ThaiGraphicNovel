@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cityAreas, cityAreaAt, cityObstacles, hotelStart } from '../src/bangkok/city.ts';
 import { actors, freshAdventure, normalizeAdventure, findPath, followPath, walkable, moveAdventure, transitTo, completeConversation, flag, startPracticeBattle } from '../src/bangkok/adventure.ts';
+import {onWestBank,acrossRiver,westLanding,beginRiverCrossing,arriveAcrossRiver,eastLanding} from '../src/bangkok/thonburi.ts';
 test('the adventure starts in the Sukhumvit hotel, with only that district discovered',()=>{
  const s=freshAdventure();assert.deepEqual(s.position,hotelStart);assert.equal(cityAreaAt(s.position),'hotel');assert.deepEqual(s.visited,['hotel']);assert(walkable(s.position));
 });
-test('every district and NPC is reachable on foot from the hotel, with no collision crossing',()=>{
+test('every district and NPC has a continuous foot route from its bank landing, with no collision crossing',()=>{
  for(const destination of [...cityAreas.map(a=>({...a.center,name:a.name})),...actors]) {
   assert(walkable(destination),`${destination.name} stands on reachable ground`);
-  const route=findPath(hotelStart,destination);assert(route.length,`Foot route to ${destination.name}`);
+  const route=findPath(onWestBank(destination)?{x:17,z:-41}:hotelStart,destination);assert(route.length,`Foot route to ${destination.name}`);
   assert.deepEqual(route.at(-1),{x:Math.round(destination.x*2)/2,z:Math.round(destination.z*2)/2});
   assert(route.every(walkable));
   for(let i=1;i<route.length;i++)assert(Math.hypot(route[i].x-route[i-1].x,route[i].z-route[i-1].z)<=.51);
@@ -23,6 +24,7 @@ test('continuous walking reaches every NPC across corners and district seams',()
  for(const dt of [1/60,.035]) {
   let p={x:-58.4,z:27.5};
   for(const actor of actors.filter(a=>a.id!=='su')) {
+   if(acrossRiver(p,actor)){const s={...freshAdventure(),position:westLanding,flags:['keeper','departed']};assert(beginRiverCrossing(s,'riverside').passage);p=onWestBank(actor)?{...westLanding}:{...eastLanding};}
    const route=findPath(p,actor);
    for(let tick=0;tick<10000&&route.length;tick++) {
     p=followPath(p,route,dt*4.5);assert(walkable(p));
@@ -33,7 +35,7 @@ test('continuous walking reaches every NPC across corners and district seams',()
  }
 });
 test('walking discovers districts once and discoveries survive a reload',()=>{
- let s=freshAdventure();for(const a of cityAreas){s=moveAdventure(s,a.center);s=moveAdventure(s,a.center);}
+ let s={...freshAdventure(),flags:['keeper','departed']};for(const a of cityAreas){s=moveAdventure(s,a.center);s=moveAdventure(s,a.center);}
  assert.equal(s.visited.length,cityAreas.length);assert.deepEqual(normalizeAdventure(JSON.parse(JSON.stringify(s))),s);
 });
 test('return transit needs the station favour and a prior visit; it cannot bypass a battle',()=>{

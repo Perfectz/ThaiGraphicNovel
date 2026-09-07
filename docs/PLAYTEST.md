@@ -1,6 +1,6 @@
 # Bangkok Rift playtest snapshot
 
-This snapshot starts in the Sukhumvit hotel and includes seven connected places, The Last Ferry, the branching A Promise Kept follow-up, side quests, party battles, thirty practice outings, and 277 prerecorded OpenAI voice clips.
+This snapshot starts in the Sukhumvit hotel and includes eight places connected by streets and a ferry, The Last Ferry, the branching A Promise Kept follow-up, side quests, party battles, thirty practice outings, and 290 linked prerecorded OpenAI voice clips.
 
 ## A useful first session
 
@@ -8,7 +8,8 @@ This snapshot starts in the Sukhumvit hotel and includes seven connected places,
 2. Read the English meaning, listen to Thai, and try recording a reply. Text replies remain available.
 3. Follow the main objective to the Murmur in Lumphini. Fight beside Su to recover the ferry spark, then bring supper from Uncle Lek to Niran and face the Keeper in Old Town.
 4. In battle, inspect enemy plans, try different party word arts, and practise guarding or parrying.
-5. Reload and continue. Progress belongs to this browser and this site address; it does not sync between devices.
+5. Board the ferry after the Keeper. Choose Explore Thonburi at arrival, read the landing notice, and deliver Niran's letter by following the canal directions. Two footbridges make a walkable loop; the landing has a return ferry.
+6. Reload and continue. Even a crossing in progress is saved. Progress belongs to this browser and this site address; it does not sync between devices.
 
 Both main-story battles use the travelling party's health, provisions and talents, award persistent experience and coins, and unlock the next story objective. Their introductions explain the stakes and commands before combat. Optional Battle practice is inside Party growth; it cannot complete story encounters or grant their rewards.
 
@@ -25,3 +26,5 @@ Report the device/browser, what you tried, what you expected, and what happened 
 The public snapshot uses local microphone recording and prerecorded reference voices. The optional local Whisper/Realtime coaching services are not deployed. No visitor needs an OpenAI key. Audio is AI-generated; a fluent Thai speaker has not reviewed the full pack. Physical-device performance and an hour-long learning session remain playtest questions.
 
 The House of Returning Maps is a new exploration story beyond Old Town’s east gate. After hotel check-in, select it in the Journal and walk to Kanya. Ask permission, explore the five galleries, collect three records, compare their evidence, and request the original ferry ledger. The town map provides a gallery plan after your first visit. The rooms are connected on foot, and your notebook and rewards survive reloads.
+
+The House Across the Water begins at the Thonburi landing notice. Ask Su to repeat the directions, read the footbridge notice, and look for blue shutters beside the tree on the far quay. The red-shutter house cannot accept the letter. Greet Suda and thank her to finish the delivery; the 80 XP, 20 coins and tea are awarded once. Her house becomes a known map contact afterward. The map directs cross-river journeys to the current landing, and the city pass works only within the current bank. Pause an active travel mission or finish walking with Nok before boarding.

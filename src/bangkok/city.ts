@@ -1,9 +1,10 @@
 import { archiveFloors, archiveWalls, archiveFurniture } from './archiveLayout.ts';
-export type CityArea = 'hotel' | 'sukhumvit' | 'lumphini' | 'yaowarat' | 'riverside' | 'oldtown' | 'archive';
+import { thonburiBounds, thonburiFloors, canalHouses, westLanding } from './thonburi.ts';
+export type CityArea = 'hotel' | 'sukhumvit' | 'lumphini' | 'yaowarat' | 'riverside' | 'oldtown' | 'archive' | 'thonburi';
 export type CityPoint = { x: number; z: number };
 export type Rect = { x: number; z: number; w: number; d: number };
 export const hotelStart = { x: -57, z: 29 };
-export const cityMapBounds = { x: -65, z: -8, w: 163, d: 50 };
+export const cityMapBounds = { x: -65, z: -78, w: 163, d: 120 };
 // Inset from the timber deck edges; the river itself is never walkable.
 export const riverPier: Rect = { x: -0.3, z: -11.45, w: 2.6, d: 5.45 };
 export const riversideFloors: Rect[] = [
@@ -92,6 +93,7 @@ export const cityAreas: {
     hint: 'Beyond the east gate, Kanya keeps the neighbourhood’s stories. Explore the galleries to recover a forgotten ferry ledger.',
   },
 ];
+cityAreas.push({ id: 'thonburi', name: 'Thonburi Canal Quarter', thai: 'ธนบุรี', theme: 'Timber houses · canal footbridges · the other bank', center: westLanding, bounds: thonburiBounds, color: '#92bcaf', hint: 'Restore the last ferry to cross the river. Follow the canal walks, deliver Niran’s letter, and return by boat.' });
 export const cityWalkways: Rect[] = [
   { x: -46, z: 37, w: 85, d: 4 },
   { x: -46, z: 34, w: 4, d: 7 },
@@ -137,6 +139,7 @@ export const foodStallCounter: Rect = {
   d: 1,
 };
 export const cityObstacles: (Rect & { kind: 'building' | 'wall' | 'bed' | 'desk' | 'pond' | 'seat' })[] = [
+  ...canalHouses.map(r=>({...r,kind:'building' as const})),
   { ...parkServingTable, kind: 'desk' },
   { ...foodStallCounter, kind: 'desk' },
   { x: -60, z: 31, w: 4, d: 3, kind: 'bed' },
@@ -169,7 +172,8 @@ export function cityWalkable(p: CityPoint): boolean {
   if (inside(p, riverPier)) return true;
   return (
     [
-      ...cityAreas.filter((a) => a.id !== 'riverside' && a.id !== 'archive').map((a) => a.bounds),
+      ...cityAreas.filter((a) => a.id !== 'riverside' && a.id !== 'archive' && a.id !== 'thonburi').map((a) => a.bounds),
+      ...thonburiFloors,
       ...cityRoads,
       ...archiveFloors,
     ].some((r) => inside(p, r)) && !cityObstacles.some((r) => inside(p, r))

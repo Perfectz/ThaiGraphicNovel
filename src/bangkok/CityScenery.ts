@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { buildThonburi } from './CityThonburi';
 import { CityRailway } from './CityRailway';
 import { CityArchive } from './CityArchive';
 import { archiveRooms, archiveFloors } from './archiveLayout';
@@ -61,7 +62,7 @@ export class CityScenery {
       scene.add(g);
       this.chunks.set(area.id, g);
       const { x, z, w, d } = area.bounds;
-      if (area.id !== 'archive')
+      if (area.id !== 'archive' && area.id !== 'thonburi')
         this.surface(
           g,
           [w, 0.16, area.id === 'sukhumvit' ? d - 1 : d],
@@ -113,6 +114,11 @@ export class CityScenery {
     this.park();
     this.yaowarat();
     this.oldtown();
+    buildThonburi(this.chunks.get('thonburi')!,{
+      surface:(g,size,p)=>this.surface(g,size,p,'teak','#b8a179'),
+      sign:(g,text,p,color,width)=>{this.sign(g,text,p,color,width,false,1,0,false);},
+      cutaway:g=>this.cutaway(g),tree:(g,x,z,s)=>this.tree(g,x,z,s),lamp:(g,x,z)=>this.lamp(g,x,z),
+    });
     const archive = this.chunks.get('archive')!;
     for (const r of archiveFloors)
       this.surface(archive, [r.w, 0.1, r.d], [r.x + r.w / 2, -0.01, r.z + r.d / 2], 'teak', '#b8a179');

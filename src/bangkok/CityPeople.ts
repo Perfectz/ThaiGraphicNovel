@@ -9,6 +9,7 @@ import { ResidentPose } from './ResidentPose';
 
 const sources: Partial<Record<ActorId, string>> = {
   innkeeper: mali,
+  'blue-house': mali,
   archivist: mali,
   gardener: mali,
   station: dao,

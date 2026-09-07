@@ -109,7 +109,8 @@ try {
       () => !JSON.parse(document.querySelector('.bk-world').dataset.riverBoats).boats[0].canopyVisible,
     );
     const aboard = await saved();
-    assert(aboard.flags.includes('departed'));
+    assert.equal(aboard.passage,'thonburi');
+    assert(!aboard.flags.includes('departed'));
     assert.equal(aboard.coins, 73);
     assert.equal(aboard.xp, 405);
     assert.equal((await training()).records['see-you'].spoken, c.spoken ? 1 : 0);
@@ -127,7 +128,7 @@ try {
       assert.equal(p.progress, 0);
       await page.waitForTimeout(1500);
       assert.equal((await passage()).progress, 0);
-      await page.getByRole('button', { name: 'Continue to chapter results →', exact: true }).click();
+      await page.getByRole('button', { name: 'Arrive at the landing →', exact: true }).click();
     } else if (c.skip) await page.getByRole('button', { name: 'Skip crossing →', exact: true }).click();
     await page.locator('.rpg-ending').waitFor();
     await page.waitForFunction(
@@ -135,10 +136,10 @@ try {
     );
     await capture(c.name + '-results');
     assert.equal((await passage()).progress, 1);
-    assert.deepEqual(await saved(), aboard);
+    const arrived=await saved();assert(arrived.flags.includes('departed'));assert.deepEqual(arrived.position,{x:17,z:-42});assert.equal(arrived.xp,aboard.xp);assert.equal(arrived.coins,aboard.coins);
     assert.deepEqual((await training()).dailyPractice, clock.dailyPractice, 'crossing adds no practice time');
     assert((await page.locator('.rpg-ending').innerText()).includes('AREAS VISITED'));
-    await page.getByRole('button', { name: 'Return to the riverside', exact: true }).click();
+    await page.getByRole('button', { name: 'Explore Thonburi →', exact: true }).click();
     await page.waitForFunction(
       () => JSON.parse(document.querySelector('.bk-world').dataset.ferryPassage).progress === null,
     );
@@ -147,7 +148,7 @@ try {
       () => JSON.parse(document.querySelector('.bk-world').dataset.riverBoats).boats[0].canopyVisible,
     );
     await capture(c.name + '-returned');
-    assert.deepEqual(await saved(), aboard);
+    assert.deepEqual(await saved(), arrived);
     await page.keyboard.down('s');
     await page.waitForTimeout(500);
     await page.keyboard.up('s');
@@ -161,7 +162,7 @@ try {
     });
     const returned = await saved();
     assert(
-      Math.hypot(returned.position.x - aboard.position.x, returned.position.z - aboard.position.z) > 0.1,
+      Math.hypot(returned.position.x - arrived.position.x, returned.position.z - arrived.position.z) > 0.1,
       'normal movement restored',
     );
     await page.reload();
@@ -170,18 +171,9 @@ try {
     assert.deepEqual(await saved(), returned);
     assert.equal((await passage()).progress, null);
     if (c.phone) {
-      await page.getByRole('button', { name: 'Open town map ↗', exact: true }).click();
-      await page.locator('.city-map button[data-area="riverside"]').click();
-      await page.locator('.city-contacts button').filter({ hasText: 'Niran' }).click();
-      await page.locator('.rpg-dialogue').waitFor();
-      await farewell();
-      await page.getByRole('button', { name: 'Board the ferry →', exact: true }).click();
-      await page.locator('.ferry-crossing').waitFor();
-      await page.getByRole('button', { name: 'Skip crossing →', exact: true }).click();
-      await page.locator('.rpg-ending').waitFor();
       assert.equal((await saved()).xp, 405);
       assert.equal((await saved()).coins, 73);
-      await page.getByRole('button', { name: 'Practise your words at camp →', exact: true }).click();
+      await page.getByRole('button', { name: 'Train at camp', exact: true }).click();
       await page.getByRole('button', { name: /(Begin|Continue) your journey/ }).waitFor();
       await page.getByRole('button', { name: /Return to the adventure/ }).click();
       await page.getByRole('button', { name: /Continue adventure/ }).click();

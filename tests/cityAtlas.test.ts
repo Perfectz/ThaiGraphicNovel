@@ -3,10 +3,16 @@ import assert from 'node:assert/strict';
 import { atlasBounds, atlasRoute, atlasView } from '../src/bangkok/cityAtlas.ts';
 import { cityAreas, hotelStart } from '../src/bangkok/city.ts';
 import { followPath, walkable } from '../src/bangkok/adventure.ts';
+import {westLanding,eastLanding} from '../src/bangkok/thonburi.ts';
 
 test('chart routes from the hotel reach every district using real walkable streets', () => {
   for (const area of cityAreas) {
     const route = atlasRoute(hotelStart, area.center);
+    if(area.id==='thonburi'){
+      assert.equal(route.status,'ferry');assert.deepEqual(route.points.at(-1),eastLanding);
+      assert(route.points.every(walkable));assert.equal(atlasRoute(westLanding,hotelStart).status,'ferry');
+      assert.equal(atlasRoute(westLanding,{x:-5.5,z:-57}).status,'ready');continue;
+    }
     assert.equal(route.status, 'ready', area.id);
     assert(route.points.every(walkable), area.id);
     const path = route.points.slice(1); let position = hotelStart;

@@ -5,9 +5,11 @@ import './ferryCrossing.css';
 export default function FerryCrossing({
   onProgress,
   onArrive,
+  returning = false,
 }: {
   onProgress: (progress: number) => void;
   onArrive: () => void;
+  returning?: boolean;
 }) {
   const [reduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [chapter, setChapter] = useState(0);
@@ -40,18 +42,24 @@ export default function FerryCrossing({
       document.removeEventListener('visibilitychange', visibility);
     };
   }, [reduced]);
-  const lines = [
-    'The lantern is alight. Niran eases the boat away from the pier.',
-    'Sukhumvit, the park, the lantern streets. Each conversation brought you here.',
-    'Su watches the lights on the water. Tomorrow, there will be more people to meet.',
-  ];
+  const lines = returning
+    ? [
+        'The timber houses recede as Niran leaves the Thonburi landing.',
+        'Across the water, the familiar city lights come into view.',
+        'Your friends are waiting on the other bank. The ferry can bring you back again.',
+      ]
+    : [
+        'The lantern is alight. Niran eases the boat away from the pier.',
+        'Sukhumvit, the park, the lantern streets. Each conversation brought you here.',
+        'The timber walks of Thonburi come into view. There are people to meet on this bank too.',
+      ];
   return (
     <section className="ferry-crossing" aria-label="The last ferry crossing">
       <p className="bk-eyebrow">THE LAST FERRY · CHAO PHRAYA</p>
       <h1>A passage earned.</h1>
       <p aria-live="polite">{lines[chapter]}</p>
       <button className="bk-button bk-outline" onClick={onArrive}>
-        {reduced ? 'Continue to chapter results →' : 'Skip crossing →'}
+        {reduced ? 'Arrive at the landing →' : 'Skip crossing →'}
       </button>
     </section>
   );

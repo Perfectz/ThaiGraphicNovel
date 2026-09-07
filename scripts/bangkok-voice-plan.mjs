@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {createServer} from 'vite';
 
 export const speechModel='gpt-4o-mini-tts';
-export const cast={Su:'marin',Mali:'coral',Dao:'sage',Pim:'shimmer',Arun:'cedar','Uncle Lek':'onyx',Niran:'ash',Nok:'verse',Kanya:'nova',Narrator:'ballad'};
+export const cast={Su:'marin',Mali:'coral',Suda:'coral',Dao:'sage',Pim:'shimmer',Arun:'cedar','Uncle Lek':'onyx',Niran:'ash',Nok:'verse',Kanya:'nova',Narrator:'ballad'};
 export const normalizeSpeaker=s=>s.split(' ·')[0];
 export const lineKey=(speaker,text)=>`${normalizeSpeaker(speaker)}|${text}`;
 export async function voicePlan(){

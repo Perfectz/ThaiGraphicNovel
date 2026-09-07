@@ -8,6 +8,7 @@ import { CityPeople } from './CityPeople';
 import { CityResidents } from './CityResidents';
 import { EscortFollower, type EscortSave } from './stationEscort';
 import { cameraBlend } from './cityMotion';
+import { acrossRiver, ferryApproach, thonburiSite, onWestBank } from './thonburi';
 import {
   companionMark,
   companionStart,
@@ -40,6 +41,7 @@ import {
   has,
   objective,
   stepPlayer,
+  walkable,
   type ActorId,
   type AdventureSave,
   type Point,
@@ -90,6 +92,7 @@ export class BangkokWorld {
   private ferryPassengers!: FerryPassengers;
   private reunionGathering!: ReunionGathering;
   private departure: number | null = null;
+  private returningFerry = false;
   private textures = new Set<T.Texture>();
   private materials = new Map<string, T.MeshStandardMaterial>();
   private targetPosition = new T.Vector3(18, 15, 22);
@@ -385,7 +388,7 @@ export class BangkokWorld {
     for (let i = 0; i < 38; i++) {
       const x = (i - 19) * 2.6,
         h = 2 + ((i * 7) % 12) * 0.5,
-        z = -37 - (i % 3) * 4;
+        z = -87 - (i % 3) * 4;
       this.box([1.5, h, 1.7], [x, h / 2 - 0.8, z], i % 2 ? '#4c4c6c' : '#49445e', this.skyline);
       for (let y = 0; y < Math.floor(h * 2); y++)
         for (let col = 0; col < 2; col++)
@@ -910,7 +913,7 @@ export class BangkokWorld {
         new T.PlaneGeometry(540, 101.3),
         new T.MeshBasicMaterial({ map: texture, fog: false, toneMapped: false }),
       );
-      plate.position.set(0, 24, -61);
+      plate.position.set(0, 24, -104);
       this.scene.add(plate);
       this.resize();
     });
@@ -962,7 +965,7 @@ export class BangkokWorld {
     }
     this.cityScenery.update(this.player, this.state.mode === 'adventure' || this.state.mode === 'home');
     this.cityScenery.life.update(now / 1000, this.reducedMotion);
-    this.riverBoats.setPassage(this.departure === null ? null : crossingPose(this.departure));
+    this.riverBoats.setPassage(this.departure === null ? null : crossingPose(this.departure,this.returningFerry));
     this.riverBoats.update(this.elapsed, this.reducedMotion);
     if (this.state.mode === 'adventure') {
       const movementTime = Math.min(rawMs / 1000, 0.2);
@@ -1151,12 +1154,13 @@ export class BangkokWorld {
       );
     }
   };
-  setDeparture(progress: number | null) {
+  setDeparture(progress: number | null, returning = false) {
     if (progress === null && this.departure !== null) {
       this.party.visible = true;
       this.setState(this.state);
     }
     this.departure = progress;
+    this.returningFerry = returning;
   }
   private updateReunion() {
     const active =
@@ -1212,7 +1216,7 @@ export class BangkokWorld {
     }
   }
   private updateDeparture(dt: number) {
-    const pose = this.departure === null ? null : crossingPose(this.departure);
+    const pose = this.departure === null ? null : crossingPose(this.departure,this.returningFerry);
     if (pose) {
       const riders: FerryRider[] = this.party.children
         .filter((p) => p.userData.basePosition)
@@ -1279,6 +1283,7 @@ export class BangkokWorld {
       this.trail = [];
     }
     this.adventure = save;
+    this.riverBoats.setDock(onWestBank(save.position)?crossingPose(1):null);
     this.cityScenery.evening.sync(save);
     this.escort.sync(save.escort);
     const canal = this.actorObjects.get('canal-lantern');
@@ -1330,7 +1335,8 @@ export class BangkokWorld {
   }
   travelPoint(point: Point) {
     if (this.adventurePaused || this.state.mode !== 'adventure') return;
-    this.path = findPath(this.player, point);
+    if(!walkable(point))return;
+    this.path = findPath(this.player, acrossRiver(this.player,point)?ferryApproach(this.player):point);
     this.walkingTo = null;
   }
   travelTo(id: ActorId) {
@@ -1340,7 +1346,8 @@ export class BangkokWorld {
       return;
     }
     const actor = this.worldActors().find((a) => a.id === id)!;
-    this.path = findPath(this.player, { x: actor.x, z: Math.max(id === 'ferry' ? -6 : -0.5, actor.z) });
+    if(acrossRiver(this.player,actor)){this.travelPoint(actor);return;}
+    this.path = findPath(this.player, { x: actor.x, z: actor.z });
     this.walkingTo = id;
   }
   interactNearby() {
@@ -1401,8 +1408,8 @@ export class BangkokWorld {
       }
     }
     const point = ray.ray.intersectPlane(new T.Plane(new T.Vector3(0, 1, 0), -0.1), new T.Vector3());
-    if (point) {
-      this.path = findPath(this.player, point);
+    if (point && walkable(point)) {
+      this.path = findPath(this.player, acrossRiver(this.player,point)?ferryApproach(this.player):point);
       this.walkingTo = null;
     }
   }
@@ -1669,13 +1676,19 @@ export class BangkokWorld {
       this.scene.add(group);
       this.actorObjects.set(a.id, group);
       const discovery = discoveryFor(a.id);
-      if (archiveSite(a.id) && a.id !== 'archivist') {
+      if(thonburiSite(a.id) && a.id!=='blue-house'){
+        group.userData.appearanceReady=true;
+        if(a.id!=='west-pier'){
+          this.box([.09,1.2,.09],[0,.6,0],'#73573d',group);
+          this.box([.8,.5,.08],[0,1.15,0],'#d9c498',group);
+        }
+      } else if (archiveSite(a.id) && a.id !== 'archivist') {
         // The archive model owns the records and their furniture; markers remain interactive.
         group.userData.appearanceReady = true;
         this.box([0.55, 0.035, 0.4], [0, 0.88, 0.7], '#e1c98c', group);
       } else if (discovery) this.discoveryModels.add(discovery, group, (root) => this.batchStatic(root));
       else if (
-        ['innkeeper', 'cook', 'ferry', 'station', 'gardener', 'artisan', 'traveler', 'archivist'].includes(
+        ['innkeeper', 'cook', 'ferry', 'station', 'gardener', 'artisan', 'traveler', 'archivist','blue-house'].includes(
           a.id,
         )
       ) {

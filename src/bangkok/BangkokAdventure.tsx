@@ -7,6 +7,14 @@ import { advanceArchive } from './archiveQuest';
 import ReunionPanel from './ReunionPanel';
 import { storyEncounters } from './storyEncounters';
 import { advanceReunion, reunionReason, reunionStatus, reunionStep, type ReunionStep } from './reunion';
+import {
+  thonburiSite,
+  thonburiLines,
+  beginRiverCrossing,
+  arriveAcrossRiver,
+  acrossRiver,
+  type ThonburiActor,
+} from './thonburi';
 import { cityAreas, cityAreaAt, cityWalkways, inside, canalWalk, type CityArea } from './city';
 import { useEffect, useRef, useState } from 'react';
 import { BangkokWorld } from './BangkokWorld';
@@ -113,7 +121,7 @@ type Dialogue = {
   actor: ActorId;
   lines: StoryLine[];
   index: number;
-  reward?: ActorId | 'intro' | 'departed';
+  reward?: ActorId | 'intro' | 'departed' | 'river-return';
   challenge?: Battle['id'];
   canalStep?: CanalStep;
   escortStep?: 'begin' | 'finish';
@@ -448,6 +456,40 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     )
       return;
     const s = saveRef.current;
+    if (thonburiSite(id)) {
+      if (id === 'west-pier') {
+        talk(
+          id,
+          [
+            {
+              speaker: 'Su',
+              text: 'The return ferry is ready. Say goodbye to the canal quarter; we can visit again.',
+              phrase: 'see-you',
+              response: 'You and Su step aboard for the city pier.',
+            },
+          ],
+          'river-return',
+        );
+      } else if (id === 'blue-house' && !has(s, 'canal-junction')) {
+        talk(id, [
+          {
+            speaker: 'Su',
+            text: 'Blue shutters beside a tree. Before handing over a sealed letter, let us check the route notice and make sure this is the intended house.',
+          },
+        ]);
+      } else if (has(s, id)) {
+        talk(id, [
+          {
+            speaker: 'Su',
+            text:
+              id === 'blue-house'
+                ? 'Suda has the letter. The second footbridge makes a loop back to the landing.'
+                : thonburiLines[id as ThonburiActor]!.at(-1)!.response!,
+          },
+        ]);
+      } else talk(id, thonburiLines[id as ThonburiActor]!, id === 'red-house' ? undefined : id);
+      return;
+    }
     if (s.trackedQuest === 'reunion' && !reunionReason(s, id)) {
       setReunionHost(id);
       return;
@@ -727,25 +769,33 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
       }
     }
     if (reward === 'intro') setSave((s) => flag(s, 'intro'));
-    else if (reward === 'departed') {
-      setSave((s) => flag(s, 'departed'));
-      setScreen('crossing');
+    else if (reward === 'departed' || reward === 'river-return') {
+      const next = beginRiverCrossing(saveRef.current, reward === 'river-return' ? 'riverside' : 'thonburi');
+      if (next !== saveRef.current) {
+        saveRef.current = next;
+        setSave(next);
+        setScreen('crossing');
+      } else setNotice('Finish your active travel mission or escort before sailing.');
     } else if (reward) {
       setSave((s) => completeConversation(s, reward));
       setNotice(
-        discoveryFor(reward)
-          ? `CITY MEMORY · ${discoveryFor(reward)!.name} · +25 XP · Supplies added to your bag`
-          : reward === 'innkeeper'
-            ? 'QUEST COMPLETE · Brass key acquired · Rest unlocked'
-            : reward === 'cook'
-              ? 'QUEST COMPLETE · Supper parcel + 2 rice parcels'
-              : reward === 'ferry'
-                ? 'QUEST COMPLETE · Ferry pass acquired'
-                : reward === 'station'
-                  ? 'CITY PASS · Return travel unlocked to places you have visited'
-                  : reward === 'gardener'
-                    ? 'PARK FAVOUR · Thai tea added to your bag'
-                    : 'ARTISAN FAVOUR · 15 coins received',
+        thonburiSite(reward)
+          ? reward === 'blue-house'
+            ? 'LETTER DELIVERED · +80 XP · +20 coins · Tea'
+            : 'Route noted · follow the canal and look for blue shutters'
+          : discoveryFor(reward)
+            ? `CITY MEMORY · ${discoveryFor(reward)!.name} · +25 XP · Supplies added to your bag`
+            : reward === 'innkeeper'
+              ? 'QUEST COMPLETE · Brass key acquired · Rest unlocked'
+              : reward === 'cook'
+                ? 'QUEST COMPLETE · Supper parcel + 2 rice parcels'
+                : reward === 'ferry'
+                  ? 'QUEST COMPLETE · Ferry pass acquired'
+                  : reward === 'station'
+                    ? 'CITY PASS · Return travel unlocked to places you have visited'
+                    : reward === 'gardener'
+                      ? 'PARK FAVOUR · Thai tea added to your bag'
+                      : 'ARTISAN FAVOUR · 15 coins received',
       );
       world.current?.celebrate();
     }
@@ -952,14 +1002,14 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             <p>
               Wake in a Sukhumvit hotel.
               <br />
-              Seven places wait outside.
+              Eight places wait outside.
               <br />
               Explore, speak, and fight beside Su to restore the last ferry.
             </p>
             <button
               className="bk-button bk-gold"
               onClick={() => {
-                setScreen(save.battle ? 'battle' : 'world');
+                setScreen(save.battle ? 'battle' : save.passage ? 'crossing' : 'world');
                 setNotice('');
               }}
             >
@@ -1290,7 +1340,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                   <button className="bk-button bk-gold" onClick={nextDialogue} disabled={busy}>
                     {dialogue.index + 1 < dialogue.lines.length
                       ? 'Continue'
-                      : dialogue.reward === 'departed'
+                      : dialogue.reward === 'departed' || dialogue.reward === 'river-return'
                         ? 'Board the ferry'
                         : dialogue.challenge
                           ? dialogue.challenge === 'sentinel'
@@ -1363,10 +1413,17 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
         )}
         {screen === 'crossing' && (
           <FerryCrossing
-            onProgress={(p) => world.current?.setDeparture(p)}
+            returning={save.passage === 'riverside'}
+            onProgress={(p) => world.current?.setDeparture(p, save.passage === 'riverside')}
             onArrive={() => {
-              world.current?.setDeparture(1);
-              setScreen('ending');
+              const current = saveRef.current;
+              if (!current.passage) return;
+              const returning = current.passage === 'riverside';
+              const next = arriveAcrossRiver(current);
+              saveRef.current = next;
+              setSave(next);
+              world.current?.setDeparture(returning ? null : 1);
+              setScreen(returning ? 'world' : 'ending');
             }}
           />
         )}
@@ -1379,7 +1436,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
               <em>remembers.</em>
             </h1>
             <p>
-              The lantern shines. The ferry leaves the pier.
+              The lantern shines. The ferry reaches Thonburi.
               <br />A handful of Thai became a room, a meal, and a way forward.
             </p>
             <div>
@@ -1396,15 +1453,15 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                 <small>AREAS VISITED</small>
               </span>
             </div>
-            <button className="bk-button bk-gold" onClick={onTrain}>
-              Practise your words at camp →
+            <button className="bk-button bk-gold" onClick={() => setScreen('world')}>
+              Explore Thonburi →
             </button>
-            <button className="rpg-back" onClick={() => setScreen('world')}>
-              Return to the riverside
+            <button className="rpg-back" onClick={onTrain}>
+              Practise your words at camp
             </button>
             <small className="rpg-chapter-note">
-              There are still people to meet and neighbourhoods to revisit. The 30-day practice route is
-              available at camp.
+              A letter for a blue-shutter house waits in your bag. Read the landing notice, explore the canal
+              walks, and take the return ferry whenever you want.
             </small>
           </section>
         )}
@@ -1653,7 +1710,11 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
               </button>
               {has(save, 'station') && (
                 <button
-                  disabled={!save.visited.includes(mapArea) || save.escort.stage === 'following'}
+                  disabled={
+                    !save.visited.includes(mapArea) ||
+                    save.escort.stage === 'following' ||
+                    acrossRiver(save.position, cityAreas.find((a) => a.id === mapArea)!.center)
+                  }
                   onClick={() => {
                     setSave((s) => transitTo(s, mapArea));
                     setMap(false);
@@ -1661,11 +1722,13 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                   }}
                 >
                   Use city pass{' '}
-                  {save.escort.stage === 'following'
-                    ? '· walk with Nok first'
-                    : save.visited.includes(mapArea)
-                      ? ''
-                      : '· visit on foot first'}
+                  {acrossRiver(save.position, cityAreas.find((a) => a.id === mapArea)!.center)
+                    ? '· take the ferry across the river'
+                    : save.escort.stage === 'following'
+                      ? '· walk with Nok first'
+                      : save.visited.includes(mapArea)
+                        ? ''
+                        : '· visit on foot first'}
                 </button>
               )}
             </div>
@@ -1709,6 +1772,10 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
                   (a) =>
                     a.id !== 'su' &&
                     a.id !== 'traveler' &&
+                    (!thonburiSite(a.id) ||
+                      a.id === 'west-pier' ||
+                      a.id === 'canal-post' ||
+                      has(save, a.id)) &&
                     (!archiveSite(a.id) || a.id === 'archivist' || has(save, a.id)) &&
                     cityAreaAt(a) === mapArea &&
                     (!discoveryFor(a.id) || has(save, a.id)),
@@ -1782,8 +1849,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             </section>
           )}
           <p className="rpg-map-caption">
-            An imagined, condensed Bangkok. Districts connect on foot; the city pass returns you to places you
-            have explored.
+            An imagined, condensed Bangkok. Walk within each bank and take the ferry to cross the river. The
+            city pass returns you to explored places on your current bank.
           </p>
           {has(save, 'station') && (
             <div className="city-road-challenge">
@@ -1878,6 +1945,9 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             {has(save, 'chest') && <li>◇ Jade Ward — equipped · reduces spirit damage by 3</li>}
             {has(save, 'cook') && !has(save, 'ferry') && <li>▣ Lek’s supper — deliver to Niran</li>}
             {has(save, 'ferry') && <li>▤ Ferry pass — two seats across the river</li>}
+            {has(save, 'departed') && !has(save, 'blue-house') && (
+              <li>✉ Niran’s sealed letter — deliver to Suda in Thonburi</li>
+            )}
             {has(save, 'murmur') && <li>✦ Lantern spark — recovered from the wisp</li>}
             {has(save, 'sentinel') && <li>✥ Wayfinder Seal — start battles with 20 resonance</li>}
             {!save.flags.length && <li>A traveller’s empty notebook. Its story is still unwritten.</li>}
@@ -1985,8 +2055,8 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             )}
           </div>
           <p className="rpg-chapter-note">
-            Explore seven connected places and their local stories. Camp has the 30-day practice route. Voice
-            recordings are self-checks; they do not grade Thai tones.
+            Explore eight places and their local stories, connected by streets and the ferry. Camp has the
+            30-day practice route. Voice recordings are self-checks; they do not grade Thai tones.
           </p>
         </Modal>
       </main>

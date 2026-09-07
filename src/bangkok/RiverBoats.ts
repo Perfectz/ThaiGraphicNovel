@@ -27,6 +27,8 @@ export class RiverBoats {
   private fallbacks: T.Object3D[] = [];
   private disposed = false;
   private passage: { x: number; y: number; z: number; yaw: number } | null = null;
+  private dock: { x: number; y: number; z: number; yaw: number } | null = null;
+  setDock(pose: { x: number; y: number; z: number; yaw: number } | null) { this.dock=pose; }
   setPassage(pose: { x: number; y: number; z: number; yaw: number } | null) {
     this.passage = pose;
   }
@@ -91,6 +93,7 @@ export class RiverBoats {
       boat.position.set(p.x, p.y, p.z);
       boat.rotation.x = p.roll;
       boat.rotation.y = 0;
+      if(i===0&&this.dock){boat.position.set(this.dock.x,p.y,this.dock.z);boat.rotation.y=this.dock.yaw;}
       const canopy = boat.getObjectByName('Canopy');
       if (canopy) canopy.visible = !(i === 0 && this.passage);
       this.fallbacks[i].children[1].visible = !(i === 0 && this.passage);

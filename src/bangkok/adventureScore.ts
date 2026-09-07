@@ -12,5 +12,6 @@ export function adventureScore(area: CityArea | null, screen: string): ScoreThem
     riverside: 'street',
     oldtown: 'journey',
     archive: 'hotel',
+    thonburi: 'journey',
   }[area] as ScoreTheme;
 }
