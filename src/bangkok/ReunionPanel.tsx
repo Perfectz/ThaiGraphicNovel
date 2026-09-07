@@ -53,6 +53,12 @@ export default function ReunionPanel({
           <div className="service-quote">
             <strong>What your words will do</strong>
             <p>{scene.consequence}</p>
+            {(step === 'plan' || step === 'mali' || step === 'arun') && (
+              <small>
+                Once both invitations are delivered, your plan sets the scene: Yaowarat by lantern light,
+                or a new morning beside the Lumphini lake.
+              </small>
+            )}
           </div>
         </div>
         <div className="city-service-actions">

@@ -15,6 +15,17 @@ const report = { finished: false, cases: [], errors: [] };
 let page;
 const checkpoint = () => writeFile(`${out}/progress.json`, JSON.stringify(report, null, 2));
 const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('bangkok-rift-adventure-v1')));
+async function atmosphere() {
+  const s = await saved();
+  const day = ['departed', 'reunion-tomorrow', 'reunion-mali', 'reunion-arun'].every(f=>s.flags.includes(f));
+  await page.waitForFunction(day => {
+    const a=JSON.parse(document.querySelector('.bk-world')?.dataset.cityAtmosphere??'{}');
+    return a.daylight===(day?1:0)&&a.backdropVisible===!day&&a.skylineVisible===day;
+  },day);
+  const a=await page.locator('.bk-world').evaluate(h=>JSON.parse(h.dataset.cityAtmosphere));
+  assert.equal(a.period,day?'morning':'evening');
+  return a;
+}
 async function ready() {
   await page.waitForFunction(
     () =>
@@ -72,6 +83,9 @@ async function reply(id, spoken = false) {
   assert.deepEqual((await saved()).flags, before.flags, 'reply needs explicit story confirmation');
 }
 async function capture(name, gathering = false) {
+  const lighting = await atmosphere();
+  report.atmosphere ??= [];
+  report.atmosphere.push({name,...lighting});
   await page.waitForFunction(() => {
     const c = JSON.parse(document.querySelector('.bk-world')?.dataset.conversationCast ?? 'null');
     return c && !c.moving;
@@ -193,10 +207,12 @@ try {
           })
           .click();
         const partial = await saved();
+        await atmosphere();
         await page.reload({ waitUntil: 'domcontentloaded' });
         await page.getByRole('button', { name: /Continue adventure/ }).click();
         await ready();
         assert.deepEqual(await saved(), partial);
+        await atmosphere();
       }
     }
     await walk(config.phone ? 'gardener' : 'cook');

@@ -10,6 +10,10 @@ The standard is a coherent Thai-learning adventure, not the number of menus or l
 
 ## Current evidence and remaining gaps
 
+The reunion's schedule now changes the wider city. Once both invitations for tomorrow are confirmed, the story moves into morning: a procedural sky, pale daylight, brighter ambient light, lighter haze and the existing dimensional skyline replace the evening presentation. The evening branch retains its lantern-lit setting. This is a story transition, not a real-time clock or NPC schedule. It gives the player's time-related Thai a visible consequence and makes return visits feel different without adding a deadline.
+
+`CityAtmosphere.ts` derives the period from validated story flags. `tests/cityAtmosphere.test.ts` follows the invitation rules and verifies actual light/fog values, blending, camera tracking, reduced motion and a backdrop that loads late. The full `scripts/test-reunion.mjs` checks both schedules, invitation orders, previews, recorded replies, gathering, reloads and one-time rewards. `scripts/test-city-morning.mjs` starts from a completed morning reunion and walks from the hotel to the river and park, preserving story flags through reloads; also run `--phone --reduced --fallback`. Its separate `--crossing` case inspects the sky from the rotatable title view and boards the ferry through the actual farewell. Daylight exposed floating fallback temple shapes; those distant silhouettes now stand on a far-bank strip, and the skyline is batched for rendering. Evidence lives under `artifacts/city-morning/`. Browser emulation is not physical-device or long-term learner validation.
+
 | Requirement | Evidence | Remaining gap |
 | --- | --- | --- |
 | Start at a Sukhumvit hotel | Fresh campaign browser run begins with Su and Mali | More ambient life and personal reasons to return |

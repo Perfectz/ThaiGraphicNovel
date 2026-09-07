@@ -2,6 +2,8 @@
 
 This snapshot starts in the Sukhumvit hotel and includes eight places connected by streets and a ferry, The Last Ferry, the branching A Promise Kept follow-up, side quests, party battles, thirty practice outings, a playable canal-garden delivery course, and 309 linked prerecorded OpenAI voice clips.
 
+In A Promise Kept, choosing tomorrow in Lumphini now brings morning to the city once both invitations are delivered. Explore the hotel, streets and riverside in daylight, or choose the evening plan for lantern-lit Yaowarat. The time follows your confirmed story choices; there is no countdown. Existing morning-reunion saves use the new lighting after reloading.
+
 ## A useful first session
 
 1. Begin a new adventure, meet Su, and check in with Mali.

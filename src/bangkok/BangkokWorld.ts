@@ -1,5 +1,6 @@
 import { ReunionGathering } from './ReunionGathering';
 import { CityScenery } from './CityScenery';
+import { CityAtmosphere } from './CityAtmosphere';
 import { CanalGardenWorld } from './CanalGardenWorld';
 import { RiverBoats } from './RiverBoats';
 import { FerryPassengers, type FerryRider } from './FerryPassengers';
@@ -75,6 +76,8 @@ const C = {
 export class BangkokWorld {
   private scene = new T.Scene();
   private sunlight = new T.DirectionalLight('#ffca91', 2.7);
+  private ambient = new T.HemisphereLight('#a8bad7', '#594439', 0.85);
+  private atmosphere: CityAtmosphere;
   private cityPeople = new CityPeople();
   private cityResidents?: CityResidents;
   private worldCutaways: { object: T.Object3D; bounds: T.Box3 }[] = [];
@@ -202,6 +205,8 @@ export class BangkokWorld {
     this.renderer.domElement.addEventListener('webglcontextlost', this.contextLost);
     this.lighting();
     this.buildRiver();
+    this.batchStatic(this.skyline);
+    this.atmosphere = new CityAtmosphere(this.scene, this.sunlight, this.ambient, this.skyline);
     this.buildGround();
     this.buildHotel();
     this.buildMarket();
@@ -352,7 +357,7 @@ export class BangkokWorld {
   }
   private lighting() {
     this.scene.fog = new T.FogExp2('#555a82', 0.006);
-    this.scene.add(new T.HemisphereLight('#a8bad7', '#594439', 0.85));
+    this.scene.add(this.ambient);
     const sun = this.sunlight;
     sun.position.set(-12, 18, 9);
     sun.castShadow = true;
@@ -413,9 +418,10 @@ export class BangkokWorld {
             );
     }
     // Small temple silhouettes: tiered plinths, a tapering prang, and gold spires.
+    this.box([120, 0.7, 12], [0, -0.7, -90], '#5f7968', this.skyline);
     for (const x of [-15, 13]) {
       const temple = new T.Group();
-      temple.position.set(x, -0.7, -29);
+      temple.position.set(x, -0.35, -85);
       this.skyline.add(temple);
       for (let i = 0; i < 6; i++)
         this.cylinder(1.6 - i * 0.21, 0.65, [0, i * 0.62 + 0.3, 0], '#bda284', temple, 1.25 - i * 0.18);
@@ -929,6 +935,7 @@ export class BangkokWorld {
       );
       plate.position.set(0, 24, -104);
       this.scene.add(plate);
+      this.atmosphere.bindBackdrop(plate);
       this.resize();
     });
   }
@@ -1100,9 +1107,11 @@ export class BangkokWorld {
         this.state.mode === 'adventure' && !this.combat,
       );
     this.updateDeparture(dt);
+    this.atmosphere.update(dt, this.camera, this.reducedMotion);
     this.renderer.render(this.scene, this.camera);
     if (import.meta.env.DEV && this.qualityFrames % 20 === 0) {
       this.host.dataset.frameMs = this.averageFrameMs.toFixed(1);
+      this.host.dataset.cityAtmosphere = JSON.stringify(this.atmosphere.snapshot());
       this.host.dataset.graphicsQuality = this.qualityReduced ? 'low' : 'high';
       this.host.dataset.shadowsEnabled = String(this.renderer.shadowMap.enabled);
       this.host.dataset.qualityFrameMs = this.quality.percentileMs.toFixed(1);
@@ -1314,6 +1323,7 @@ export class BangkokWorld {
     }
     this.canalGarden.sync(save.canalBoat, !this.adventure);
     this.adventure = save;
+    this.atmosphere.sync(save.flags);
     this.riverBoats.setDock(onWestBank(save.position)?crossingPose(1):null);
     this.cityScenery.evening.sync(save);
     this.escort.sync(save.escort);
