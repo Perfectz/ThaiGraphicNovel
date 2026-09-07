@@ -1,0 +1,58 @@
+[
+  {
+    "id": "arrival",
+    "start": 0,
+    "duration": 18,
+    "title": "WORDS BECOME POWER",
+    "label": "BANGKOK RIFT · A GPT 6 BUILD SHOWCASE",
+    "narration": "What if practising Thai could power your next attack? This is Bangkok Rift: a playable, three dimensional RPG, built through an ongoing collaboration with GPT six. Explore Bangkok, meet its people, and turn useful language into action."
+  },
+  {
+    "id": "story",
+    "start": 18,
+    "duration": 18,
+    "title": "A CITY. A COMPANION. A QUEST.",
+    "label": "THE LAST FERRY",
+    "narration": "Your adventure begins in a Sukhumvit hotel. Travel with Su through park paths, lantern lit streets, and the riverside. Conversations, discoveries, and story battles give each destination a purpose, as you work to restore the light of the last ferry."
+  },
+  {
+    "id": "craft",
+    "start": 36,
+    "duration": 18,
+    "title": "FROM CODE TO CRAFT",
+    "label": "ORIGINAL BLENDER ENVIRONMENT ASSETS",
+    "narration": "Behind the streets are original Blender assets, authored through Python: shophouses, an elevated railway, riverboats, and lanterns. GPT six connects that geometry to lighting, movement, collisions, and the world you can actually explore."
+  },
+  {
+    "id": "voices",
+    "start": 54,
+    "duration": 16,
+    "title": "CHARACTERS WITH A VOICE",
+    "label": "SUPPLIED CHARACTER MODELS · OPENAI SPEECH",
+    "narration": "Supplied character models become your animated party. Prerecorded OpenAI voices bring dialogue and Thai examples into the adventure. Listen normally, hear a phrase slowly, then record yourself and compare."
+  },
+  {
+    "id": "combat",
+    "start": 70,
+    "duration": 26,
+    "title": "SAY IT. POWER IT. CAST IT.",
+    "label": "FIRST LIGHT · LIVE REALTIME API DEMONSTRATION",
+    "narration": "Combat is turn based. Choose an ability and a target, then read what you mean in English before speaking Thai. First Light now offers experimental pronunciation power. Realtime assesses the actual recording, and the game shows how that rating changes your attack. Your turn waits for your decision."
+  },
+  {
+    "id": "coach",
+    "start": 96,
+    "duration": 20,
+    "title": "A BETTER ATTEMPT. A STRONGER MOVE.",
+    "label": "COACHING BUILT INTO THE TURN",
+    "narration": "Ask Su for a short explanation, or ask a question aloud. Record a coached retry and keep your better result. Only your confirmation releases the attack. These are experimental AI estimates; Thai speaker calibration is still ahead."
+  },
+  {
+    "id": "close",
+    "start": 116,
+    "duration": 18,
+    "title": "LEARN THROUGH ADVENTURE",
+    "label": "PLAY THE WORK IN PROGRESS",
+    "narration": "The same adventure supports touch controls on a phone. Explore, prepare your party, practise, and return stronger. Bangkok Rift brings asset creation, story, voice, and combat together in one playable project. Try the build, and help shape what comes next."
+  }
+]

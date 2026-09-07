@@ -1,0 +1,16 @@
+.speech-power { margin: 16px 0; border: 1px solid #d3b976; border-radius: 8px; background: #102e39; padding: 14px; }
+.speech-power .speech-power-toggle { width: 100%; background: #294c54; color: #ffe0a1; text-align: left; }
+.speech-power-toggle small { display: block; margin-top: 5px; color: #d0e5df; }
+.speech-power p { font-size: 13px; line-height: 1.6; }
+.speech-power > button, .speech-coach-actions button { min-height: 44px; margin: 6px 0; }
+.speech-experimental, .speech-power > small { display: block; font-size: 11px; line-height: 1.6; color: #bdcec8; }
+.speech-verdict { border-left: 3px solid #70c2b7; padding: 8px 12px; margin: 12px 0; }
+.speech-verdict strong { color: #a9eee0; font: 22px Georgia,serif; }
+.speech-verdict p { margin: 5px 0; }
+.speech-power-preview { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #284b50; padding: 12px; }
+.speech-power-preview > span { font-size: 10px; letter-spacing: .08em; }
+.speech-power-preview strong { color: #ffe2a7; font: 24px Georgia,serif; }
+.speech-power-preview strong small { display: block; font: 12px 'Segoe UI',sans-serif; margin-top: 4px; }
+.speech-coach-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.speech-power .speech-commit { background: #e6ca8a; color: #162e35; width: 100%; font-weight: 700; }
+.speech-coaching { padding: 12px; background: #1d414a; border-radius: 4px; }

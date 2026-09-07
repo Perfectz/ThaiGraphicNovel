@@ -24,6 +24,7 @@ import { useSoundSettings } from '../hooks/useSoundSettings';
 import { saveSoundSettings } from '../services/soundSettings';
 import './expedition.css';
 import { battleSite } from './battleStaging';
+import { speechTurnKey } from './speechPower';
 
 type Props = {
   battle: Battle;
@@ -576,11 +577,15 @@ export default function ExpeditionBattle({ battle: b, onChange, onLeave, onScene
                   initialPhraseId={move?.phrase ?? 'thank-you'}
                   choices={[phrases[move?.phrase ?? 'thank-you']]}
                   onBusyChange={setBusy}
-                  onSubmit={(id, spoken) => {
+                  speechAttack={move?.id === 'greet' && target ? {
+                    turnKey: speechTurnKey(b, target),
+                    baseDamage: 18 * (b.foes.find(f => f.id === target)?.exposed ? 1.5 : b.foes.find(f => f.id === target)?.role === 'sentinel' ? .5 : 1),
+                  } : undefined}
+                  onSubmit={(id, spoken, assessment) => {
                     if (busy) return;
                     const next =
                       move && target
-                        ? performMove(latest.current, move.id, target)
+                        ? performMove(latest.current, move.id, target, spoken ? assessment : undefined)
                         : partyAction(latest.current, 'duet');
                     commit(next, { id, spoken });
                   }}

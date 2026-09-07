@@ -7,6 +7,7 @@ import {
   loadLocalEnv,
 } from './env.mjs';
 import { createCorsHeaders, readFormData, readText, sendJson } from './http-utils.mjs';
+import battleVoiceHandler from './battle-voice.mjs';
 
 loadLocalEnv();
 
@@ -285,6 +286,7 @@ async function createWhisperJudgement(req, res) {
 }
 
 createServer(async (req, res) => {
+  if (req.url?.split('?')[0] === '/api/realtime/battle') return battleVoiceHandler(req, res);
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeaders);
     res.end();

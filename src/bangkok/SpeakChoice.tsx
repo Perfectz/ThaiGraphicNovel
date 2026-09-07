@@ -4,10 +4,13 @@ import { useTrainingVoice } from './useTrainingVoice';
 import './SpeakChoice.css';
 import { usePracticeSurface } from './PracticeTiming';
 import { stopStoryVoice } from './recordedVoice';
+import RealtimeAttack from './RealtimeAttack';
+import type { SpeechAssessment } from './speechPower';
 
 type Props = {
   choices: ThaiPhrase[];
-  onSubmit: (id: string, spoken: boolean) => void;
+  onSubmit: (id: string, spoken: boolean, assessment?: SpeechAssessment) => void;
+  speechAttack?: { turnKey: string; baseDamage: number };
   onBusyChange: (busy: boolean) => void;
   choicesClassName?: string;
   onPreview?: () => void;
@@ -21,6 +24,7 @@ export default function SpeakChoice({
   choicesClassName = 'rpg-answers',
   onPreview,
   initialPhraseId,
+  speechAttack,
 }: Props) {
   usePracticeSurface();
   const [selectedId, setSelectedId] = useState<string | null>(initialPhraseId ?? null);
@@ -29,7 +33,8 @@ export default function SpeakChoice({
   const previousChoice = useRef<string | null>(null);
   const selected = choices.find((p) => p.id === selectedId);
   const voice = useTrainingVoice(selected);
-  const busy = voice.recording || voice.coachBusy;
+  const [assessmentBusy, setAssessmentBusy] = useState(false);
+  const busy = voice.recording || voice.coachBusy || assessmentBusy;
   useEffect(() => {
     onBusyChange(busy);
     return () => onBusyChange(false);
@@ -48,11 +53,11 @@ export default function SpeakChoice({
         ?.focus();
     }
   }, [selectedId]);
-  function submit(spoken: boolean) {
+  function submit(spoken: boolean, assessment?: SpeechAssessment) {
     if (!selected || busy || (spoken && !voice.clip)) return;
     const id = selected.id;
     setSelectedId(null);
-    onSubmit(id, spoken);
+    onSubmit(id, spoken, assessment);
   }
   return (
     <div className="speak-choice" ref={root}>
@@ -110,7 +115,7 @@ export default function SpeakChoice({
           <button
             className="bk-button bk-gold speak-record"
             onClick={() => void voice.record()}
-            disabled={voice.coachBusy}
+            disabled={voice.coachBusy || assessmentBusy}
           >
             {voice.recording
               ? '■ Stop recording'
@@ -123,6 +128,9 @@ export default function SpeakChoice({
           <p className="speak-status" role="status">
             {voice.message || 'Your turn. A small attempt aloud is worth making.'}
           </p>
+          {speechAttack && selected.id === 'hello' && <RealtimeAttack key={speechAttack.turnKey}
+            clip={voice.clip} blocked={voice.recording || voice.coachBusy} {...speechAttack}
+            onBusy={setAssessmentBusy} onCommit={assessment => submit(true, assessment)} />}
           <button
             className="bk-button bk-outline"
             onClick={() => submit(true)}

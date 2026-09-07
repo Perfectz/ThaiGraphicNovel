@@ -1,0 +1,9 @@
+assets/
+capture/
+renders/
+snapshots/
+.media/
+.hyperframes/
+.thumbnails/
+*.log
+node_modules/

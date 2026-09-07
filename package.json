@@ -47,7 +47,8 @@
     "test:expedition": "node --test tests/expeditionCombat.test.ts",
     "test:expedition:browser": "node scripts/test-expedition.mjs",
     "test:city": "node --test tests/city.test.ts",
-    "test:city:browser": "node scripts/test-city.mjs"
+    "test:city:browser": "node scripts/test-city.mjs",
+    "test:pronunciation": "node --test tests/speechPower.test.ts server/tests/battle-voice.test.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
@@ -55,6 +56,7 @@
     "react": "latest",
     "react-dom": "latest",
     "three": "^0.184.0",
+    "ws": "^8.21.3",
     "zustand": "latest"
   },
   "devDependencies": {
@@ -74,7 +76,6 @@
     "tailwindcss": "^3.4.17",
     "typescript": "latest",
     "typescript-eslint": "^8.20.0",
-    "vite": "latest",
-    "ws": "^8.21.0"
+    "vite": "latest"
   }
 }

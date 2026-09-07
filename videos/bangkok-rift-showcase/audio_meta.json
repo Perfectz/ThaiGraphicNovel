@@ -1,0 +1,58 @@
+[
+  {
+    "id": "arrival",
+    "path": "videos/bangkok-rift-showcase/assets/vo-arrival.mp3",
+    "duration": 16.248,
+    "slot": 15,
+    "synthetic": true,
+    "model": "gpt-4o-mini-tts"
+  },
+  {
+    "id": "story",
+    "path": "videos/bangkok-rift-showcase/assets/vo-story.mp3",
+    "duration": 16.056,
+    "slot": 17,
+    "synthetic": true,
+    "model": "gpt-4o-mini-tts"
+  },
+  {
+    "id": "craft",
+    "path": "videos/bangkok-rift-showcase/assets/vo-craft.mp3",
+    "duration": 15.504,
+    "slot": 17,
+    "synthetic": true,
+    "model": "gpt-4o-mini-tts"
+  },
+  {
+    "id": "voices",
+    "path": "videos/bangkok-rift-showcase/assets/vo-voices.mp3",
+    "duration": 13.848,
+    "slot": 14,
+    "synthetic": true,
+    "model": "gpt-4o-mini-tts"
+  },
+  {
+    "id": "combat",
+    "path": "videos/bangkok-rift-showcase/assets/vo-combat.mp3",
+    "duration": 15.648,
+    "slot": 26,
+    "synthetic": true,
+    "model": "gpt-4o-mini-tts"
+  },
+  {
+    "id": "coach",
+    "path": "videos/bangkok-rift-showcase/assets/vo-coach.mp3",
+    "duration": 14.16,
+    "slot": 20,
+    "synthetic": true,
+    "model": "gpt-4o-mini-tts"
+  },
+  {
+    "id": "close",
+    "path": "videos/bangkok-rift-showcase/assets/vo-close.mp3",
+    "duration": 16.32,
+    "slot": 17,
+    "synthetic": true,
+    "model": "gpt-4o-mini-tts"
+  }
+]

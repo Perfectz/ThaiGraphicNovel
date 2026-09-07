@@ -1,6 +1,7 @@
 /** Deterministic party combat. Speaking practice never pretends to be a pronunciation score. */
 import { normalizeTalents, type PartyGrowth, type TalentId } from './partyGrowth.ts';
 import { worldArts, normalizeWorldArts } from './worldArts.ts';
+import { readSpeechAssessment, speechPower, speechTurnKey, type SpeechAssessment } from './speechPower.ts';
 export type HeroId = 'patrick' | 'su';
 export type Hero = { id: HeroId; name: string; hp: number; maxHp: number; ap: number; guard: boolean };
 export type Foe = {
@@ -299,7 +300,7 @@ export const moveDetail = (b: Battle, m: Move) =>
   m.id === 'mend' && hasTalent(b, 'kindness')
     ? 'An apology repairs a connection. Bring a fallen ally back with 34 HP.'
     : m.detail;
-export function performMove(original: Battle, moveId: string, target: string): Battle {
+export function performMove(original: Battle, moveId: string, target: string, assessment?: SpeechAssessment): Battle {
   const move = moves.find((m) => m.id === moveId);
   if (!move || moveReason(original, move)) return original;
   const b = copy(original),
@@ -323,7 +324,9 @@ export function performMove(original: Battle, moveId: string, target: string): B
     const power = { greet: 18, resolve: 42, slow: 12, cool: 24, thanks: 16, reveal: 10, 'open-book': 12 }[move.id] ?? 0;
     amount = strike(
       foe,
-      power,
+      power * (moveId === 'greet' && assessment?.assessable && assessment.band &&
+        readSpeechAssessment(assessment) && assessment.turnKey === speechTurnKey(original, target)
+        ? speechPower[assessment.band] : 1),
       move.id === 'slow' ? (hasTalent(b, 'unhurried') ? 80 : 65) : move.id === 'resolve' ? 25 : move.id === 'open-book' ? 10 : 20,
     );
     if (move.id === 'reveal' && foe.hp) {
