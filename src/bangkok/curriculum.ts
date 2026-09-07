@@ -1,8 +1,10 @@
 import { lessonScenarios } from '../data/lessonScenarios';
 import type { ThaiPhrase } from '../data/thaiPhrases';
+import { navigationPhrases } from './canalNavigation';
 import { duePhrases, type TrainingSave } from './learning';
 
 export const phrases: Record<string, ThaiPhrase> = Object.fromEntries(lessonScenarios.slice(0, 9).flatMap(s => s.chunks.flatMap(c => c.phrases)).map(p => [p.id, p]));
+navigationPhrases.forEach(p => { phrases[p.id] = p; });
 export type District = 'hotel' | 'market' | 'river';
 const locations = ['Riverside hotel', 'The reception desk', 'Talat Noi night market', 'The taxi pier', 'The floating market', 'Neighbourhood pharmacy', 'Riverside café', 'Finding your way', 'Getting assistance'];
 export type TrainingDay = { day: number; title: string; location: string; objective: string; phraseIds: string[]; district: District; chapter: string };

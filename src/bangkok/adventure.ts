@@ -14,6 +14,7 @@ import { battleSpoils, createBattle, restoreBattle, type Battle } from './expedi
 import { partyGrowth, talentReason, type TalentId } from './partyGrowth.ts';
 import { discoveries, discoveryFor, hasRiverCharm, type DiscoveryId } from './discoveries.ts';
 import { canalFlags } from './canalErrand.ts';
+import { canalBoatContact, normalizeCanalBoat, type CanalBoatSave } from './canalNavigation.ts';
 import {archiveSites,type ArchiveActor} from './archiveLayout.ts';
 import {archiveFlags,normalizeArchiveFlags} from './archiveQuest.ts';
 import { thonburiSites, thonburiFlags, thonburiSite, completeThonburi, acrossRiver, onWestBank, eastLanding, type ThonburiActor, type RiverBank } from './thonburi.ts';
@@ -35,6 +36,7 @@ import {
 export type { Battle } from './expeditionCombat.ts';
 export type Point = { x: number; z: number };
 export type ActorId =
+  | 'canal-boat'
   | ThonburiActor
   | ArchiveActor
   | DiscoveryId
@@ -70,6 +72,7 @@ actors.push(
 );
 actors.push(...archiveSites);
 actors.push(...thonburiSites);
+actors.push(canalBoatContact);
 actors.push(...discoveries.map((d) => ({ id: d.id, name: d.name, x: d.x, z: d.z, color: d.color })));
 export const RPG_KEY = 'bangkok-rift-adventure-v1';
 export type AdventureSave = {
@@ -87,6 +90,7 @@ export type AdventureSave = {
   learned: string[];
   battle: Battle | null;
   passage?: RiverBank;
+  canalBoat?: CanalBoatSave;
   journeys: JourneySave;
   escort: EscortSave;
   lantern: LanternTrade;
@@ -145,6 +149,7 @@ export function normalizeAdventure(value: unknown): AdventureSave {
   if (questIds.includes(s.trackedQuest as QuestId)) fresh.trackedQuest = s.trackedQuest;
   const flags = [
     ...thonburiFlags,
+    'canal-garden',
     ...archiveFlags,
     ...eveningFlags,
     ...reunionFlags,
@@ -173,6 +178,10 @@ export function normalizeAdventure(value: unknown): AdventureSave {
   if (!fresh.flags.includes('departed')) fresh.flags = fresh.flags.filter(f=>!thonburiFlags.includes(f as typeof thonburiFlags[number]));
   if (!fresh.flags.includes('canal-post')) fresh.flags = fresh.flags.filter(f=>f!=='canal-junction'&&f!=='blue-house');
   if (!fresh.flags.includes('canal-junction')) fresh.flags = fresh.flags.filter(f=>f!=='blue-house');
+  const savedBoat = fresh.flags.includes('blue-house') ? normalizeCanalBoat(s.canalBoat) : undefined;
+  if (savedBoat) fresh.canalBoat = savedBoat;
+  if (fresh.canalBoat?.delivered.length === 3) fresh.flags = [...new Set([...fresh.flags, 'canal-garden'])];
+  else fresh.flags = fresh.flags.filter(f => f !== 'canal-garden');
   if (!fresh.flags.includes('canal-accepted'))
     fresh.flags = fresh.flags.filter((f) => !canalFlags.includes(f as (typeof canalFlags)[number]));
   else if (!fresh.flags.includes('canal-paper') || !fresh.flags.includes('canal-frame'))

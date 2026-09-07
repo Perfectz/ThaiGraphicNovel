@@ -8,6 +8,7 @@ import type { ActorId, Point } from './adventure';
 import { ResidentPose } from './ResidentPose';
 
 const sources: Partial<Record<ActorId, string>> = {
+  'canal-boat': lek,
   innkeeper: mali,
   'blue-house': mali,
   archivist: mali,

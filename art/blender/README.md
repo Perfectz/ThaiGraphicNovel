@@ -90,6 +90,12 @@ Keep `RiverKeeper`, `LanternEcho`, `MurmurWisp`, the named faces, and six articu
 
 Verify `node --test tests/riverSpirits.test.ts tests/conversationStaging.test.ts tests/expeditionCombat.test.ts tests/worldResources.test.ts`, build, and run `node scripts/test-river-spirits.mjs` plus `node scripts/test-murmur-continuity.mjs` at localhost:5188. The latter walks from the checked-in hotel to the story encounter, checks separated conversation positions, reloads combat, records a reply and wins through the normal commands. Add `--phone` for the narrow viewport. Evidence lives under `artifacts/blender-river-spirits/` and `artifacts/murmur-continuity/`.
 
+## Canal garden workboat
+
+`canal-garden-boat.blend` is an original thin-walled timber workboat with curved gunwales, seats, bent ribs and a push pole, plus a reusable marigold tray. Regenerate with Blender 5.1 and `--background --python scripts/blender/build_garden_boat.py`. The GLB is 414,240 bytes and 7,921 triangles. Keep `GardenBoat` and `FlowerTray`; studio props are excluded. The runtime scales the boat to 0.78 and uses the saved channel cells and headings from `canalNavigation.ts`. Its full bounds fit each navigable cell in all four orientations. Tray clones share geometry and appear as remaining cargo or planted quay beds. The tender uses an existing character rig. Missing model downloads retain procedural boat and flower fallbacks; late downloads release their resources.
+
+The renderer owns interpolation and bobbing, while the adventure save owns cells, heading and deliveries. Reduced motion snaps to the requested cell. Each request pauses before the next, without a response timer. The loading-steps contact pauses walking while the boat camera follows the vessel; its party HUD and contact markers are hidden to preserve the view. New bed collision rectangles remain present before planting, matching the visible empty boxes. See the canal-garden verification contract in `docs/ADVENTURE_QUALITY.md`.
+
 ## Thonburi canal houses
 
 `thonburi-canal-house.blend` contains the original timber-house kit: horizontal weatherboards, paneled doors, louvred shutters and hinges, transom fretwork, porch braces, individual clay tiles and carved gable trim. Regenerate with Blender 5.1 and `--background --python scripts/blender/build_canal_house.py`. The GLB contains 39,614 triangles and is 2,579,892 bytes; studio floor, camera and lights stay in the editable scene only.

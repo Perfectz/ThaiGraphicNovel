@@ -1,4 +1,6 @@
 import FieldReviewPanel from './FieldReviewPanel';
+import CanalBoatPanel from './CanalBoatPanel';
+import { beginCanalBoat, commandCanalBoat, recallCanalBoat, canalBoatReason, boatCursor } from './canalNavigation';
 import { fieldReviewDue, recordFieldReview } from './fieldReview';
 import CityTravelMap from './CityTravelMap';
 import ArchivePanel from './ArchivePanel';
@@ -136,6 +138,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
   const [serviceHost, setServiceHost] = useState<ServiceHost | null>(null);
   const [eveningOpen, setEveningOpen] = useState(false);
   const [lanternOpen, setLanternOpen] = useState(false);
+  const [boatOpen, setBoatOpen] = useState(false);
   const [memoryHost, setMemoryHost] = useState<DiscoveryId | null>(null);
   const [reviewRevision, setReviewRevision] = useState(0);
   const [archiveHost, setArchiveHost] = useState<ArchiveActor | null>(null);
@@ -247,13 +250,14 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
         lanternOpen ||
         !!reunionHost ||
         !!archiveHost ||
-        !!memoryHost,
+        !!memoryHost || boatOpen,
     );
     world.current?.setState({
       district: 'hotel',
       mode: screen === 'title' ? 'home' : screen === 'battle' ? 'encounter' : 'adventure',
       trial: screen === 'battle',
       boss: save.battle?.id === 'keeper',
+      canalBoat: boatOpen,
       reunion: !!reunionHost && ['welcome', 'finish'].includes(reunionStep(save, reunionHost) ?? ''),
       conversation:
         !!dialogue ||
@@ -293,6 +297,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
     serviceHost,
     eveningOpen,
     lanternOpen,
+    boatOpen,
     reunionHost,
   ]);
   useEffect(() => {
@@ -452,10 +457,16 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
       lanternOpen ||
       !!reunionHost ||
       !!archiveHost ||
-      !!memoryHost
+      !!memoryHost || boatOpen
     )
       return;
     const s = saveRef.current;
+    if (id === 'canal-boat') {
+      const reason = canalBoatReason(s);
+      if (reason) talk(id, [{ speaker: 'Su', text: reason }]);
+      else setBoatOpen(true);
+      return;
+    }
     if (thonburiSite(id)) {
       if (id === 'west-pier') {
         talk(
@@ -483,7 +494,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             speaker: 'Su',
             text:
               id === 'blue-house'
-                ? 'Suda has the letter. The second footbridge makes a loop back to the landing.'
+                ? 'Suda has the letter. The garden boat on the near quay needs a guide for its flower deliveries. We can help, explore the second footbridge, or return to the ferry.'
                 : thonburiLines[id as ThonburiActor]!.at(-1)!.response!,
           },
         ]);
@@ -927,6 +938,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             <button
               onClick={() => setJournal(true)}
               disabled={
+                boatOpen ||
                 busy ||
                 screen === 'battle' ||
                 journeyVisit ||
@@ -943,6 +955,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             <button
               onClick={() => setJourneyBoard(true)}
               disabled={
+                boatOpen ||
                 busy ||
                 screen !== 'world' ||
                 !!dialogue ||
@@ -960,6 +973,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             <button
               onClick={() => setBag(true)}
               disabled={
+                boatOpen ||
                 busy ||
                 screen === 'battle' ||
                 journeyVisit ||
@@ -976,6 +990,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             <button
               onClick={onTrain}
               disabled={
+                boatOpen ||
                 busy ||
                 screen === 'battle' ||
                 journeyVisit ||
@@ -1023,7 +1038,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
             </div>
           </section>
         )}
-        {screen === 'world' && (
+        {screen === 'world' && !boatOpen && (
           <aside className="rpg-party-panel">
             <div>
               <span className="rpg-portrait">P</span>
@@ -1077,7 +1092,7 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
           !lanternOpen &&
           !reunionHost &&
           !archiveHost &&
-          !memoryHost && (
+          !memoryHost && !boatOpen && (
             <>
               <aside className={`rpg-objective${objectiveDetails ? ' details-open' : ''}`}>
                 <small>
@@ -1201,6 +1216,22 @@ export default function BangkokAdventure({ onTrain }: { onTrain: () => void }) {
               </div>
             </>
           )}
+        {boatOpen && screen === 'world' && (
+          <CanalBoatPanel save={save} onClose={() => setBoatOpen(false)}
+            onBegin={() => setSave(s => beginCanalBoat(s))}
+            onRecall={() => setSave(s => recallCanalBoat(s))}
+            onCommand={(command, spoken) => {
+              const current = saveRef.current;
+              if (!current.canalBoat || !save.canalBoat) return;
+              const result = commandCanalBoat(current, boatCursor(save.canalBoat), command);
+              if (result.save === current) return;
+              persistTraining(recordAttempt(readTraining(), command, spoken ? 'spoken' : 'choice', true));
+              const next = result.save.learned.includes(command) ? result.save : { ...result.save, learned: [...result.save.learned, command], xp: result.save.xp + 5 };
+              saveRef.current = next; setSave(next);
+              if (!has(current, 'canal-garden') && has(next, 'canal-garden')) world.current?.celebrate();
+              return result.reply;
+            }} />
+        )}
         {reunionHost && screen === 'world' && (
           <ReunionPanel
             key={`${reunionHost}:${reunionStep(save, reunionHost)}`}

@@ -1,5 +1,6 @@
 import { archiveFloors, archiveWalls, archiveFurniture } from './archiveLayout.ts';
 import { thonburiBounds, thonburiFloors, canalHouses, westLanding } from './thonburi.ts';
+import { gardenStops } from './canalNavigation.ts';
 export type CityArea = 'hotel' | 'sukhumvit' | 'lumphini' | 'yaowarat' | 'riverside' | 'oldtown' | 'archive' | 'thonburi';
 export type CityPoint = { x: number; z: number };
 export type Rect = { x: number; z: number; w: number; d: number };
@@ -139,6 +140,7 @@ export const foodStallCounter: Rect = {
   d: 1,
 };
 export const cityObstacles: (Rect & { kind: 'building' | 'wall' | 'bed' | 'desk' | 'pond' | 'seat' })[] = [
+  ...gardenStops.map(s => ({ x: s.planter.x - .8, z: s.planter.z - .45, w: 1.6, d: .9, kind: 'bed' as const })),
   ...canalHouses.map(r=>({...r,kind:'building' as const})),
   { ...parkServingTable, kind: 'desk' },
   { ...foodStallCounter, kind: 'desk' },

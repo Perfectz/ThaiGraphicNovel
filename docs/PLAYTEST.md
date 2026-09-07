@@ -1,6 +1,6 @@
 # Bangkok Rift playtest snapshot
 
-This snapshot starts in the Sukhumvit hotel and includes eight places connected by streets and a ferry, The Last Ferry, the branching A Promise Kept follow-up, side quests, party battles, thirty practice outings, and 290 linked prerecorded OpenAI voice clips.
+This snapshot starts in the Sukhumvit hotel and includes eight places connected by streets and a ferry, The Last Ferry, the branching A Promise Kept follow-up, side quests, party battles, thirty practice outings, a playable canal-garden delivery course, and 309 linked prerecorded OpenAI voice clips.
 
 ## A useful first session
 
@@ -22,6 +22,8 @@ Sukhumvit's elevated railway now uses an original Blender train and guideway, wi
 Found city memories now have return visits. The Journal lists discovered memories ready for recall; their nearby markers turn warm gold. Walk back, read your intention in English, and try the Thai before revealing it. Recording, reference playback, hints and an untimed self-check are available. Reviews update the same spaced practice record as travel missions, while the original discovery treasure is awarded only once. A reviewed place rests for today; words needing help remain due and can be revisited again. Recordings are speaking practice, not an automatic pronunciation grade.
 
 Thonburi's four canal homes now use detailed Blender timber architecture. Look for their distinct shutter colours while following the delivery directions. The blue frontage remains visible when speaking with Suda; roof and wall cutaways keep the party in view independently.
+
+After delivering Niran’s letter, Suda invites you to **A Garden Between the Quays**. Track it in the Journal or walk to the garden boat on the near quay. Guide the tender using left, right, straight and stop instructions: preview the English, listen to the Thai, then record or use text. Left and right turn the bow; straight moves to the next marker. Avoid the floating nursery in the middle of the near lane. Stop at the red, blue and green pennants in any order to unload the flower trays. The flowers remain planted in the 3D world. The boat waits between instructions, and you can leave, reload or recall it without losing completed deliveries. Finishing awards 100 XP, 30 coins and two teas once. Open Channel chart & instructions for the route, or Voice & boat recall for playback and recovery controls.
 
 Report the device/browser, what you tried, what you expected, and what happened in the repository's Issues tab. Useful feedback includes confusing navigation, unreadable dialogue, audio problems, difficult controls, and whether speaking felt useful.
 

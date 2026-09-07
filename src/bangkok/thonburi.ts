@@ -111,7 +111,7 @@ export const thonburiLines: Partial<Record<ThonburiActor, StoryLine[]>> = {
       text: 'Thank you for finding me. Take this tea for your return journey. The other bridge makes a loop back to the landing, so you can see the rest of our canal walk.',
       phrase: 'thank-you',
       response:
-        'The letter is delivered. You have a welcome on both banks now. The ferry remains available at the landing whenever you want to return.',
+        'The letter is delivered. The neighbours are planting a canal garden today. Ask at the garden boat on the near quay if you would like to help with the flower deliveries. The ferry remains available whenever you want to return.',
     },
   ],
   'red-house': [

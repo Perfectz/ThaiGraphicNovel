@@ -6,8 +6,10 @@ import { eveningHost, eveningStatus } from './eveningOuting.ts';
 import { lanternName, lanternPrices } from './lanternTrade.ts';
 import { reunionDestinations, reunionStatus } from './reunion.ts';
 import { onWestBank } from './thonburi.ts';
+import { gardenStops } from './canalNavigation.ts';
 
 export const questIds = [
+  'canal-garden',
   'thonburi',
   'archive',
   'ferry',
@@ -77,6 +79,12 @@ export function questJournal(s: AdventureSave): QuestEntry[] {
       destinations: reunionDestinations(s).map((id) => destination(id)),
     });
   if (!has('innkeeper')) return entries;
+  if (has('blue-house')) entries.push({
+    id: 'canal-garden', title: 'A Garden Between the Quays', kind: 'World activity · Thonburi', complete: has('canal-garden'),
+    text: has('canal-garden') ? 'Three quays bloom with the flowers you delivered. The garden boat remains at the canal.' : `Help the boat tender deliver flowers to the coloured quays in any order. ${s.canalBoat?.delivered.length ?? 0} of ${gardenStops.length} trays delivered.`,
+    purpose: 'Use left, right, straight and stop instructions to navigate a real canal course.', reward: '100 XP · 30 coins · Two teas · Flowers along three quays',
+    destinations: has('canal-garden') ? [] : [destination(onWestBank(s.position) ? 'canal-boat' : 'ferry')],
+  });
   entries.push({id:'archive',title:'The House of Returning Maps',kind:'Exploration story',complete:has('archive-complete'),text:archiveStatus(s),purpose:'Explore connected galleries, assemble a forgotten river story and make polite requests in Thai.',reward:'100 XP · 25 coins · Two teas · The ferry ledger',destinations:archiveDestinations(s).map(id=>destination(id))});
   entries.push(
     {

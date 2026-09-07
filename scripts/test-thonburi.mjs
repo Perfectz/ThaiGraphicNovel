@@ -47,7 +47,9 @@ try{
  await walk(3,-68.5);await interact();await page.waitForTimeout(2400);await page.screenshot({path:`${out}/blue-house.png`});await talk();assert((await saved()).flags.includes('blue-house'));
  const completed=await saved();await interact();await talk();assert.equal((await saved()).xp,completed.xp);assert.equal((await saved()).coins,completed.coins);
  await page.reload({waitUntil:'domcontentloaded'});await page.getByRole('button',{name:/Continue adventure/}).click();assert((await saved()).flags.includes('blue-house'));await log('Delivered the sealed letter after both route steps; rewards and progress survived reload');
- await walk(29,-68);await walk(29,-56);await walk(17,-42);await interact();await talk();
+ await page.getByRole('button',{name:'Journal',exact:true}).click();assert(await page.locator('.quest-card[data-quest="canal-garden"]').isVisible());await page.getByRole('button',{name:'Close dialog',exact:true}).click();
+ await walk(29,-68);await walk(29,-56);await walk(18,-57);await page.getByRole('button',{name:/^E · /}).click();await page.getByRole('region',{name:'A Garden Between the Quays',exact:true}).waitFor();await page.getByRole('button',{name:'Leave garden boat',exact:true}).click();assert.equal((await saved()).canalBoat,undefined);await log('The delivered letter unlocked the garden activity on the actual canal quay');
+ await walk(17,-42);await interact();await talk();
  await page.getByRole('region',{name:'The last ferry crossing',exact:true}).waitFor();assert.equal((await saved()).passage,'riverside');await page.getByRole('button',{name:'Skip crossing →',exact:true}).click();
  await page.getByRole('button',{name:'Open town map ↗',exact:true}).waitFor();assert.deepEqual((await saved()).position,{x:1,z:-5.5});assert((await saved()).flags.includes('blue-house'));
  assert(recorded);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(report.errors,[]);

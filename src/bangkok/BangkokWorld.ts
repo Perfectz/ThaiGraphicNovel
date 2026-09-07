@@ -1,5 +1,6 @@
 import { ReunionGathering } from './ReunionGathering';
 import { CityScenery } from './CityScenery';
+import { CanalGardenWorld } from './CanalGardenWorld';
 import { RiverBoats } from './RiverBoats';
 import { FerryPassengers, type FerryRider } from './FerryPassengers';
 import { crossingPose } from './ferryPassage';
@@ -56,6 +57,7 @@ type WorldState = {
   boss?: boolean;
   conversation?: boolean;
   reunion?: boolean;
+  canalBoat?: boolean;
   contact?: ActorId;
 };
 const C = {
@@ -77,6 +79,7 @@ export class BangkokWorld {
   private worldCutaways: { object: T.Object3D; bounds: T.Box3 }[] = [];
   private combatStage: RiverBattleStage;
   private cityScenery: CityScenery;
+  private canalGarden: CanalGardenWorld;
   private combat: Battle | null = null;
   private camera = new T.PerspectiveCamera(43, 1, 0.1, 200);
   private renderer: T.WebGLRenderer;
@@ -211,6 +214,12 @@ export class BangkokWorld {
     this.batchStatic(this.combatStage.environmentFallback);
     this.batchStatic(this.combatStage.root);
     this.cityScenery = new CityScenery(this.scene, (root) => this.batchStatic(root));
+    this.canalGarden = new CanalGardenWorld(this.cityScenery.chunks.get('thonburi')!, root => this.batchStatic(root));
+    const boatTenderFallback = new T.Group();
+    this.canalGarden.tender.add(boatTenderFallback);
+    this.cylinder(.18, .65, [0, .7, 0], '#b49758', boatTenderFallback);
+    this.mesh(new T.SphereGeometry(.16, 10, 8), '#b68c64', boatTenderFallback, [0, 1.15, 0]);
+    void this.cityPeople.load('canal-boat', this.canalGarden.tender, boatTenderFallback, { height: 1.45 });
     this.cityScenery.chunks.forEach((chunk) => this.batchStatic(chunk));
     this.cityScenery.cutaways.forEach(({ object }) => this.batchStatic(object));
     const positions = new Float32Array(75 * 3);
@@ -864,13 +873,13 @@ export class BangkokWorld {
         this.host.clientWidth,
         this.host.clientHeight,
       );
-    else if (state.mode === 'adventure' && state.conversation)
+    else if (state.mode === 'adventure' && (state.conversation || state.canalBoat))
       this.camera.setViewOffset(
         this.host.clientWidth,
         this.host.clientHeight,
         0,
         this.host.clientHeight *
-          (state.contact && discoveryFor(state.contact) ? (narrow ? 0.24 : 0.2) : narrow ? 0.18 : 0.12),
+          (state.canalBoat ? .20 : state.contact && discoveryFor(state.contact) ? (narrow ? 0.24 : 0.2) : narrow ? 0.18 : 0.12),
         this.host.clientWidth,
         this.host.clientHeight,
       );
@@ -981,6 +990,12 @@ export class BangkokWorld {
         this.host.clientWidth < 700,
         this.reducedMotion,
       );
+    this.canalGarden.update(dt, this.elapsed, this.reducedMotion);
+    if (this.state.canalBoat) {
+      const p = this.canalGarden.boat.position;
+      this.targetPosition.set(p.x + 3.5, 10, p.z + 12);
+      this.targetLook.set(p.x, -.1, p.z - .4);
+    }
     if (now > this.interactingUntil) {
       const smooth = cameraBlend(rawMs / 1000, this.reducedMotion);
       this.camera.position.lerp(this.targetPosition, smooth);
@@ -1009,6 +1024,7 @@ export class BangkokWorld {
     this.sunlight.target.position.set(sunAnchor.x, 0, sunAnchor.z);
     if (this.state.mode === 'adventure' || this.state.mode === 'home') {
       const focalPoints = [{ x: this.player.x, y: 1.55, z: this.player.z }];
+      if (this.state.canalBoat) focalPoints.push({ x: this.canalGarden.boat.position.x, y: .6, z: this.canalGarden.boat.position.z });
       this.party.children.forEach((actor) => {
         if (actor.userData.basePosition)
           focalPoints.push({
@@ -1106,6 +1122,7 @@ export class BangkokWorld {
       this.host.dataset.cityEvening = JSON.stringify(this.cityScenery.evening.snapshot());
       this.host.dataset.cityRailway = JSON.stringify(this.cityScenery.railway.snapshot());
       this.host.dataset.canalHouses = JSON.stringify(this.cityScenery.canalHouses.snapshot());
+      this.host.dataset.canalGarden = JSON.stringify(this.canalGarden.snapshot());
       this.host.dataset.travelLantern = JSON.stringify(this.travelLantern?.snapshot() ?? null);
       this.host.dataset.visibleMemories = JSON.stringify(
         [...this.questMarkers].filter(([id, marker]) => discoveryFor(id) && marker.visible).map(([id]) => id),
@@ -1283,6 +1300,7 @@ export class BangkokWorld {
       this.path = [];
       this.trail = [];
     }
+    this.canalGarden.sync(save.canalBoat, !this.adventure);
     this.adventure = save;
     this.riverBoats.setDock(onWestBank(save.position)?crossingPose(1):null);
     this.cityScenery.evening.sync(save);
@@ -1523,6 +1541,7 @@ export class BangkokWorld {
             lanternRevealRadius(this.adventure!.lantern)
         : !(id === 'su' && has(this.adventure!, 'intro')) &&
           !(id === 'wisp' && this.state.conversation && this.state.contact === 'wisp');
+      if (this.state.canalBoat) marker.visible = false;
     });
     if (import.meta.env.DEV) {
       this.host.dataset.cityArea = cityAreaAt(this.player) ?? 'roads';
@@ -1677,7 +1696,7 @@ export class BangkokWorld {
       this.scene.add(group);
       this.actorObjects.set(a.id, group);
       const discovery = discoveryFor(a.id);
-      if(thonburiSite(a.id) && a.id!=='blue-house'){
+      if((thonburiSite(a.id) && a.id!=='blue-house') || a.id === 'canal-boat'){
         group.userData.appearanceReady=true;
         if(a.id!=='west-pier'){
           this.box([.09,1.2,.09],[0,.6,0],'#73573d',group);
@@ -1880,6 +1899,7 @@ export class BangkokWorld {
     this.discoveryModels.dispose();
     this.travelLantern?.dispose();
     this.riverBoats.dispose();
+    this.canalGarden.dispose();
     this.ferryPassengers.dispose();
     this.combatStage.environment.dispose();
     this.combatStage.spirits.dispose();

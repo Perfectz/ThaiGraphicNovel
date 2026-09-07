@@ -50,6 +50,11 @@ export async function voicePlan(){
     const {phrases}=await server.ssrLoadModule('/src/bangkok/curriculum.ts');
     for(const p of Object.values(phrases))add('Su',p.targetPhrase,'phrase',p.id);
     const {freshAdventure,objective}=await server.ssrLoadModule('/src/bangkok/adventure.ts');
+    const {boatStart,gardenStops}=await server.ssrLoadModule('/src/bangkok/canalNavigation.ts');
+    for(let count=0;count<=3;count++) {
+      const s={...freshAdventure(),position:{x:18,z:-57},trackedQuest:'canal-garden',flags:['intro','innkeeper','murmur','cook','ferry','keeper','departed','canal-post','canal-junction','blue-house',...(count===3?['canal-garden']:[])],canalBoat:{...boatStart(),delivered:gardenStops.slice(0,count).map(s=>s.id)}};
+      add('Su',`${objective(s).text} Look around, open your map, or talk to people again. If you want to rehearse a phrase, we can train at camp.`);
+    }
     const {hostWelcome,cityServices}=await server.ssrLoadModule('/src/bangkok/cityServices.ts');
     const {eveningScene,eveningChoices,eveningResponse}=await server.ssrLoadModule('/src/bangkok/eveningOuting.ts');
     for(const service of cityServices)add({innkeeper:'Mali',cook:'Uncle Lek',gardener:'Pim'}[service.host],service.result);

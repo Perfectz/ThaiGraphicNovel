@@ -6,12 +6,15 @@ import {localOpenAIKey} from './openai-local-key.mjs';
 import {voicePlan,speechModel} from './bangkok-voice-plan.mjs';
 const out=process.argv.find(a=>a.startsWith('--out='))?.slice(6)??'artifacts/openai-voices';await mkdir(out,{recursive:true});
 const decodeOnly=process.argv.includes('--decode-only');
+const selectedSamples=process.argv.find(a=>a.startsWith('--samples='))?.slice(10).split(',');
 const manifest=JSON.parse(await readFile('public/bangkok/voices/manifest.json','utf8'));
 const report={finished:false,model:speechModel,checkedAt:new Date().toISOString(),transcriptionRequested:!decodeOnly,decoded:[],transcripts:[],failures:[]};
 const save=()=>writeFile(`${out}/verification.json`,JSON.stringify(report,null,2));
 const normalize=s=>s.normalize('NFC').replace(/[\s\p{P}\p{S}]/gu,'').toLowerCase();
 try {
-  for(const planned of await voicePlan()){
+  const plannedRows=await voicePlan();
+  if(selectedSamples)assert(selectedSamples.every(id=>plannedRows.some(row=>row.id===id&&row.kind==='phrase')),'unknown phrase sample');
+  for(const planned of plannedRows.filter(row=>!selectedSamples||selectedSamples.includes(row.id))){
     const row=manifest.clips[planned.key];
     assert(row,`missing ${planned.id}`);
     assert.equal(row.model,speechModel,`model ${planned.id}`);
@@ -28,7 +31,7 @@ try {
     report.decoded.push({id:row.id,speaker:row.speaker,seconds:duration,rms,peak});
   }
   console.log(`Decoded ${report.decoded.length} recordings.`);await save();
-  const samples=['hello','not-spicy','water-please','say-again','how-much','my-name-is-patrick','reservation-have','where-is-station'];
+  const samples=selectedSamples??['hello','not-spicy','water-please','say-again','how-much','my-name-is-patrick','reservation-have','where-is-station'];
   const key=decodeOnly?null:localOpenAIKey();if(!decodeOnly)assert(key);
   for(const id of decodeOnly?[]:samples){
     const row=Object.values(manifest.clips).find(r=>r.id===id);

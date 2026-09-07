@@ -18,7 +18,7 @@ async function worker(){
   while(index<selected.length){
     const row=selected[index++];
     const instructions=row.kind==='phrase'
-      ? 'Speak only the supplied Thai phrase, exactly once. Use clear standard Central Thai with accurate lexical tones and vowel lengths. Calm friendly tutor; slightly slower than conversation but natural connected speech. No English, no introduction, no extra particles, no music.'
+      ? 'Speak only the supplied Thai phrase, exactly once. Use clear standard Central Thai with accurate lexical tones and vowel lengths. Calm friendly tutor; slightly slower than conversation but natural connected speech. No English, no introduction, no extra particles, no music.' + (row.id==='turn-left'?' Preserve the full Thai diphthong in เลี้ยว. Do not shorten it to ลิ้ว. Read the complete supplied phrase naturally, once.':'')
       : `Voice the exact supplied script for ${row.speaker}, an original character in a Bangkok adventure. Warm, grounded, conversational storytelling. Clear relaxed English, natural Thai names. Read only the supplied words, preserving quoted dialogue; do not add an introduction, translation, sound effects, or music.`;
     const fingerprint=createHash('sha256').update(JSON.stringify({model:speechModel,...row,instructions})).digest('hex');
     const path=`${out}/${row.id}.mp3`;
